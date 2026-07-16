@@ -24,12 +24,12 @@ export function AppShell({ children }: AppShellProps) {
           <nav aria-label="Primary" className="mt-8">
             <ul className="grid gap-2">
               {primaryNavigation.map((item) => (
-                <li key={item}>
+                <li key={item.label}>
                   <Link
                     className="flex rounded-lg px-3 py-2 text-sm font-medium text-stone-200 transition hover:bg-stone-800 hover:text-white"
-                    href={item === "Today" ? "/" : "#"}
+                    href={item.href}
                   >
-                    {item}
+                    {item.label}
                   </Link>
                 </li>
               ))}

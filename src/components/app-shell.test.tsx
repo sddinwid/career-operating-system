@@ -11,7 +11,7 @@ describe("AppShell", () => {
     );
 
     for (const item of primaryNavigation) {
-      expect(screen.getByRole("link", { name: item })).toBeInTheDocument();
+      expect(screen.getByRole("link", { name: item.label })).toBeInTheDocument();
     }
   });
 });

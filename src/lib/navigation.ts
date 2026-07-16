@@ -1,13 +1,13 @@
 export const primaryNavigation = [
-  "Today",
-  "Applications",
-  "Calendar",
-  "Companies",
-  "Contacts",
-  "Interviews",
-  "Documents",
-  "Career Profile",
-  "Analytics",
-  "Imports/Exports",
-  "Settings"
+  { label: "Today", href: "/" },
+  { label: "Applications", href: "/applications" },
+  { label: "Calendar", href: "#" },
+  { label: "Companies", href: "#" },
+  { label: "Contacts", href: "#" },
+  { label: "Interviews", href: "#" },
+  { label: "Documents", href: "#" },
+  { label: "Career Profile", href: "#" },
+  { label: "Analytics", href: "#" },
+  { label: "Imports/Exports", href: "#" },
+  { label: "Settings", href: "#" }
 ] as const;
