@@ -7,12 +7,399 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum JobOpportunityStatus {
+  DISCOVERED
+  SAVED
+  APPLIED
+  CLOSED
+  ARCHIVED
+}
+
+enum WorkArrangement {
+  ONSITE
+  HYBRID
+  REMOTE
+  FLEXIBLE
+}
+
+enum EmploymentType {
+  FULL_TIME
+  PART_TIME
+  CONTRACT
+  TEMPORARY
+  INTERNSHIP
+  FREELANCE
+  OTHER
+}
+
+enum ApplicationStatus {
+  DRAFT
+  APPLIED
+  IN_PROGRESS
+  INTERVIEW
+  OFFER
+  REJECTED
+  WITHDRAWN
+  ARCHIVED
+}
+
+enum ApplicationPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum ActivityType {
+  SUBMITTED
+  CONTACT_FOUND
+  LINKEDIN_REQUEST
+  LINKEDIN_MESSAGE
+  LINKEDIN_RESPONSE
+  EMAIL_SENT
+  EMAIL_RESPONSE
+  INTERVIEW_SCHEDULED
+  INTERVIEW_COMPLETED
+  FOLLOW_UP
+  NOTE
+  REJECTION
+  OFFER
+  DOCUMENT_GENERATED
+  STATUS_CHANGE
+  OTHER
+}
+
+enum EmailConfidence {
+  UNKNOWN
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum InterviewStatus {
+  SCHEDULED
+  COMPLETED
+  CANCELED
+  RESCHEDULED
+  NO_SHOW
+}
+
+enum DocumentType {
+  RESUME
+  COVER_LETTER
+  APPLICATION_ANSWER
+  INTERVIEW_PREP
+  PORTFOLIO
+  OTHER
+}
+
+enum DocumentStatus {
+  DRAFT
+  REVIEWED
+  DOWNLOADED
+  SUBMITTED
+  SUPERSEDED
+  ARCHIVED
+}
+
+enum DocumentFormat {
+  PDF
+  DOCX
+  TXT
+  MD
+  JSON
+  OTHER
+}
+
+enum DocumentSource {
+  UPLOADED
+  GENERATED
+  IMPORTED
+  OTHER
+}
+
+enum ImportJobStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+  CANCELED
+}
+
+enum ImportRowStatus {
+  PENDING
+  PREVIEW
+  READY
+  IMPORTED
+  DUPLICATE
+  INVALID
+  SKIPPED
+}
+
+enum AiRunPurpose {
+  PARSE_JOB_DESCRIPTION
+  SCORE_CAREER_EVIDENCE
+  GENERATE_RESUME_CONTENT
+  GENERATE_COVER_LETTER
+  GENERATE_APPLICATION_ANSWER
+  GENERATE_INTERVIEW_PREPARATION
+}
+
+enum AiRunStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+  CANCELED
+}
+
 model Workspace {
-  id           String        @id @default(cuid())
-  name         String
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
-  userSettings UserSetting[]
+  id                    String                    @id @default(cuid())
+  name                  String
+  createdAt             DateTime                  @default(now())
+  updatedAt             DateTime                  @updatedAt
+  activities            Activity[]
+  aiRuns                AiRun[]
+  applications          Application[]
+  auditEvents           AuditEvent[]
+  careerProfileVersions CareerProfileVersion[]
+  companies             Company[]
+  contacts              Contact[]
+  documents             Document[]
+  importJobs            ImportJob[]
+  interviews            Interview[]
+  jobOpportunities      JobOpportunity[]
+  userSettings          UserSetting[]
+}
+
+model Company {
+  id               String           @id @default(cuid())
+  workspaceId      String
+  name             String
+  normalizedName   String
+  website          String?
+  linkedinUrl      String?
+  industry         String?
+  notes            String?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  workspace        Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+  activities       Activity[]
+  contacts         Contact[]
+  jobOpportunities JobOpportunity[]
+
+  @@unique([workspaceId, normalizedName])
+  @@index([workspaceId, name])
+}
+
+model JobOpportunity {
+  id              String               @id @default(cuid())
+  workspaceId     String
+  companyId       String
+  title           String
+  jobUrl          String?
+  source          String?
+  location        String?
+  workArrangement WorkArrangement?
+  employmentType  EmploymentType?
+  salaryMin       Decimal?             @db.Decimal(12, 2)
+  salaryMax       Decimal?             @db.Decimal(12, 2)
+  salaryCurrency  String?
+  descriptionText String?
+  descriptionData Json?
+  postedAt        DateTime?
+  capturedAt      DateTime             @default(now())
+  status          JobOpportunityStatus @default(DISCOVERED)
+  company         Company              @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  workspace       Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+  applications    Application[]
+
+  @@index([workspaceId, status])
+  @@index([companyId])
+}
+
+model Application {
+  id                    String                     @id @default(cuid())
+  workspaceId           String
+  opportunityId         String
+  appliedAt             DateTime?
+  recordedAt            DateTime                   @default(now())
+  originalAppliedAt     DateTime?
+  jobSearchDate         DateTime?                  @db.Date
+  status                ApplicationStatus          @default(DRAFT)
+  priority              ApplicationPriority?
+  notes                 String?
+  archivedAt            DateTime?
+  createdAt             DateTime                   @default(now())
+  updatedAt             DateTime                   @updatedAt
+  workspace             Workspace                  @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+  opportunity           JobOpportunity             @relation(fields: [opportunityId], references: [id], onDelete: Restrict)
+  activities            Activity[]                 @relation("ApplicationActivities")
+  aiRuns                AiRun[]                    @relation("ApplicationAiRuns")
+  documents             Document[]                 @relation("ApplicationDocuments")
+  interviews            Interview[]
+  matchedImportRows     ImportRow[]                @relation("MatchedImportRows")
+  statusHistoryEntries  ApplicationStatusHistory[]
+
+  @@index([workspaceId, status, jobSearchDate])
+  @@index([opportunityId])
+}
+
+model ApplicationStatusHistory {
+  id            String             @id @default(cuid())
+  applicationId String
+  fromStatus    ApplicationStatus?
+  toStatus      ApplicationStatus
+  occurredAt    DateTime
+  recordedAt    DateTime           @default(now())
+  reason        String?
+  source        String?
+  application   Application        @relation(fields: [applicationId], references: [id], onDelete: Restrict)
+
+  @@index([applicationId, occurredAt])
+}
+
+model Activity {
+  id               String        @id @default(cuid())
+  workspaceId      String
+  applicationId    String?
+  companyId        String?
+  contactId        String?
+  interviewId      String?
+  type             ActivityType
+  occurredAt       DateTime
+  originalOccurredAt DateTime?
+  recordedAt       DateTime      @default(now())
+  jobSearchDate    DateTime      @db.Date
+  timeZone         String?
+  summary          String
+  notes            String?
+  metadata         Json?
+  createdAt        DateTime      @default(now())
+  application      Application?  @relation("ApplicationActivities", fields: [applicationId], references: [id], onDelete: SetNull)
+  company          Company?      @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  contact          Contact?      @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  interview        Interview?    @relation(fields: [interviewId], references: [id], onDelete: SetNull)
+  workspace        Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+
+  @@index([workspaceId, jobSearchDate])
+  @@index([applicationId, occurredAt])
+}
+
+model Contact {
+  id                String          @id @default(cuid())
+  workspaceId       String
+  companyId         String?
+  name              String
+  title             String?
+  linkedinUrl       String?
+  email             String?
+  emailConfidence   EmailConfidence @default(UNKNOWN)
+  relationshipType  String?
+  notes             String?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  company           Company?        @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  workspace         Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+  activities        Activity[]
+
+  @@index([workspaceId, name])
+  @@index([companyId])
+}
+
+model Interview {
+  id                  String          @id @default(cuid())
+  workspaceId         String
+  applicationId       String
+  stage               String
+  scheduledStart      DateTime
+  scheduledEnd        DateTime?
+  timeZone            String
+  locationOrMeetingUrl String?
+  status              InterviewStatus @default(SCHEDULED)
+  notes               String?
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
+  application         Application     @relation(fields: [applicationId], references: [id], onDelete: Restrict)
+  workspace           Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+  activities          Activity[]
+
+  @@index([workspaceId, scheduledStart])
+  @@index([applicationId, scheduledStart])
+}
+
+model Document {
+  id            String         @id @default(cuid())
+  workspaceId   String
+  applicationId String?
+  type          DocumentType
+  title         String
+  status        DocumentStatus @default(DRAFT)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  application   Application?   @relation("ApplicationDocuments", fields: [applicationId], references: [id], onDelete: SetNull)
+  workspace     Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+  versions      DocumentVersion[]
+
+  @@index([applicationId, createdAt])
+  @@index([workspaceId, type])
+}
+
+model DocumentVersion {
+  id               String         @id @default(cuid())
+  documentId       String
+  versionNumber    Int
+  format           DocumentFormat
+  originalFilename String
+  storedFilename   String
+  storagePath      String
+  mimeType         String
+  sizeBytes        Int
+  checksum         String
+  source           DocumentSource
+  generatedAt      DateTime       @default(now())
+  downloadedAt     DateTime?
+  submittedAt      DateTime?
+  metadata         Json?
+  document         Document       @relation(fields: [documentId], references: [id], onDelete: Restrict)
+
+  @@unique([documentId, versionNumber])
+  @@index([documentId, generatedAt])
+}
+
+model ImportJob {
+  id           String          @id @default(cuid())
+  workspaceId  String
+  filename     String
+  checksum     String
+  status       ImportJobStatus @default(PENDING)
+  startedAt    DateTime        @default(now())
+  completedAt  DateTime?
+  sheetName    String?
+  mapping      Json?
+  summary      Json?
+  errorMessage String?
+  workspace    Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+  rows         ImportRow[]
+
+  @@index([workspaceId, status, startedAt])
+}
+
+model ImportRow {
+  id                   String         @id @default(cuid())
+  importJobId          String
+  sheetName            String
+  rowNumber            Int
+  rawData              Json
+  normalizedData       Json?
+  status               ImportRowStatus @default(PENDING)
+  errorMessages        Json?
+  matchedApplicationId String?
+  importJob            ImportJob      @relation(fields: [importJobId], references: [id], onDelete: Restrict)
+  matchedApplication   Application?   @relation("MatchedImportRows", fields: [matchedApplicationId], references: [id], onDelete: SetNull)
+
+  @@index([importJobId, status])
+  @@index([matchedApplicationId])
 }
 
 model UserSetting {
@@ -21,7 +408,60 @@ model UserSetting {
   key         String
   value       Json
   updatedAt   DateTime  @updatedAt
-  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
 
   @@unique([workspaceId, key])
+}
+
+model AuditEvent {
+  id         String    @id @default(cuid())
+  workspaceId String
+  entityType String
+  entityId   String
+  action     String
+  occurredAt DateTime  @default(now())
+  before     Json?
+  after      Json?
+  reason     String?
+  workspace  Workspace @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+
+  @@index([workspaceId, occurredAt])
+  @@index([entityType, entityId])
+}
+
+model CareerProfileVersion {
+  id             String    @id @default(cuid())
+  workspaceId    String
+  schemaVersion  String
+  sourceFilename String
+  content        Json
+  checksum       String
+  importedAt     DateTime  @default(now())
+  active         Boolean   @default(false)
+  workspace      Workspace @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+
+  @@index([workspaceId, active])
+}
+
+model AiRun {
+  id               String       @id @default(cuid())
+  workspaceId      String
+  applicationId    String?
+  purpose          AiRunPurpose
+  provider         String
+  model            String
+  promptVersion    String?
+  request          Json?
+  response         Json?
+  structuredResult Json?
+  status           AiRunStatus  @default(PENDING)
+  tokenUsage       Json?
+  startedAt        DateTime     @default(now())
+  completedAt      DateTime?
+  errorMessage     String?
+  application      Application? @relation("ApplicationAiRuns", fields: [applicationId], references: [id], onDelete: SetNull)
+  workspace        Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+
+  @@index([workspaceId, status, startedAt])
+  @@index([applicationId, purpose])
 }

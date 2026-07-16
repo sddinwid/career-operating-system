@@ -92,3 +92,10 @@ Do not persist as authoritative unless a snapshot is required:
 - monthly totals
 
 These are calculated through workflow/query services.
+
+## Prisma implementation notes
+
+- `Company.normalizedName` is added to support the approved workspace-scoped duplicate strategy and enforce uniqueness without mutating the display name.
+- `Application.jobSearchDate` and `Activity.jobSearchDate` are stored as SQL `DATE` values, while actual event moments remain `DateTime` UTC timestamps.
+- `AuditEvent.entityId` remains a string without a direct foreign key because audit rows must support multiple entity types without accidental cascade deletion.
+- `Document.applicationId`, `Activity.applicationId`, `Activity.companyId`, `Activity.contactId`, `Activity.interviewId`, `ImportRow.matchedApplicationId`, and `AiRun.applicationId` are nullable so historical records can survive entity cleanup through `SET NULL` rather than deletion.
