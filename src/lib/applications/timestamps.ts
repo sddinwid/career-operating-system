@@ -105,21 +105,7 @@ function getLocalPartsForInstant(date: Date, timeZone: string): LocalDateTimePar
   };
 }
 
-function getTimeZoneOffsetMilliseconds(date: Date, timeZone: string) {
-  const localParts = getLocalPartsForInstant(date, timeZone);
-  const utcEquivalent = Date.UTC(
-    localParts.year,
-    localParts.month - 1,
-    localParts.day,
-    localParts.hour,
-    localParts.minute,
-    localParts.second
-  );
-
-  return utcEquivalent - date.getTime();
-}
-
-function localDateTimeToUtc(parts: LocalDateTimeParts, timeZone: string) {
+export function localDateTimeToUtc(parts: LocalDateTimeParts, timeZone: string) {
   let guess = Date.UTC(
     parts.year,
     parts.month - 1,
@@ -130,15 +116,56 @@ function localDateTimeToUtc(parts: LocalDateTimeParts, timeZone: string) {
   );
 
   for (let index = 0; index < 3; index += 1) {
-    const offset = getTimeZoneOffsetMilliseconds(new Date(guess), timeZone);
-    guess -= offset;
+    const actualLocalParts = getLocalPartsForInstant(new Date(guess), timeZone);
+    const desiredUtcEquivalent = Date.UTC(
+      parts.year,
+      parts.month - 1,
+      parts.day,
+      parts.hour,
+      parts.minute,
+      parts.second
+    );
+    const actualUtcEquivalent = Date.UTC(
+      actualLocalParts.year,
+      actualLocalParts.month - 1,
+      actualLocalParts.day,
+      actualLocalParts.hour,
+      actualLocalParts.minute,
+      actualLocalParts.second
+    );
+
+    const difference = desiredUtcEquivalent - actualUtcEquivalent;
+    guess += difference;
   }
 
   return new Date(guess);
 }
 
-function localDateToUtcDate(parts: LocalDateParts) {
+export function localDateToUtcDate(parts: LocalDateParts) {
   return new Date(Date.UTC(parts.year, parts.month - 1, parts.day));
+}
+
+export function resolveLocalDateAtTime(
+  localDate: string,
+  timeZone: string,
+  time = "00:00"
+) {
+  const [hour, minute] = time.split(":").map(Number);
+  const dateParts = parseLocalDate(localDate);
+
+  return localDateTimeToUtc(
+    {
+      ...dateParts,
+      hour,
+      minute,
+      second: 0
+    },
+    timeZone
+  );
+}
+
+export function resolveLocalDateAtNoon(localDate: string, timeZone: string) {
+  return resolveLocalDateAtTime(localDate, timeZone, "12:00");
 }
 
 function shiftLocalDate(parts: LocalDateParts, dayOffset: number): LocalDateParts {

@@ -39,6 +39,12 @@ export default async function ApplicationsPage({
         <div className="flex flex-wrap gap-3">
           <Link
             className="rounded-full border border-stone-300 px-5 py-3 text-sm font-semibold text-stone-700 transition hover:border-stone-950 hover:text-stone-950"
+            href="/imports"
+          >
+            Import Excel
+          </Link>
+          <Link
+            className="rounded-full border border-stone-300 px-5 py-3 text-sm font-semibold text-stone-700 transition hover:border-stone-950 hover:text-stone-950"
             href={includeArchived ? "/applications" : "/applications?archived=1"}
           >
             {includeArchived ? "Hide archived" : "Show archived"}

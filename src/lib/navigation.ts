@@ -8,6 +8,6 @@ export const primaryNavigation = [
   { label: "Documents", href: "#" },
   { label: "Career Profile", href: "#" },
   { label: "Analytics", href: "#" },
-  { label: "Imports/Exports", href: "#" },
+  { label: "Imports/Exports", href: "/imports" },
   { label: "Settings", href: "#" }
 ] as const;
