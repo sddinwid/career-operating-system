@@ -1,0 +1,1412 @@
+{
+  "_meta": {
+    "documentType": "career_knowledge_base",
+    "schemaVersion": "3.0.0",
+    "owner": "Scott Dinwiddie",
+    "generatedOn": "2026-07-15",
+    "intendedUse": [
+      "AI-assisted resume generation",
+      "ATS optimization",
+      "cover letter generation",
+      "interview preparation",
+      "career history preservation"
+    ],
+    "submissionReady": false,
+    "instructions": [
+      "This file is not a resume.",
+      "Use it as the authoritative source for generating targeted resumes.",
+      "Do not invent experience, technologies, dates, metrics, or certifications.",
+      "Unknown or incomplete values must remain unknown until verified."
+    ],
+    "changeSummary": [
+      "Added accomplishment-level records with evidence and targeting metadata.",
+      "Added reusable resume bullet records.",
+      "Added architecture, leadership, production, and interview-story collections.",
+      "Added job-description parsing and candidate-content scoring rules.",
+      "Added output-generation workflows and review gates.",
+      "Added writing preferences for resumes, cover letters, recruiter messages, and interview responses."
+    ]
+  },
+  "candidateProfile": {
+    "_id": "candidate_scott_dinwiddie",
+    "name": "Scott Dinwiddie",
+    "email": "sddinwid@gmail.com",
+    "phone": "503-519-3557",
+    "linkedin": "linkedin.com/in/scott-dinwiddie-845a6418/",
+    "github": "github.com/sddinwid",
+    "primaryTargetRoles": [
+      "Backend Software Engineer",
+      "Senior Backend Engineer",
+      "Full Stack Software Engineer",
+      "AI Engineer",
+      "Agentic AI Engineer",
+      "Software Engineer",
+      "Senior Software Engineer"
+    ],
+    "preferredPositioning": {
+      "default": "Senior Backend/Full Stack Engineer",
+      "backend": "Senior Backend Engineer",
+      "ai": "Senior Software Engineer, AI and Agentic Systems",
+      "microsoft": "Senior Full Stack Engineer, C#/.NET",
+      "javaKotlin": "Senior Backend Engineer, Java/Kotlin"
+    },
+    "careerThemes": [
+      "Backend and distributed systems",
+      "Cloud-native application development",
+      "Enterprise SaaS",
+      "AI and agentic systems",
+      "Production reliability",
+      "Full stack product development",
+      "Cross-functional collaboration",
+      "Mentoring and technical leadership"
+    ]
+  },
+  "resumeGenerationRules": {
+    "_id": "ruleset_resume_generation_v1",
+    "globalRules": [
+      "Never invent experience.",
+      "Select and reorder truthful content based on the target job.",
+      "Default targeted resume length is three pages.",
+      "Prioritize the job's required stack, domain, and responsibilities.",
+      "Use measurable accomplishments where known.",
+      "Treat architecturally significant projects as first-class portfolio evidence.",
+      "Do not overstate recency. Distinguish recent project use from older professional use.",
+      "Do not include expired certifications unless specifically relevant.",
+      "Prefer underlying technical skills over expired credential names.",
+      "Do not use em dashes.",
+      "Avoid corporate filler and generic claims."
+    ],
+    "stackOrderingRules": {
+      "pythonBackend": {
+        "priorityOrder": [
+          "Python",
+          "Node.js",
+          "TypeScript",
+          "FastAPI",
+          "NestJS",
+          "AWS",
+          "PostgreSQL",
+          "Distributed Systems",
+          "C#",
+          ".NET",
+          "ASP.NET",
+          "Kotlin",
+          "Spring Boot",
+          "Java"
+        ],
+        "notes": [
+          "Microsoft skills should appear after the primary Python/Node stack.",
+          "Java/Kotlin should appear after Microsoft unless the job specifically values Java/Kotlin."
+        ]
+      },
+      "microsoftStack": {
+        "priorityOrder": [
+          "C#",
+          ".NET",
+          "ASP.NET",
+          "ASP.NET Core",
+          "SQL Server",
+          "Entity Framework Core",
+          "React",
+          "TypeScript",
+          "Python",
+          "Node.js",
+          "AWS",
+          "Kotlin",
+          "Spring Boot",
+          "Java"
+        ],
+        "preferredEvidence": [
+          "PolyglotStack",
+          "BOXX Technologies",
+          "Prosper IT Consulting"
+        ]
+      },
+      "javaKotlin": {
+        "priorityOrder": [
+          "Kotlin",
+          "Spring Boot",
+          "Java",
+          "PostgreSQL",
+          "React",
+          "TypeScript",
+          "Python",
+          "Node.js",
+          "C#",
+          ".NET",
+          "ASP.NET"
+        ],
+        "preferredEvidence": [
+          "OpsPilot",
+          "Prosper IT Consulting Java contract"
+        ]
+      },
+      "aiAgentic": {
+        "priorityOrder": [
+          "Python",
+          "TypeScript",
+          "FastAPI",
+          "Node.js",
+          "RAG",
+          "LLM Workflows",
+          "Agent Orchestration",
+          "Tool Invocation",
+          "Evaluation",
+          "Observability",
+          "PostgreSQL",
+          "pgvector",
+          "Redis",
+          "Docker",
+          "AWS"
+        ],
+        "preferredEvidence": [
+          "AgentV",
+          "AI Knowledge Search Platform",
+          "MSP AI Assistant"
+        ]
+      }
+    },
+    "experienceSelectionRules": [
+      {
+        "target": "Microsoft/.NET",
+        "includeFirst": [
+          "BOXX Technologies",
+          "Prosper IT Consulting",
+          "PolyglotStack"
+        ]
+      },
+      {
+        "target": "Python Backend",
+        "includeFirst": [
+          "Capital One",
+          "Marathon TS",
+          "AgentV",
+          "AI Knowledge Search Platform"
+        ]
+      },
+      {
+        "target": "Enterprise SaaS",
+        "includeFirst": [
+          "Capital One",
+          "SherpaCRM",
+          "Marathon TS",
+          "OpsPilot",
+          "BOXX Technologies"
+        ]
+      },
+      {
+        "target": "AI/LLM",
+        "includeFirst": [
+          "AgentV",
+          "AI Knowledge Search Platform",
+          "MSP AI Assistant"
+        ]
+      }
+    ],
+    "coverLetterRules": {
+      "lengthWords": {
+        "minimum": 150,
+        "maximum": 250
+      },
+      "paragraphs": "3 to 4",
+      "mustDo": [
+        "Explain why the role or company is interesting.",
+        "Explain what kind of engineer Scott is.",
+        "Give the company a reason to interview him.",
+        "Sound direct, natural, and confident."
+      ],
+      "mustNotDo": [
+        "Repeat the resume.",
+        "List technologies already visible on the resume without a specific reason.",
+        "Use em dashes.",
+        "Use excessive corporate language.",
+        "Sound overly polished or generic."
+      ]
+    },
+    "recruiterOptimizationRules": {
+      "assumption": "Recruiters spend ~7 seconds on first pass.",
+      "rules": [
+        "Lead with highest-impact accomplishments.",
+        "Order bullets by importance, not chronology.",
+        "Replace vague statements with specific positioning.",
+        "Eliminate redundant wording.",
+        "Prefer quantified impact.",
+        "Optimize for scanning with concise bullets.",
+        "Tailor summary, technology ordering, and accomplishments to each target role.",
+        "Show evidence instead of adjectives.",
+        "Use personal motivation only when it reinforces company alignment."
+      ]
+    }
+  },
+  "skills": [
+    {
+      "_id": "skill_python",
+      "name": "Python",
+      "category": "language",
+      "recent": true
+    },
+    {
+      "_id": "skill_typescript",
+      "name": "TypeScript",
+      "category": "language",
+      "recent": true
+    },
+    {
+      "_id": "skill_javascript",
+      "name": "JavaScript",
+      "category": "language",
+      "recent": true
+    },
+    {
+      "_id": "skill_csharp",
+      "name": "C#",
+      "category": "language",
+      "recent": true,
+      "notes": "Recent project use in PolyglotStack; prior professional use at BOXX and Prosper IT Consulting."
+    },
+    {
+      "_id": "skill_java",
+      "name": "Java",
+      "category": "language",
+      "recent": false,
+      "notes": "Professional contract experience at Prosper IT Consulting."
+    },
+    {
+      "_id": "skill_kotlin",
+      "name": "Kotlin",
+      "category": "language",
+      "recent": true
+    },
+    {
+      "_id": "skill_vbnet",
+      "name": "VB.NET",
+      "category": "language",
+      "recent": false
+    },
+    {
+      "_id": "skill_php",
+      "name": "PHP",
+      "category": "language",
+      "recent": false
+    },
+    {
+      "_id": "skill_classic_asp",
+      "name": "Classic ASP",
+      "category": "language",
+      "recent": false
+    },
+    {
+      "_id": "skill_sql",
+      "name": "SQL",
+      "category": "language",
+      "recent": true
+    },
+    {
+      "_id": "skill_fastapi",
+      "name": "FastAPI",
+      "category": "backend_framework",
+      "recent": true
+    },
+    {
+      "_id": "skill_nestjs",
+      "name": "NestJS",
+      "category": "backend_framework",
+      "recent": true
+    },
+    {
+      "_id": "skill_nodejs",
+      "name": "Node.js",
+      "category": "backend_runtime",
+      "recent": true
+    },
+    {
+      "_id": "skill_dotnet",
+      "name": ".NET",
+      "category": "backend_framework",
+      "recent": true
+    },
+    {
+      "_id": "skill_aspnet",
+      "name": "ASP.NET",
+      "category": "backend_framework",
+      "recent": false
+    },
+    {
+      "_id": "skill_aspnetcore",
+      "name": "ASP.NET Core",
+      "category": "backend_framework",
+      "recent": true
+    },
+    {
+      "_id": "skill_springboot",
+      "name": "Spring Boot",
+      "category": "backend_framework",
+      "recent": true
+    },
+    {
+      "_id": "skill_react",
+      "name": "React",
+      "category": "frontend_framework",
+      "recent": true
+    },
+    {
+      "_id": "skill_nextjs",
+      "name": "Next.js",
+      "category": "frontend_framework",
+      "recent": true
+    },
+    {
+      "_id": "skill_react_native",
+      "name": "React Native",
+      "category": "frontend_framework",
+      "recent": true
+    },
+    {
+      "_id": "skill_postgresql",
+      "name": "PostgreSQL",
+      "category": "database",
+      "recent": true
+    },
+    {
+      "_id": "skill_sqlserver",
+      "name": "SQL Server",
+      "category": "database",
+      "recent": false,
+      "notes": "Professional use at BOXX Technologies."
+    },
+    {
+      "_id": "skill_mysql",
+      "name": "MySQL",
+      "category": "database",
+      "recent": true
+    },
+    {
+      "_id": "skill_mongodb",
+      "name": "MongoDB",
+      "category": "database",
+      "recent": true
+    },
+    {
+      "_id": "skill_redis",
+      "name": "Redis",
+      "category": "database",
+      "recent": true
+    },
+    {
+      "_id": "skill_pgvector",
+      "name": "pgvector",
+      "category": "vector_database",
+      "recent": true
+    },
+    {
+      "_id": "skill_qdrant",
+      "name": "Qdrant",
+      "category": "vector_database",
+      "recent": true
+    },
+    {
+      "_id": "skill_aws",
+      "name": "AWS",
+      "category": "cloud",
+      "recent": true
+    },
+    {
+      "_id": "skill_docker",
+      "name": "Docker",
+      "category": "devops",
+      "recent": true
+    },
+    {
+      "_id": "skill_terraform",
+      "name": "Terraform",
+      "category": "devops",
+      "recent": true
+    },
+    {
+      "_id": "skill_cloudformation",
+      "name": "CloudFormation",
+      "category": "devops",
+      "recent": true
+    },
+    {
+      "_id": "skill_jenkins",
+      "name": "Jenkins",
+      "category": "devops",
+      "recent": true
+    },
+    {
+      "_id": "skill_github_actions",
+      "name": "GitHub Actions",
+      "category": "devops",
+      "recent": true
+    }
+  ],
+  "professionalExperience": [
+    {
+      "_id": "exp_tigerhawk",
+      "company": "Tigerhawk Technologies",
+      "title": "IT Specialist / Team Lead",
+      "startDate": "2025-07",
+      "endDate": "2026-01",
+      "themes": [
+        "technical operations",
+        "production support",
+        "documentation",
+        "leadership"
+      ],
+      "resumeBullets": [
+        "Worked directly with stakeholders to support configurable client environments, technical platforms, and production systems.",
+        "Created and maintained documentation, support procedures, and reusable technical workflows.",
+        "Supported production systems through monitoring, troubleshooting, root cause analysis, and backend issue resolution.",
+        "Coordinated technical workflows and operational support across multiple client systems and integrations."
+      ]
+    },
+    {
+      "_id": "exp_capital_one",
+      "company": "Capital One",
+      "title": "Software Engineer",
+      "startDate": "2022-10",
+      "endDate": "2023-11",
+      "themes": [
+        "AWS",
+        "distributed systems",
+        "enterprise data",
+        "CI/CD",
+        "mentoring"
+      ],
+      "technologies": [
+        "AWS Lambda",
+        "Step Functions",
+        "SQL",
+        "Docker",
+        "CI/CD",
+        "Spark"
+      ],
+      "metrics": [
+        {
+          "description": "Reduced Docker image sizes",
+          "value": "approximately 60%"
+        }
+      ]
+    },
+    {
+      "_id": "exp_sherpacrm",
+      "company": "SherpaCRM",
+      "title": "Software Engineer (Contract)",
+      "startDate": "2021-11",
+      "endDate": "2022-08",
+      "themes": [
+        "CRM",
+        "SaaS",
+        "backend APIs",
+        "MySQL",
+        "production reliability"
+      ],
+      "technologies": [
+        "MySQL",
+        "Datadog",
+        "backend APIs"
+      ]
+    },
+    {
+      "_id": "exp_marathon_ts",
+      "company": "Marathon TS",
+      "title": "Software Engineer",
+      "startDate": "2019-11",
+      "endDate": "2021-07",
+      "themes": [
+        "Python",
+        "AWS",
+        "event-driven systems",
+        "distributed processing",
+        "CI/CD"
+      ],
+      "technologies": [
+        "Python",
+        "Lambda",
+        "SQS",
+        "SNS",
+        "IAM",
+        "Jenkins",
+        "CloudFormation"
+      ],
+      "metrics": [
+        {
+          "description": "Improved backend processing throughput",
+          "value": "approximately 25%"
+        }
+      ]
+    },
+    {
+      "_id": "exp_boxx",
+      "company": "BOXX Technologies",
+      "title": "Web Developer",
+      "startDate": "2016-04",
+      "endDate": "2019-06",
+      "themes": [
+        "C#",
+        ".NET",
+        "SQL Server",
+        "CRM",
+        "web applications"
+      ],
+      "technologies": [
+        "C#",
+        "ASP.NET",
+        ".NET",
+        "SQL Server",
+        "WordPress"
+      ],
+      "facts": [
+        "Primary web developer for the first two years.",
+        "Worked with a .NET-based CRM.",
+        "Built features supporting product configuration and marketing workflows."
+      ]
+    },
+    {
+      "_id": "exp_xpressbet",
+      "company": "XpressBet",
+      "title": "PHP Developer",
+      "startDate": "2015-04",
+      "endDate": "2016-02",
+      "themes": [
+        "high-traffic systems",
+        "backend web development",
+        "performance"
+      ],
+      "technologies": [
+        "PHP"
+      ]
+    },
+    {
+      "_id": "exp_prosper_it",
+      "company": "Prosper IT Consulting",
+      "title": "Software Consultant",
+      "startDate": "2013",
+      "endDate": "2014",
+      "employmentStructure": "Three separate contracts during approximately one year.",
+      "contracts": [
+        {
+          "sequence": 1,
+          "focus": "Legacy modernization",
+          "technologies": [
+            "Classic ASP",
+            "ASP.NET",
+            "C#",
+            "VB.NET"
+          ],
+          "facts": [
+            "Primarily migrated Classic ASP applications to ASP.NET using C#, with some VB.NET."
+          ]
+        },
+        {
+          "sequence": 2,
+          "focus": "Java software development",
+          "technologies": [
+            "Java"
+          ]
+        },
+        {
+          "sequence": 3,
+          "focus": "Microsoft application development",
+          "technologies": [
+            "C#",
+            "VB.NET"
+          ]
+        }
+      ]
+    }
+  ],
+  "projects": [
+    {
+      "_id": "project_agentv",
+      "name": "AgentV",
+      "type": "Agentic Workflow, Evaluation, and Distributed Execution Platform",
+      "technologies": [
+        "Python",
+        "FastAPI",
+        "TypeScript",
+        "React",
+        "PostgreSQL",
+        "Redis",
+        "Docker",
+        "Ollama"
+      ],
+      "themes": [
+        "agent orchestration",
+        "distributed execution",
+        "observability",
+        "evaluation",
+        "retries",
+        "tool invocation"
+      ],
+      "preferredFor": [
+        "AI Engineer",
+        "Backend Engineer",
+        "Agentic AI Engineer",
+        "Platform Engineer"
+      ]
+    },
+    {
+      "_id": "project_ai_knowledge_search",
+      "name": "AI Knowledge Search Platform",
+      "type": "Semantic Search and Retrieval Platform",
+      "technologies": [
+        "NestJS",
+        "PostgreSQL",
+        "pgvector",
+        "React"
+      ],
+      "themes": [
+        "RAG",
+        "embeddings",
+        "semantic retrieval",
+        "ingestion pipelines"
+      ],
+      "preferredFor": [
+        "AI Engineer",
+        "Backend Engineer",
+        "Full Stack Engineer"
+      ]
+    },
+    {
+      "_id": "project_opspilot",
+      "name": "OpsPilot",
+      "type": "Operations Management Platform",
+      "technologies": [
+        "Kotlin",
+        "Spring Boot",
+        "PostgreSQL",
+        "React"
+      ],
+      "themes": [
+        "enterprise application",
+        "REST APIs",
+        "authentication",
+        "role-based access",
+        "business workflows"
+      ],
+      "preferredFor": [
+        "Java Engineer",
+        "Kotlin Engineer",
+        "Full Stack Engineer",
+        "Enterprise Software Engineer"
+      ]
+    },
+    {
+      "_id": "project_polyglot_stack",
+      "name": "PolyglotStack",
+      "type": "Enterprise Translation Platform",
+      "technologies": [
+        "C#",
+        "ASP.NET Core",
+        "Entity Framework Core",
+        "React",
+        "React Native",
+        "PostgreSQL",
+        "Docker"
+      ],
+      "themes": [
+        "provider abstraction",
+        "automatic failover",
+        "health monitoring",
+        "translation memory",
+        "background services",
+        "dependency injection"
+      ],
+      "preferredFor": [
+        "C# Engineer",
+        ".NET Engineer",
+        "Full Stack Engineer",
+        "Backend Engineer",
+        "Enterprise Software Engineer"
+      ],
+      "resumeValue": "Primary modern evidence of current C#/.NET capability."
+    }
+  ],
+  "education": [
+    {
+      "degree": "MBA",
+      "institution": "Western Governors University",
+      "year": 2025
+    },
+    {
+      "degree": "MS Data Analytics",
+      "institution": "Western Governors University",
+      "year": 2023
+    },
+    {
+      "degree": "BS Data Analytics",
+      "institution": "Western Governors University",
+      "year": 2021
+    }
+  ],
+  "certifications": [
+    {
+      "name": "A+",
+      "status": "expired",
+      "includeByDefault": false
+    },
+    {
+      "name": "Network+",
+      "status": "expired",
+      "includeByDefault": false
+    },
+    {
+      "name": "MCP",
+      "specialization": "Windows 2000",
+      "status": "expired",
+      "includeByDefault": false
+    },
+    {
+      "name": "MCSA",
+      "specialization": "Windows 2000",
+      "status": "expired",
+      "includeByDefault": false
+    },
+    {
+      "name": "Project+",
+      "status": "expired",
+      "includeByDefault": false
+    },
+    {
+      "name": "Certified Data Analyst",
+      "status": "expired_or_historical",
+      "includeByDefault": false
+    }
+  ],
+  "knownUnknowns": [
+    "Exact start and end months for Prosper IT Consulting.",
+    "Exact client names for Prosper IT Consulting contracts.",
+    "Exact dates and issuer for Certified Data Analyst certification.",
+    "Complete list of older software engineering roles before 2013.",
+    "Exact project name containing the recent C#/.NET backend, if PolyglotStack is not that project."
+  ],
+  "writingPreferences": {
+    "_id": "writing_preferences_scott_v1",
+    "general": {
+      "tone": [
+        "direct",
+        "natural",
+        "confident",
+        "grounded"
+      ],
+      "avoid": [
+        "em dashes",
+        "unnecessary hyphens",
+        "corporate filler",
+        "generic enthusiasm",
+        "claims unsupported by facts",
+        "resume content repeated in prose"
+      ],
+      "showDontTell": true
+    },
+    "coverLetters": {
+      "defaultLengthWords": {
+        "minimum": 120,
+        "maximum": 220
+      },
+      "defaultParagraphs": 3,
+      "objectives": [
+        "Explain why the role or company is interesting.",
+        "Explain what kind of engineer Scott is.",
+        "Give the employer a reason to start a conversation."
+      ],
+      "mustNot": [
+        "Repeat the resume.",
+        "List technologies unless directly relevant to the reason for fit.",
+        "Use em dashes.",
+        "Sound like a generic AI-generated cover letter."
+      ]
+    },
+    "applicationAnswers": {
+      "defaultFormat": "one concise paragraph unless the prompt requires more",
+      "tone": "human, specific, and high impact",
+      "avoid": [
+        "overexplaining",
+        "fabricated motivation",
+        "generic company praise"
+      ]
+    },
+    "resume": {
+      "defaultPages": 3,
+      "summarySentences": {
+        "minimum": 2,
+        "maximum": 4
+      },
+      "bulletLength": "prefer one line; allow two lines when necessary",
+      "bulletOrder": [
+        "measurable business or operational impact",
+        "technical ownership and complexity",
+        "scale and reliability",
+        "collaboration or leadership",
+        "supporting technology keywords"
+      ]
+    }
+  },
+  "jobDescriptionParsingRules": {
+    "_id": "jd_parser_rules_v1",
+    "extract": [
+      "role title",
+      "seniority",
+      "required skills",
+      "preferred skills",
+      "responsibilities",
+      "domain",
+      "company stage",
+      "cloud platform",
+      "architecture patterns",
+      "leadership expectations",
+      "years of experience",
+      "education requirements",
+      "compensation",
+      "location and work arrangement"
+    ],
+    "classifyRequirements": {
+      "required": "Explicitly mandatory or repeatedly emphasized.",
+      "preferred": "Listed as preferred, plus, bonus, or nice to have.",
+      "contextual": "Implied by responsibilities or company domain.",
+      "noise": "Generic wording that should not drive tailoring."
+    },
+    "warnings": [
+      "Do not infer that every language listed with 'such as' is mandatory.",
+      "Do not overvalue company boilerplate.",
+      "Flag suspicious or mismatched company descriptions.",
+      "Flag requirements that conflict with the candidate's verified history."
+    ]
+  },
+  "jobMatchingRules": {
+    "_id": "job_matching_rules_v1",
+    "weights": {
+      "requiredSkillMatch": 12,
+      "preferredSkillMatch": 6,
+      "responsibilityMatch": 8,
+      "architectureMatch": 7,
+      "domainMatch": 4,
+      "professionalExperience": 5,
+      "recentUse": 4,
+      "verifiedMetric": 5,
+      "leadershipMatch": 4,
+      "cloudMatch": 5,
+      "projectEvidence": 3,
+      "educationMatch": 2
+    },
+    "penalties": {
+      "unverifiedClaim": -20,
+      "staleSkillPresentedAsCurrent": -6,
+      "irrelevantExperience": -3,
+      "keywordStuffing": -8,
+      "resumeRepetition": -4
+    },
+    "contentSelectionThresholds": {
+      "mustInclude": 18,
+      "strongCandidate": 12,
+      "optional": 7,
+      "omit": 0
+    },
+    "tieBreakers": [
+      "Prefer verified professional experience over project evidence.",
+      "Prefer recent evidence when relevance is otherwise equal.",
+      "Prefer quantified impact.",
+      "Prefer accomplishments that demonstrate ownership.",
+      "Prefer fewer stronger bullets over many weak bullets."
+    ]
+  },
+  "accomplishments": [
+    {
+      "_id": "acc_capital_one_docker_60",
+      "sourceType": "professionalExperience",
+      "sourceId": "exp_capital_one",
+      "summary": "Reduced Docker image sizes by approximately 60 percent.",
+      "metric": {
+        "type": "percentage",
+        "value": 60,
+        "direction": "reduction"
+      },
+      "skills": [
+        "Docker",
+        "CI/CD",
+        "AWS"
+      ],
+      "themes": [
+        "deployment efficiency",
+        "cost reduction",
+        "performance"
+      ],
+      "evidenceLevel": "verified",
+      "recent": true,
+      "bestFor": [
+        "Backend Engineer",
+        "Platform Engineer",
+        "Cloud Engineer",
+        "DevOps-focused Software Engineer"
+      ],
+      "priority": 10
+    },
+    {
+      "_id": "acc_marathon_throughput_25",
+      "sourceType": "professionalExperience",
+      "sourceId": "exp_marathon_ts",
+      "summary": "Improved backend processing throughput by approximately 25 percent through pipeline optimization and parallel processing.",
+      "metric": {
+        "type": "percentage",
+        "value": 25,
+        "direction": "increase"
+      },
+      "skills": [
+        "Python",
+        "AWS",
+        "distributed systems",
+        "parallel processing"
+      ],
+      "themes": [
+        "performance",
+        "scalability",
+        "data processing"
+      ],
+      "evidenceLevel": "verified",
+      "recent": true,
+      "bestFor": [
+        "Backend Engineer",
+        "Data Engineer",
+        "Platform Engineer"
+      ],
+      "priority": 10
+    },
+    {
+      "_id": "acc_agentv_reliability",
+      "sourceType": "project",
+      "sourceId": "project_agentv",
+      "summary": "Built retry, validation, evaluation, observability, and controlled tool-execution capabilities for multi-step agent workflows.",
+      "skills": [
+        "FastAPI",
+        "TypeScript",
+        "PostgreSQL",
+        "Redis",
+        "LLM workflows"
+      ],
+      "themes": [
+        "reliability",
+        "agentic systems",
+        "observability",
+        "safety"
+      ],
+      "evidenceLevel": "project_verified",
+      "recent": true,
+      "bestFor": [
+        "AI Engineer",
+        "Agentic AI Engineer",
+        "Backend Engineer"
+      ],
+      "priority": 9
+    },
+    {
+      "_id": "acc_polyglot_failover",
+      "sourceType": "project",
+      "sourceId": "project_polyglot_stack",
+      "summary": "Designed provider abstraction, health monitoring, translation memory, and automatic failover in a modern ASP.NET Core platform.",
+      "skills": [
+        "C#",
+        "ASP.NET Core",
+        "Entity Framework Core",
+        "PostgreSQL",
+        "Docker"
+      ],
+      "themes": [
+        "fault tolerance",
+        "provider abstraction",
+        "enterprise architecture"
+      ],
+      "evidenceLevel": "project_verified",
+      "recent": true,
+      "bestFor": [
+        ".NET Engineer",
+        "C# Engineer",
+        "Backend Engineer",
+        "Full Stack Engineer"
+      ],
+      "priority": 9
+    }
+  ],
+  "resumeBullets": [
+    {
+      "_id": "bullet_capital_one_docker",
+      "sourceId": "exp_capital_one",
+      "text": "Reduced Docker image sizes by approximately 60%, improving deployment speed and lowering infrastructure costs.",
+      "skills": [
+        "Docker",
+        "CI/CD"
+      ],
+      "themes": [
+        "performance",
+        "cost reduction",
+        "deployment"
+      ],
+      "metricVerified": true,
+      "evidenceLevel": "verified",
+      "priority": 10
+    },
+    {
+      "_id": "bullet_capital_one_distributed",
+      "sourceId": "exp_capital_one",
+      "text": "Developed and maintained cloud-native backend services and distributed workflows using AWS Lambda, Step Functions, SQL, and large-scale data processing systems.",
+      "skills": [
+        "AWS Lambda",
+        "Step Functions",
+        "SQL",
+        "distributed systems"
+      ],
+      "themes": [
+        "cloud-native",
+        "enterprise",
+        "backend"
+      ],
+      "metricVerified": false,
+      "evidenceLevel": "verified",
+      "priority": 9
+    },
+    {
+      "_id": "bullet_marathon_throughput",
+      "sourceId": "exp_marathon_ts",
+      "text": "Optimized backend processing and parallel workflows, improving throughput by approximately 25%.",
+      "skills": [
+        "Python",
+        "AWS",
+        "parallel processing"
+      ],
+      "themes": [
+        "performance",
+        "scalability"
+      ],
+      "metricVerified": true,
+      "evidenceLevel": "verified",
+      "priority": 10
+    },
+    {
+      "_id": "bullet_boxx_dotnet",
+      "sourceId": "exp_boxx",
+      "text": "Developed and maintained web applications using C#, ASP.NET, .NET, and SQL Server while integrating with a .NET-based CRM.",
+      "skills": [
+        "C#",
+        "ASP.NET",
+        ".NET",
+        "SQL Server"
+      ],
+      "themes": [
+        "enterprise applications",
+        "CRM",
+        "Microsoft stack"
+      ],
+      "metricVerified": false,
+      "evidenceLevel": "verified",
+      "priority": 9
+    },
+    {
+      "_id": "bullet_prosper_modernization",
+      "sourceId": "exp_prosper_it",
+      "text": "Modernized legacy applications by migrating Classic ASP functionality to ASP.NET using primarily C# with supporting VB.NET.",
+      "skills": [
+        "Classic ASP",
+        "ASP.NET",
+        "C#",
+        "VB.NET"
+      ],
+      "themes": [
+        "legacy modernization",
+        "Microsoft stack"
+      ],
+      "metricVerified": false,
+      "evidenceLevel": "verified",
+      "priority": 8
+    },
+    {
+      "_id": "bullet_agentv_orchestration",
+      "sourceId": "project_agentv",
+      "text": "Designed and built an agentic workflow platform supporting asynchronous multi-stage execution, retries, controlled tool access, observability, and automated evaluation.",
+      "skills": [
+        "Python",
+        "FastAPI",
+        "TypeScript",
+        "Redis",
+        "PostgreSQL"
+      ],
+      "themes": [
+        "agentic systems",
+        "distributed execution",
+        "reliability"
+      ],
+      "metricVerified": false,
+      "evidenceLevel": "project_verified",
+      "priority": 10
+    },
+    {
+      "_id": "bullet_polyglot_architecture",
+      "sourceId": "project_polyglot_stack",
+      "text": "Built a modern ASP.NET Core platform with provider abstraction, automatic failover, health monitoring, translation memory, background services, and Docker-based deployment.",
+      "skills": [
+        "C#",
+        "ASP.NET Core",
+        "Entity Framework Core",
+        "PostgreSQL",
+        "Docker"
+      ],
+      "themes": [
+        "fault tolerance",
+        "enterprise architecture",
+        "backend"
+      ],
+      "metricVerified": false,
+      "evidenceLevel": "project_verified",
+      "priority": 10
+    }
+  ],
+  "architectureExamples": [
+    {
+      "_id": "arch_agentv",
+      "sourceId": "project_agentv",
+      "problem": "Coordinate reliable multi-stage autonomous workflows.",
+      "approach": "Used role-based agents, structured tool invocation, Redis-backed coordination, PostgreSQL execution state, retries, validation, tracing, and evaluation.",
+      "tradeoffs": [
+        "Added orchestration complexity in exchange for observability and controlled execution.",
+        "Separated agent reasoning from tool execution for safety and testability."
+      ],
+      "bestFor": [
+        "distributed systems",
+        "AI architecture",
+        "reliability",
+        "platform engineering"
+      ]
+    },
+    {
+      "_id": "arch_polyglot",
+      "sourceId": "project_polyglot_stack",
+      "problem": "Support multiple translation providers without coupling the application to one vendor.",
+      "approach": "Introduced provider interfaces, routing, health checks, automatic failover, background monitoring, and translation-memory caching.",
+      "tradeoffs": [
+        "Additional abstraction increased code volume but improved portability and resilience.",
+        "Caching reduced provider cost and latency while requiring consistent cache-key design."
+      ],
+      "bestFor": [
+        ".NET architecture",
+        "fault tolerance",
+        "API integration",
+        "enterprise applications"
+      ]
+    }
+  ],
+  "leadershipExamples": [
+    {
+      "_id": "lead_capital_one_mentoring",
+      "sourceId": "exp_capital_one",
+      "summary": "Mentored engineers on distributed workflows, CI/CD, production troubleshooting, and cloud-native backend design.",
+      "evidenceLevel": "verified",
+      "bestFor": [
+        "senior engineer",
+        "lead engineer",
+        "mentorship"
+      ]
+    },
+    {
+      "_id": "lead_tigerhawk",
+      "sourceId": "exp_tigerhawk",
+      "summary": "Coordinated technical operations, documentation, troubleshooting, and support workflows across multiple client environments.",
+      "evidenceLevel": "verified",
+      "bestFor": [
+        "team lead",
+        "operations leadership",
+        "stakeholder communication"
+      ]
+    }
+  ],
+  "productionExamples": [
+    {
+      "_id": "prod_capital_one",
+      "sourceId": "exp_capital_one",
+      "themes": [
+        "regulated environment",
+        "enterprise scale",
+        "production reliability",
+        "data integrity"
+      ],
+      "summary": "Supported cloud-native enterprise workflows and diagnosed production issues in a regulated financial environment."
+    },
+    {
+      "_id": "prod_marathon",
+      "sourceId": "exp_marathon_ts",
+      "themes": [
+        "event-driven systems",
+        "monitoring",
+        "incident response"
+      ],
+      "summary": "Monitored and resolved production issues using CloudWatch across AWS-based asynchronous systems."
+    },
+    {
+      "_id": "prod_xpressbet",
+      "sourceId": "exp_xpressbet",
+      "themes": [
+        "high traffic",
+        "peak demand",
+        "stability"
+      ],
+      "summary": "Worked on backend functionality for a wagering platform that had to remain stable during high-volume events."
+    }
+  ],
+  "interviewStories": [
+    {
+      "_id": "story_docker_optimization",
+      "title": "Docker image reduction at Capital One",
+      "sourceIds": [
+        "exp_capital_one",
+        "acc_capital_one_docker_60"
+      ],
+      "themes": [
+        "performance",
+        "cost reduction",
+        "initiative",
+        "CI/CD"
+      ],
+      "situation": "Deployment artifacts were larger than necessary and slowed delivery.",
+      "task": "Improve build and deployment efficiency without compromising functionality.",
+      "action": "Analyzed image layers and dependencies, removed unnecessary components, and improved container construction.",
+      "result": "Reduced image sizes by approximately 60%, improving deployment speed and lowering infrastructure costs.",
+      "evidenceLevel": "verified"
+    },
+    {
+      "_id": "story_throughput",
+      "title": "Distributed processing throughput improvement",
+      "sourceIds": [
+        "exp_marathon_ts",
+        "acc_marathon_throughput_25"
+      ],
+      "themes": [
+        "performance",
+        "distributed systems",
+        "problem solving"
+      ],
+      "situation": "Backend processing pipelines needed higher throughput.",
+      "task": "Increase processing efficiency while preserving reliability.",
+      "action": "Optimized pipeline execution and increased safe parallel processing.",
+      "result": "Improved throughput by approximately 25%.",
+      "evidenceLevel": "verified"
+    },
+    {
+      "_id": "story_polyglot_failover",
+      "title": "Provider abstraction and failover",
+      "sourceIds": [
+        "project_polyglot_stack",
+        "arch_polyglot"
+      ],
+      "themes": [
+        "architecture",
+        "fault tolerance",
+        "vendor abstraction",
+        ".NET"
+      ],
+      "situation": "A translation platform needed to support multiple vendors without a single-provider dependency.",
+      "task": "Create a reliable architecture that could route requests and continue operating when providers failed.",
+      "action": "Implemented provider interfaces, routing, health checks, background monitoring, automatic failover, and translation memory.",
+      "result": "Produced a modular platform that could switch providers, reduce duplicate calls, and isolate vendor-specific behavior.",
+      "evidenceLevel": "project_verified"
+    }
+  ],
+  "domainExperience": [
+    {
+      "domain": "Financial Services",
+      "sourceIds": [
+        "exp_capital_one"
+      ],
+      "strength": "strong"
+    },
+    {
+      "domain": "CRM and Senior Living SaaS",
+      "sourceIds": [
+        "exp_sherpacrm"
+      ],
+      "strength": "strong"
+    },
+    {
+      "domain": "Managed IT Services",
+      "sourceIds": [
+        "exp_tigerhawk"
+      ],
+      "strength": "moderate"
+    },
+    {
+      "domain": "High-Traffic Wagering",
+      "sourceIds": [
+        "exp_xpressbet"
+      ],
+      "strength": "moderate"
+    },
+    {
+      "domain": "Enterprise Operations Software",
+      "sourceIds": [
+        "project_opspilot"
+      ],
+      "strength": "project"
+    },
+    {
+      "domain": "AI and Agentic Systems",
+      "sourceIds": [
+        "project_agentv",
+        "project_ai_knowledge_search"
+      ],
+      "strength": "strong_project"
+    }
+  ],
+  "outputGenerationWorkflow": {
+    "_id": "workflow_application_materials_v1",
+    "steps": [
+      "Parse the job description.",
+      "Classify requirements as required, preferred, contextual, or noise.",
+      "Determine the primary resume variant.",
+      "Score skills, experience, projects, accomplishments, and bullets.",
+      "Select the strongest evidence above threshold.",
+      "Apply stack-ordering rules.",
+      "Draft summary, skills, projects, and experience sections.",
+      "Run truthfulness and recency checks.",
+      "Run seven-second scan check.",
+      "Run duplication and keyword-stuffing checks.",
+      "Generate cover letter and application answers from separate writing rules.",
+      "Flag unresolved facts instead of guessing."
+    ],
+    "reviewGates": {
+      "truthfulness": [
+        "Every claim must map to a source record.",
+        "Every metric must have evidenceLevel verified.",
+        "Professional and project experience must not be conflated."
+      ],
+      "relevance": [
+        "The first third of the resume must contain the strongest target-role evidence.",
+        "Irrelevant legacy technologies should be removed or placed last.",
+        "Each bullet must support a target requirement or demonstrate impact."
+      ],
+      "scanability": [
+        "Avoid dense paragraphs.",
+        "Use concise bullets.",
+        "Lead with impact.",
+        "Keep section labels conventional and ATS-friendly."
+      ]
+    }
+  },
+  "outputTemplates": {
+    "resumeVariants": [
+      "Python Backend",
+      "Node/TypeScript Backend",
+      "Microsoft/.NET Full Stack",
+      "Java/Kotlin Backend",
+      "AI/Agentic Systems",
+      "Enterprise SaaS Full Stack",
+      "Senior Software Engineer"
+    ],
+    "applicationPackage": [
+      "targeted resume",
+      "cover letter",
+      "salary guidance",
+      "application-question responses",
+      "recruiter message",
+      "interview preparation",
+      "selected STAR stories"
+    ]
+  }
+}

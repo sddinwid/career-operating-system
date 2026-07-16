@@ -1,0 +1,131 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Scott Dinwiddie Career Knowledge Base v3",
+  "type": "object",
+  "required": [
+    "_meta",
+    "candidateProfile",
+    "resumeGenerationRules",
+    "skills",
+    "professionalExperience",
+    "projects",
+    "education",
+    "certifications",
+    "writingPreferences",
+    "jobDescriptionParsingRules",
+    "jobMatchingRules",
+    "accomplishments",
+    "resumeBullets",
+    "architectureExamples",
+    "leadershipExamples",
+    "productionExamples",
+    "interviewStories",
+    "domainExperience",
+    "outputGenerationWorkflow",
+    "outputTemplates"
+  ],
+  "properties": {
+    "_meta": {
+      "type": "object"
+    },
+    "candidateProfile": {
+      "type": "object"
+    },
+    "resumeGenerationRules": {
+      "type": "object"
+    },
+    "skills": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "professionalExperience": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "projects": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "education": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "certifications": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "writingPreferences": {
+      "type": "object"
+    },
+    "jobDescriptionParsingRules": {
+      "type": "object"
+    },
+    "jobMatchingRules": {
+      "type": "object"
+    },
+    "accomplishments": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "resumeBullets": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "architectureExamples": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "leadershipExamples": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "productionExamples": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "interviewStories": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "domainExperience": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "outputGenerationWorkflow": {
+      "type": "object"
+    },
+    "outputTemplates": {
+      "type": "object"
+    },
+    "knownUnknowns": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

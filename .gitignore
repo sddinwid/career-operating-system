@@ -1,0 +1,30 @@
+# dependencies
+/node_modules
+
+# next
+/.next
+/out
+
+# local env
+.env
+.env.local
+.env.*.local
+
+# local data
+/local-data/*
+!/local-data/.gitkeep
+
+# prisma and postgres
+/prisma/dev.db*
+/postgres-data/
+
+# testing
+/playwright-report/
+/test-results/
+/coverage/
+
+# misc
+.DS_Store
+*.log
+npm-debug.log*
+tsconfig.tsbuildinfo
