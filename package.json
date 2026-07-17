@@ -4,21 +4,24 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "tsx scripts/clean-next.ts && next build",
     "start": "next start",
     "lint": "eslint .",
-    "typecheck": "next typegen && tsc --noEmit",
+    "typecheck": "tsx scripts/clean-next.ts && next typegen && tsc --noEmit",
     "test:unit": "vitest run",
-    "test:e2e": "playwright test",
+    "test:e2e": "tsx scripts/run-e2e.ts",
     "test": "npm run test:unit && npm run test:e2e",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "db:migrate": "prisma migrate dev",
     "db:seed": "tsx prisma/seed.ts",
-    "db:generate": "prisma generate"
+    "db:generate": "prisma generate",
+    "career:import": "tsx scripts/career-import.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.0.0",
+    "ag-grid-community": "^36.0.1",
+    "ag-grid-react": "^36.0.1",
     "next": "^15.0.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",

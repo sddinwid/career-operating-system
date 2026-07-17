@@ -4,8 +4,10 @@ import { ApplicationStatus, PrismaClient } from "@prisma/client";
 import {
   archiveApplication,
   createApplication,
+  getApplicationDetail,
   listApplications,
   restoreApplication,
+  updateApplicationGridField,
   updateApplication
 } from "@/lib/applications/service";
 import { deriveJobSearchDateFromInstant } from "@/lib/applications/timestamps";
@@ -25,12 +27,17 @@ async function cleanupWorkspace(workspaceId: string) {
     where: { document: { workspaceId } }
   });
   await prisma.document.deleteMany({ where: { workspaceId } });
+  await prisma.evidenceRetrievalRun.deleteMany({ where: { workspaceId } });
+  await prisma.jobRequirementAnalysis.deleteMany({ where: { workspaceId } });
+  await prisma.jobDescriptionParse.deleteMany({ where: { workspaceId } });
+  await prisma.jobDescriptionVersion.deleteMany({ where: { workspaceId } });
   await prisma.importRow.deleteMany({
     where: { importJob: { workspaceId } }
   });
   await prisma.importJob.deleteMany({ where: { workspaceId } });
   await prisma.auditEvent.deleteMany({ where: { workspaceId } });
   await prisma.careerProfileVersion.deleteMany({ where: { workspaceId } });
+  await prisma.careerProfileSource.deleteMany({ where: { workspaceId } });
   await prisma.contact.deleteMany({ where: { workspaceId } });
   await prisma.application.deleteMany({ where: { workspaceId } });
   await prisma.jobOpportunity.deleteMany({ where: { workspaceId } });
@@ -334,6 +341,222 @@ describe("application service", () => {
     });
     expect(restored.status).toBe(ApplicationStatus.REJECTED);
     expect(restored.archivedAt).toBeNull();
+  });
+
+  it("updates status inline exactly once, keeps non-status edits out of history, and returns the authoritative grid row", async () => {
+    const workspace = await createWorkspace();
+
+    const created = await createApplication(workspace.id, {
+      companyName: "Grid Status Co",
+      role: "Engineer",
+      appliedAtLocal: "2026-07-14T09:00",
+      status: ApplicationStatus.APPLIED
+    });
+
+    const initialHistoryCount = await prisma.applicationStatusHistory.count({
+      where: { applicationId: created.id }
+    });
+    expect(initialHistoryCount).toBe(1);
+
+    const updatedPriorityRow = await updateApplicationGridField(workspace.id, {
+      applicationId: created.id,
+      field: "priority",
+      value: "HIGH"
+    });
+    expect(updatedPriorityRow.priority).toBe("HIGH");
+
+    const updatedSourceRow = await updateApplicationGridField(workspace.id, {
+      applicationId: created.id,
+      field: "source",
+      value: "Referral"
+    });
+    expect(updatedSourceRow.source).toBe("Referral");
+
+    const historyAfterPriority = await prisma.applicationStatusHistory.count({
+      where: { applicationId: created.id }
+    });
+    expect(historyAfterPriority).toBe(1);
+
+    const updatedStatusRow = await updateApplicationGridField(workspace.id, {
+      applicationId: created.id,
+      field: "status",
+      value: "INTERVIEW"
+    });
+    expect(updatedStatusRow.status).toBe(ApplicationStatus.INTERVIEW);
+
+    const historyAfterStatus = await prisma.applicationStatusHistory.findMany({
+      where: { applicationId: created.id },
+      orderBy: [{ occurredAt: "asc" }, { recordedAt: "asc" }, { id: "asc" }]
+    });
+    expect(historyAfterStatus).toHaveLength(2);
+    expect(historyAfterStatus.at(-1)?.toStatus).toBe(ApplicationStatus.INTERVIEW);
+
+    await updateApplicationGridField(workspace.id, {
+      applicationId: created.id,
+      field: "status",
+      value: "INTERVIEW"
+    });
+
+    const historyAfterDuplicateStatus = await prisma.applicationStatusHistory.count({
+      where: { applicationId: created.id }
+    });
+    expect(historyAfterDuplicateStatus).toBe(2);
+  });
+
+  it("preserves company reuse rules and opportunity identity during grid edits", async () => {
+    const workspace = await createWorkspace();
+
+    const acmeApplication = await createApplication(workspace.id, {
+      companyName: "Acme",
+      role: "Platform Engineer",
+      appliedAtLocal: "2026-07-12T10:00",
+      status: ApplicationStatus.APPLIED
+    });
+    const betaApplication = await createApplication(workspace.id, {
+      companyName: "Beta",
+      role: "Support Engineer",
+      appliedAtLocal: "2026-07-13T10:00",
+      status: ApplicationStatus.APPLIED
+    });
+    const duplicateTitleApplication = await createApplication(workspace.id, {
+      companyName: "Acme",
+      role: "Platform Engineer",
+      appliedAtLocal: "2026-07-14T11:00",
+      status: ApplicationStatus.APPLIED
+    });
+
+    await updateApplicationGridField(workspace.id, {
+      applicationId: betaApplication.id,
+      field: "company",
+      value: "  ACME  "
+    });
+
+    const betaAfterCompanyEdit = await getApplicationDetail({
+      workspaceId: workspace.id,
+      applicationId: betaApplication.id
+    });
+    expect(betaAfterCompanyEdit?.opportunity.company.normalizedName).toBe("acme");
+
+    const acmeCompanyCount = await prisma.company.count({
+      where: {
+        workspaceId: workspace.id,
+        normalizedName: "acme"
+      }
+    });
+    expect(acmeCompanyCount).toBe(1);
+
+    const firstOpportunityId = (
+      await prisma.application.findUniqueOrThrow({
+        where: { id: acmeApplication.id },
+        select: { opportunityId: true }
+      })
+    ).opportunityId;
+    const secondOpportunityId = (
+      await prisma.application.findUniqueOrThrow({
+        where: { id: duplicateTitleApplication.id },
+        select: { opportunityId: true }
+      })
+    ).opportunityId;
+    expect(firstOpportunityId).not.toBe(secondOpportunityId);
+
+    await updateApplicationGridField(workspace.id, {
+      applicationId: acmeApplication.id,
+      field: "role",
+      value: "Platform Engineer"
+    });
+
+    const firstOpportunityAfterRoleEdit = (
+      await prisma.application.findUniqueOrThrow({
+        where: { id: acmeApplication.id },
+        select: { opportunityId: true }
+      })
+    ).opportunityId;
+    expect(firstOpportunityAfterRoleEdit).toBe(firstOpportunityId);
+  });
+
+  it("preserves DATE_ONLY precision, applies the cutoff to manual timestamps, preserves job-search-date overrides, and rejects invalid grid edits", async () => {
+    const workspace = await createWorkspace();
+
+    const dateOnlyApplication = await createApplication(workspace.id, {
+      companyName: "Imported Co",
+      role: "Analyst",
+      appliedAtLocal: "2026-07-14T12:00",
+      status: ApplicationStatus.APPLIED
+    });
+
+    await prisma.activity.updateMany({
+      where: {
+        applicationId: dateOnlyApplication.id,
+        type: "SUBMITTED"
+      },
+      data: {
+        metadata: {
+          precision: "DATE_ONLY"
+        }
+      }
+    });
+
+    const dateOnlyRow = await updateApplicationGridField(workspace.id, {
+      applicationId: dateOnlyApplication.id,
+      field: "appliedAt",
+      value: "2026-07-15"
+    });
+    expect(dateOnlyRow.appliedAtPrecision).toBe("DATE_ONLY");
+    expect(dateOnlyRow.appliedAtInput).toBe("2026-07-15");
+    expect(dateOnlyRow.jobSearchDateInput).toBe("2026-07-15");
+
+    const manualApplication = await createApplication(workspace.id, {
+      companyName: "Manual Co",
+      role: "Operator",
+      appliedAtLocal: "2026-07-14T09:00",
+      status: ApplicationStatus.APPLIED
+    });
+
+    const cutoffRow = await updateApplicationGridField(workspace.id, {
+      applicationId: manualApplication.id,
+      field: "appliedAt",
+      value: "2026-07-15T00:45"
+    });
+    expect(cutoffRow.appliedAtPrecision).toBe("DATE_TIME");
+    expect(cutoffRow.jobSearchDateInput).toBe("2026-07-14");
+
+    await updateApplicationGridField(workspace.id, {
+      applicationId: manualApplication.id,
+      field: "jobSearchDate",
+      value: "2026-07-10"
+    });
+    const overridePreservedRow = await updateApplicationGridField(workspace.id, {
+      applicationId: manualApplication.id,
+      field: "source",
+      value: "Referral"
+    });
+    expect(overridePreservedRow.jobSearchDateInput).toBe("2026-07-10");
+
+    const beforeFailure = await prisma.application.findUniqueOrThrow({
+      where: { id: manualApplication.id }
+    });
+
+    await expect(
+      updateApplicationGridField(workspace.id, {
+        applicationId: manualApplication.id,
+        field: "appliedAt",
+        value: "2026-07-20T09:00"
+      })
+    ).rejects.toThrow(/cannot be in the future/i);
+
+    const afterFailure = await prisma.application.findUniqueOrThrow({
+      where: { id: manualApplication.id }
+    });
+    expect(afterFailure.appliedAt).not.toBeNull();
+    expect(beforeFailure.appliedAt).not.toBeNull();
+    expect(afterFailure.jobSearchDate).not.toBeNull();
+    expect(beforeFailure.jobSearchDate).not.toBeNull();
+    expect(afterFailure.appliedAt?.toISOString()).toBe(
+      beforeFailure.appliedAt?.toISOString()
+    );
+    expect(afterFailure.jobSearchDate?.toISOString()).toBe(
+      beforeFailure.jobSearchDate?.toISOString()
+    );
   });
 
   it("derives transition job-search date from the actual transition instant", async () => {

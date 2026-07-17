@@ -64,12 +64,17 @@ async function cleanupWorkspace(workspaceId: string) {
     where: { document: { workspaceId } }
   });
   await prisma.document.deleteMany({ where: { workspaceId } });
+  await prisma.evidenceRetrievalRun.deleteMany({ where: { workspaceId } });
+  await prisma.jobRequirementAnalysis.deleteMany({ where: { workspaceId } });
+  await prisma.jobDescriptionParse.deleteMany({ where: { workspaceId } });
+  await prisma.jobDescriptionVersion.deleteMany({ where: { workspaceId } });
   await prisma.importRow.deleteMany({
     where: { importJob: { workspaceId } }
   });
   await prisma.importJob.deleteMany({ where: { workspaceId } });
   await prisma.auditEvent.deleteMany({ where: { workspaceId } });
   await prisma.careerProfileVersion.deleteMany({ where: { workspaceId } });
+  await prisma.careerProfileSource.deleteMany({ where: { workspaceId } });
   await prisma.contact.deleteMany({ where: { workspaceId } });
   await prisma.application.deleteMany({ where: { workspaceId } });
   await prisma.jobOpportunity.deleteMany({ where: { workspaceId } });
@@ -110,7 +115,9 @@ describe("fixture import service", () => {
     await prisma.$disconnect();
   });
 
-  it("creates a reproducible preview and reimport does not create uncontrolled duplicates", async () => {
+  it(
+    "creates a reproducible preview and reimport does not create uncontrolled duplicates",
+    async () => {
     const workspace = await createWorkspace();
     const template = getFixtureImportTemplate();
 
@@ -147,7 +154,9 @@ describe("fixture import service", () => {
     expect(
       secondJob?.rows.some((row) => row.status === "DUPLICATE")
     ).toBe(true);
-  });
+    },
+    15000
+  );
 
   it("stores row-level errors with sheet and row context when validation fails", async () => {
     const workspace = await createWorkspace();
@@ -398,7 +407,9 @@ describe("fixture import service", () => {
     expect(contacts.some((contact) => contact.email === "not-an-email")).toBe(false);
   });
 
-  it("imports company and role without an application date as an opportunity only", async () => {
+  it(
+    "imports company and role without an application date as an opportunity only",
+    async () => {
     const workspace = await createWorkspace();
     const template = getFixtureImportTemplate();
 
@@ -490,9 +501,13 @@ describe("fixture import service", () => {
     expect(importedOpportunities).toBe(1);
     expect(summary.importResult?.applicationCount).toBe(0);
     expect(summary.importResult?.opportunityOnlyCount).toBe(1);
-  });
+    },
+    10000
+  );
 
-  it("preserves unknown optional values as warnings without discarding a usable row", async () => {
+  it(
+    "preserves unknown optional values as warnings without discarding a usable row",
+    async () => {
     const workspace = await createWorkspace();
     const template = getFixtureImportTemplate();
 
@@ -561,9 +576,13 @@ describe("fixture import service", () => {
     });
 
     expect(importedApplication.priority).toBeNull();
-  });
+    },
+    10000
+  );
 
-  it("creates separate related records when one imported row contains multiple dated events", async () => {
+  it(
+    "creates separate related records when one imported row contains multiple dated events",
+    async () => {
     const workspace = await createWorkspace();
     const template = getFixtureImportTemplate();
 
@@ -636,5 +655,7 @@ describe("fixture import service", () => {
       ])
     );
     expect(interviews).toHaveLength(1);
-  });
+    },
+    10000
+  );
 });

@@ -1,80 +1,158 @@
 # Requirements
 
-## Phase 1 goal
+## Product goal
 
-Replace the current monthly Excel tracker with a local web application that remains Excel-compatible and preserves the user's existing workflow.
+Eliminate Scott's repetitive career-management work in a local-first application.
+
+Priority order:
+1. Frequency of the manual task
+2. Time saved per use
+3. Reduction in repeated cognitive work
+4. Reuse of existing architecture and data
+5. Truthfulness and provenance
+6. Personal daily usefulness
+7. Completion of the full product vision
+8. Long-term commercial viability
+
+## Current product direction
+
+The tracker foundation is now substantial enough that the next major milestone is deterministic application-document generation, not finishing every remaining tracker enhancement first.
+
+The system must move toward:
+
+```text
+Career Knowledge Base
+  -> Job Description Intake
+  -> Deterministic Job Description Parser
+  -> Requirement Classification
+  -> Evidence Retrieval
+  -> Evidence Scoring
+  -> Structured Resume Composition
+  -> Truthfulness and ATS Checks
+  -> Resume Studio
+  -> Artifact Rendering
+  -> Immutable Document Versioning
+  -> Application Package Tracking
+```
 
 ## Functional requirements
 
-### Applications
+### Tracker foundation
 
 - Create, read, update, archive, and restore applications.
 - Store company, role, job URL, source, status, priority, salary, work arrangement, location, notes, and application timestamp.
 - Preserve status history.
 - Allow incomplete records for rapid entry.
+- Support spreadsheet-style sorting, filtering, resizing, reordering, hiding, saved views, and persistent layout state.
+- Import the July workbook fixture through preview, mapping, reconciliation, duplicate detection, row-level review, and transactional row import.
 
-### Spreadsheet-style grid
+### Deterministic career knowledge engine
 
-- Sort, filter, resize, reorder, hide, and freeze columns.
-- Copy selected cells and rows as tab-separated clipboard data.
-- Paste compatible tabular data where safe.
-- Save at least one default view closely resembling the uploaded tracker.
+- Store Scott's structured career knowledge in a versioned canonical contract.
+- Preserve source provenance, checksum, schema version, and import diagnostics.
+- Distinguish source facts, confirmed facts, derived values, and AI suggestions.
+- Represent employers, roles, projects, skills, education, accomplishments, metrics, and writing or ordering rules.
+- Provide read-only inspection and diagnostics before generation features depend on it.
+- Preserve the original imported source separately from the normalized canonical snapshot.
+- Keep committed imports idempotent by checksum plus contract and importer version semantics.
+- Reject blocking validation failures without partial writes.
 
-### Excel import
+### Job description intelligence
 
-- Import XLSX without modifying the source file.
-- Support workbook preview, sheet selection, column mapping, row validation, duplicate detection, and import summary.
-- Target workbook contains `Tracker` and `Dashboard` sheets.
-- Import source metadata: file name, sheet, row number, import time, and raw row snapshot.
-- Recalculate derived workflow values rather than importing formulas as authoritative facts.
+- Persist original job-description text and its normalized record.
+- Parse normalized saved job descriptions deterministically with no AI calls.
+- Parse company, title, location, compensation, responsibilities, required skills, preferred skills, domain, and seniority.
+- Track parser version and separate source text from derived structure.
+- Preserve immutable parse diagnostics and support read-only inspection before corrections or downstream generation.
+- Support review and correction before downstream generation uses parsed output.
+- Store reviewed authoritative requirements separately from parser output.
+- Support categories, requirement kinds, exclusions, review notes, and user-added requirements.
+- Require explicit confirmation before downstream evidence retrieval consumes the reviewed set.
+- Require downstream evidence scoring to remain deterministic, explainable, read-only, and free of a single overall match percentage until requirement aggregation is separately designed.
 
-### Excel export
+### Evidence retrieval and scoring
 
-- Export all data, filtered data, selected rows, a month, or a date range.
-- Generate workbook sheets: Applications, Daily Activity, Monthly Summary, Contacts, Interviews, Documents, Outcomes, Dashboard, Lookup Values.
-- Make exported workbooks usable for local viewing and copying.
+- Retrieve candidate evidence from verified career knowledge.
+- Persist immutable evidence-retrieval runs tied to one exact confirmed requirement analysis and one exact career-profile version.
+- Expose candidate evidence, restrictions, provenance, recency, and coverage gaps in a read-only inspection flow before scoring.
+- Score evidence using recency, professional-versus-project weighting, verified metrics, responsibility match, architecture match, domain match, and Scott-specific stack-ordering rules.
+- Never select unsupported evidence silently.
+- Produce explainable evidence-selection results that can be inspected before rendering documents.
 
-### Time and calendar
+### Structured resume and application package generation
 
-- Store actual occurrence timestamp, recorded timestamp, original occurrence timestamp, and derived job-search date.
-- Configurable cutoff defaults to 03:00 local time.
-- Activity after midnight but before cutoff may count toward the prior job-search date.
-- User can manually override date/time with an audit record.
-- Month calendar and chronological day timeline.
+- Build a deterministic structured resume representation before DOCX or PDF rendering.
+- Enforce truthfulness, experience ceilings, duplication limits, and section ordering rules.
+- Generate immutable, versioned artifacts linked to their source versions and target application.
+- Support resume, cover letter, application-answer, and related package artifacts as separate but linked outputs.
 
-### Activities and workflow
+### Spreadsheet compatibility and later tracker ergonomics
 
-- Separate applications from activities.
-- Activity examples: submitted, contact found, LinkedIn request, message, email, response, interview, rejection, offer, follow-up, note, document generated.
-- Calculate next action, due date, days open, days since last touch, and due-today state.
-- Calculated recommendations may be overridden without rewriting history.
+- Keep Excel interoperability as a first-class requirement.
+- Later tracker slices should include copy behavior, export, calculated columns, Today workflow, calendar views, contacts, outreach, and interviews.
+- Those slices remain deferred until they outrank deterministic document-generation work in personal time savings.
 
-### Documents
+## Scott-specific rules
 
-- Upload, store, list, download, and version resumes, cover letters, application answers, interview prep, and other artifacts.
-- Link documents to applications.
-- Mark draft, reviewed, downloaded, submitted, superseded, or archived.
-- Never overwrite an existing version.
-
-### Career knowledge base
-
-- Store the user's structured v3 JSON file.
-- Display metadata and validation state.
-- Initial release may package the knowledge base and job description for external AI use.
-
-### OpenAI
-
-- Use a provider abstraction.
-- Store API key only in local environment variables.
-- No direct OpenAI dependency is required for the tracker milestone.
-- Initial OpenAI foundation should support structured output and audit metadata.
+- Never invent facts.
+- Separate source facts, user-confirmed facts, derived values, and AI suggestions.
+- Never claim more than eight years of experience for an individual skill or technology.
+- Do not exceed the job description's requested experience by more than five years where experience wording is used.
+- Do not imply continuous use when use was intermittent.
+- Prefer verified professional evidence over project evidence when relevance is equal.
+- Prefer recent evidence.
+- Prefer quantified impact when verified.
+- For Python or general backend roles, prioritize Python, Node.js, TypeScript, FastAPI, NestJS, AWS, PostgreSQL, and distributed systems.
+- Place Microsoft skills after the primary stack for non-Microsoft roles.
+- For Microsoft roles, lead with C#, .NET, ASP.NET, SQL Server, Entity Framework, React, and TypeScript where supported.
+- For Java or Kotlin roles, lead with Kotlin, Spring Boot, and Java, followed by Python or Node, then Microsoft technologies.
+- For AI roles, prioritize AgentV, AI Knowledge Search, RAG, orchestration, tool invocation, evaluation, observability, PostgreSQL, pgvector, Redis, Docker, and AWS.
+- Place Java and Kotlin last for non-Java roles unless the job description values them.
+- Expired certifications remain reference data unless directly useful.
+- Cover letters remain concise, direct, and distinct from the resume.
+- Cover letters should focus on why the role matters, why the employer should talk to Scott, and what kind of engineer he is.
+- Do not use em dashes in generated application writing.
+- Do not keyword-stuff.
+- Do not present stale skills as current without qualification.
 
 ## Non-functional requirements
 
 - Local Windows development and use.
-- No login in personal release.
-- PostgreSQL persists data.
+- No login in the personal release.
+- PostgreSQL persists operational data.
 - Responsive desktop-first design.
 - Fast enough for daily entry and hundreds or thousands of applications.
-- Import/export operations provide progress and actionable errors.
-- Tests cover timezone boundaries and workbook fixtures.
+- Import/export and generation operations must provide actionable diagnostics.
+- Tests must cover timezone boundaries, fixture workbooks, and deterministic generation contracts as they are introduced.
+- Generated or uploaded documents must be immutable versions.
+- The system must remain usable when AI features are unconfigured or unavailable.
+- Private career source data must stay out of Git fixtures, public snapshots, and routine console output.
+## M4.3
+
+The system must produce an immutable explainable match report before any resume planning stage can begin.
+
+## M5.1
+
+The system must produce a deterministic structured resume plan that:
+
+- is derived from one exact match report and one exact career profile version
+- preserves exact upstream linkage and planning version metadata
+- defines target role family, stack rule, section order, eligibility, restrictions, and page budget
+- records truthful claim constraints without generating final employer-facing prose
+- remains separate from rendered document artifacts
+
+The system must generate a read-only explainable match report from successful evidence scoring, including match tier, pursuit recommendation, resume readiness, strengths, gaps, claims to avoid, deterministic traceability, and idempotent immutable persistence.
+
+## M5.2
+
+The system must compose a deterministic employer-facing structured resume from a successful `StructuredResumeVersion`, preserving section ordering, statement provenance, truthfulness classifications, and immutable reuse semantics without creating `DocumentVersion` artifacts.
+
+## M5.3
+
+The system must produce a deterministic immutable audit from one exact `ResumeCompositionVersion` that:
+
+- validates statement provenance and source fidelity
+- blocks unsupported facts, unsupported metrics, and unsafe experience claims
+- checks project context, certification handling, education fidelity, and skill qualification
+- reports relevance, duplication, ATS structure, seven-second scan, page-budget, and privacy findings
+- assigns explicit rendering readiness without rewriting resume content

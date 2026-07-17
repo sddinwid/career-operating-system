@@ -17,12 +17,17 @@ async function cleanupWorkspace(workspaceId: string) {
     where: { document: { workspaceId } }
   });
   await prisma.document.deleteMany({ where: { workspaceId } });
+  await prisma.evidenceRetrievalRun.deleteMany({ where: { workspaceId } });
+  await prisma.jobRequirementAnalysis.deleteMany({ where: { workspaceId } });
+  await prisma.jobDescriptionParse.deleteMany({ where: { workspaceId } });
+  await prisma.jobDescriptionVersion.deleteMany({ where: { workspaceId } });
   await prisma.importRow.deleteMany({
     where: { importJob: { workspaceId } }
   });
   await prisma.importJob.deleteMany({ where: { workspaceId } });
   await prisma.auditEvent.deleteMany({ where: { workspaceId } });
   await prisma.careerProfileVersion.deleteMany({ where: { workspaceId } });
+  await prisma.careerProfileSource.deleteMany({ where: { workspaceId } });
   await prisma.contact.deleteMany({ where: { workspaceId } });
   await prisma.application.deleteMany({ where: { workspaceId } });
   await prisma.jobOpportunity.deleteMany({ where: { workspaceId } });

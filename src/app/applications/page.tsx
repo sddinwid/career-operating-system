@@ -1,6 +1,11 @@
 import Link from "next/link";
-import { ApplicationList } from "@/components/applications/application-list";
+import {
+  ApplicationsGrid
+} from "@/components/applications/applications-grid";
+import { buildApplicationGridRow } from "@/lib/applications/grid";
+import { getApplicationsGridPreferences } from "@/lib/applications/grid-view-service";
 import { listApplications } from "@/lib/applications/service";
+import { getWorkspaceSettings } from "@/lib/settings";
 import { getDefaultWorkspace } from "@/lib/workspace";
 
 type ApplicationsPageProps = {
@@ -12,13 +17,19 @@ export default async function ApplicationsPage({
 }: ApplicationsPageProps) {
   const workspace = await getDefaultWorkspace();
   const params = (await searchParams) ?? {};
-  const includeArchived = params.archived === "1";
   const success =
     typeof params.success === "string" ? params.success : undefined;
-  const applications = await listApplications({
-    workspaceId: workspace.id,
-    includeArchived
-  });
+  const [applications, settings, gridPreferencesResult] = await Promise.all([
+    listApplications({
+      workspaceId: workspace.id,
+      includeArchived: true
+    }),
+    getWorkspaceSettings(workspace.id),
+    getApplicationsGridPreferences(workspace.id)
+  ]);
+  const rows = applications.map((application) =>
+    buildApplicationGridRow(application, settings)
+  );
 
   return (
     <div className="space-y-8">
@@ -39,15 +50,15 @@ export default async function ApplicationsPage({
         <div className="flex flex-wrap gap-3">
           <Link
             className="rounded-full border border-stone-300 px-5 py-3 text-sm font-semibold text-stone-700 transition hover:border-stone-950 hover:text-stone-950"
-            href="/imports"
+            href="/jobs/new"
           >
-            Import Excel
+            Capture Job Description
           </Link>
           <Link
             className="rounded-full border border-stone-300 px-5 py-3 text-sm font-semibold text-stone-700 transition hover:border-stone-950 hover:text-stone-950"
-            href={includeArchived ? "/applications" : "/applications?archived=1"}
+            href="/imports"
           >
-            {includeArchived ? "Hide archived" : "Show archived"}
+            Import Excel
           </Link>
           <Link
             className="rounded-full bg-stone-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-stone-800"
@@ -58,9 +69,10 @@ export default async function ApplicationsPage({
         </div>
       </section>
 
-      <ApplicationList
-        applications={applications}
-        includeArchived={includeArchived}
+      <ApplicationsGrid
+        applications={rows}
+        initialPreferences={gridPreferencesResult.preferences}
+        initialPreferencesWarning={gridPreferencesResult.warning}
         success={success}
       />
     </div>

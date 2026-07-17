@@ -118,6 +118,79 @@ enum DocumentSource {
   OTHER
 }
 
+enum JobDescriptionSourceType {
+  MANUAL_PASTE
+  LINKEDIN
+  COMPANY_SITE
+  RECRUITER
+  EMAIL
+  JOB_BOARD
+  IMPORTED_FILE
+  OTHER
+}
+
+enum JobDescriptionParseStatus {
+  PENDING
+  SUCCESS
+  SUCCESS_WITH_WARNINGS
+  FAILED
+}
+
+enum JobRequirementAnalysisStatus {
+  DRAFT
+  NEEDS_REVIEW
+  CONFIRMED
+  SUPERSEDED
+  FAILED
+}
+
+enum EvidenceRetrievalRunStatus {
+  PENDING
+  SUCCESS
+  SUCCESS_WITH_WARNINGS
+  FAILED
+}
+
+enum EvidenceScoringRunStatus {
+  PENDING
+  SUCCESS
+  SUCCESS_WITH_WARNINGS
+  FAILED
+}
+
+enum MatchReportRunStatus {
+  PENDING
+  SUCCESS
+  SUCCESS_WITH_WARNINGS
+  FAILED
+}
+
+enum StructuredResumeVersionStatus {
+  PENDING
+  READY
+  READY_WITH_LIMITATIONS
+  NEEDS_REVIEW
+  FAILED
+  SUPERSEDED
+}
+
+enum ResumeCompositionVersionStatus {
+  PENDING
+  READY
+  READY_WITH_WARNINGS
+  NEEDS_REVIEW
+  FAILED
+  SUPERSEDED
+}
+
+enum ResumeAuditRunStatus {
+  PENDING
+  PASSED
+  PASSED_WITH_WARNINGS
+  FAILED
+  NEEDS_REVIEW
+}
+
 enum ImportJobStatus {
   PENDING
   RUNNING
@@ -162,12 +235,22 @@ model Workspace {
   aiRuns                AiRun[]
   applications          Application[]
   auditEvents           AuditEvent[]
+  careerProfileSources  CareerProfileSource[]
   careerProfileVersions CareerProfileVersion[]
   companies             Company[]
   contacts              Contact[]
   documents             Document[]
+  matchReportRuns       MatchReportRun[]
+  resumeAuditRuns       ResumeAuditRun[]
+  resumeCompositionVersions ResumeCompositionVersion[]
+  structuredResumeVersions StructuredResumeVersion[]
+  evidenceScoringRuns   EvidenceScoringRun[]
+  evidenceRetrievalRuns EvidenceRetrievalRun[]
   importJobs            ImportJob[]
   interviews            Interview[]
+  jobDescriptionParses  JobDescriptionParse[]
+  jobRequirementAnalyses JobRequirementAnalysis[]
+  jobDescriptionVersions JobDescriptionVersion[]
   jobOpportunities      JobOpportunity[]
   userSettings          UserSetting[]
 }
@@ -211,6 +294,7 @@ model JobOpportunity {
   capturedAt      DateTime             @default(now())
   status          JobOpportunityStatus @default(DISCOVERED)
   company         Company              @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  jobDescriptionVersions JobDescriptionVersion[]
   workspace       Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
   applications    Application[]
 
@@ -222,6 +306,7 @@ model Application {
   id                    String                     @id @default(cuid())
   workspaceId           String
   opportunityId         String
+  currentJobDescriptionVersionId String?
   appliedAt             DateTime?
   recordedAt            DateTime                   @default(now())
   originalAppliedAt     DateTime?
@@ -236,13 +321,124 @@ model Application {
   opportunity           JobOpportunity             @relation(fields: [opportunityId], references: [id], onDelete: Restrict)
   activities            Activity[]                 @relation("ApplicationActivities")
   aiRuns                AiRun[]                    @relation("ApplicationAiRuns")
+  currentJobDescriptionVersion JobDescriptionVersion? @relation("ApplicationCurrentJobDescription", fields: [currentJobDescriptionVersionId], references: [id], onDelete: SetNull)
+  capturedJobDescriptions JobDescriptionVersion[]  @relation("JobDescriptionSourceApplication")
   documents             Document[]                 @relation("ApplicationDocuments")
   interviews            Interview[]
   matchedImportRows     ImportRow[]                @relation("MatchedImportRows")
   statusHistoryEntries  ApplicationStatusHistory[]
+  evidenceRetrievalRuns EvidenceRetrievalRun[]
+  evidenceScoringRuns   EvidenceScoringRun[]
+  matchReportRuns       MatchReportRun[]
+  resumeAuditRuns       ResumeAuditRun[]
+  resumeCompositionVersions ResumeCompositionVersion[]
+  structuredResumeVersions StructuredResumeVersion[]
 
   @@index([workspaceId, status, jobSearchDate])
+  @@index([currentJobDescriptionVersionId])
   @@index([opportunityId])
+}
+
+model JobDescriptionVersion {
+  id                 String                 @id @default(cuid())
+  workspaceId        String
+  opportunityId      String
+  sourceApplicationId String?
+  predecessorId      String?
+  versionNumber      Int
+  originalText       String
+  normalizedText     String
+  sourceUrl          String?
+  sourceType         JobDescriptionSourceType
+  sourceTitle        String?
+  sourceFilename     String?
+  capturedAt         DateTime               @default(now())
+  publishedAt        DateTime?              @db.Date
+  checksum           String
+  formatVersion      String
+  createdByWorkflow  String
+  provenance         Json?
+  active             Boolean                @default(false)
+  supersededAt       DateTime?
+  createdAt          DateTime               @default(now())
+  sourceApplication  Application?           @relation("JobDescriptionSourceApplication", fields: [sourceApplicationId], references: [id], onDelete: SetNull)
+  currentForApplications Application[]      @relation("ApplicationCurrentJobDescription")
+  parses             JobDescriptionParse[]
+  requirementAnalyses JobRequirementAnalysis[]
+  evidenceRetrievalRuns EvidenceRetrievalRun[]
+  evidenceScoringRuns   EvidenceScoringRun[]
+  matchReportRuns       MatchReportRun[]
+  resumeAuditRuns       ResumeAuditRun[]
+  resumeCompositionVersions ResumeCompositionVersion[]
+  structuredResumeVersions StructuredResumeVersion[]
+  opportunity        JobOpportunity         @relation(fields: [opportunityId], references: [id], onDelete: Restrict)
+  predecessor        JobDescriptionVersion? @relation("JobDescriptionVersionPredecessor", fields: [predecessorId], references: [id], onDelete: SetNull)
+  successors         JobDescriptionVersion[] @relation("JobDescriptionVersionPredecessor")
+  workspace          Workspace              @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+
+  @@unique([opportunityId, versionNumber])
+  @@unique([opportunityId, checksum])
+  @@index([workspaceId, opportunityId, active, createdAt])
+  @@index([sourceApplicationId, createdAt])
+}
+
+model JobDescriptionParse {
+  id                    String                    @id @default(cuid())
+  workspaceId           String
+  jobDescriptionVersionId String
+  parserVersion         String
+  contractVersion       String
+  sourceChecksum        String
+  status                JobDescriptionParseStatus @default(PENDING)
+  diagnostics           Json
+  result                Json?
+  createdByWorkflow     String
+  errorSummary          String?
+  createdAt             DateTime                  @default(now())
+  completedAt           DateTime?
+  jobDescriptionVersion JobDescriptionVersion     @relation(fields: [jobDescriptionVersionId], references: [id], onDelete: Restrict)
+  requirementAnalyses   JobRequirementAnalysis[]
+  workspace             Workspace                 @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+
+  @@index([workspaceId, createdAt])
+  @@index([jobDescriptionVersionId, createdAt])
+  @@index([jobDescriptionVersionId, parserVersion, status, createdAt])
+}
+
+model JobRequirementAnalysis {
+  id                    String                       @id @default(cuid())
+  workspaceId           String
+  jobDescriptionVersionId String
+  jobDescriptionParseId String
+  predecessorId         String?
+  contractVersion       String
+  classifierVersion     String
+  sourceChecksum        String
+  parserVersion         String
+  status                JobRequirementAnalysisStatus @default(DRAFT)
+  analysis              Json
+  diagnostics           Json
+  createdByWorkflow     String
+  acknowledgement       Json?
+  errorSummary          String?
+  createdAt             DateTime                     @default(now())
+  confirmedAt           DateTime?
+  supersededAt          DateTime?
+  predecessor           JobRequirementAnalysis?      @relation("JobRequirementAnalysisPredecessor", fields: [predecessorId], references: [id], onDelete: SetNull)
+  successors            JobRequirementAnalysis[]     @relation("JobRequirementAnalysisPredecessor")
+  jobDescriptionParse   JobDescriptionParse          @relation(fields: [jobDescriptionParseId], references: [id], onDelete: Restrict)
+  jobDescriptionVersion JobDescriptionVersion        @relation(fields: [jobDescriptionVersionId], references: [id], onDelete: Restrict)
+  workspace             Workspace                    @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+  evidenceRetrievalRuns EvidenceRetrievalRun[]
+  evidenceScoringRuns   EvidenceScoringRun[]
+  matchReportRuns       MatchReportRun[]
+  resumeAuditRuns       ResumeAuditRun[]
+  resumeCompositionVersions ResumeCompositionVersion[]
+  structuredResumeVersions StructuredResumeVersion[]
+
+  @@index([workspaceId, createdAt])
+  @@index([jobDescriptionVersionId, createdAt])
+  @@index([jobDescriptionParseId, classifierVersion, status, createdAt])
 }
 
 model ApplicationStatusHistory {
@@ -430,17 +626,302 @@ model AuditEvent {
 }
 
 model CareerProfileVersion {
-  id             String    @id @default(cuid())
-  workspaceId    String
-  schemaVersion  String
-  sourceFilename String
-  content        Json
-  checksum       String
-  importedAt     DateTime  @default(now())
-  active         Boolean   @default(false)
-  workspace      Workspace @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+  id                String                @id @default(cuid())
+  workspaceId       String
+  sourceId          String
+  predecessorId     String?
+  schemaVersion     String
+  importerVersion   String
+  sourceFilename    String
+  sourceVersion     String?
+  content           Json
+  validationSummary Json
+  checksum          String
+  importedAt        DateTime              @default(now())
+  supersededAt      DateTime?
+  active            Boolean               @default(false)
+  predecessor       CareerProfileVersion? @relation("CareerProfileVersionPredecessor", fields: [predecessorId], references: [id], onDelete: SetNull)
+  source            CareerProfileSource   @relation(fields: [sourceId], references: [id], onDelete: Restrict)
+  successors        CareerProfileVersion[] @relation("CareerProfileVersionPredecessor")
+  workspace         Workspace             @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+  evidenceRetrievalRuns EvidenceRetrievalRun[]
+  evidenceScoringRuns   EvidenceScoringRun[]
+  matchReportRuns       MatchReportRun[]
+  resumeAuditRuns       ResumeAuditRun[]
+  resumeCompositionVersions ResumeCompositionVersion[]
+  structuredResumeVersions StructuredResumeVersion[]
 
-  @@index([workspaceId, active])
+  @@unique([sourceId, schemaVersion, importerVersion])
+  @@index([workspaceId, active, importedAt])
+}
+
+model EvidenceRetrievalRun {
+  id                     String                     @id @default(cuid())
+  workspaceId            String
+  careerProfileVersionId String
+  requirementAnalysisId  String
+  jobDescriptionVersionId String
+  applicationId          String?
+  contractVersion        String
+  engineVersion          String
+  careerSourceChecksum   String
+  requirementSourceChecksum String
+  inputChecksum          String
+  status                 EvidenceRetrievalRunStatus @default(PENDING)
+  result                 Json?
+  summary                Json?
+  diagnostics            Json?
+  errorSummary           String?
+  createdAt              DateTime                   @default(now())
+  completedAt            DateTime?
+  application            Application?               @relation(fields: [applicationId], references: [id], onDelete: SetNull)
+  careerProfileVersion   CareerProfileVersion       @relation(fields: [careerProfileVersionId], references: [id], onDelete: Restrict)
+  jobDescriptionVersion  JobDescriptionVersion      @relation(fields: [jobDescriptionVersionId], references: [id], onDelete: Restrict)
+  requirementAnalysis    JobRequirementAnalysis     @relation(fields: [requirementAnalysisId], references: [id], onDelete: Restrict)
+  workspace              Workspace                  @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+  scoringRuns            EvidenceScoringRun[]
+  matchReportRuns        MatchReportRun[]
+  structuredResumeVersions StructuredResumeVersion[]
+
+  @@index([workspaceId, createdAt])
+  @@index([careerProfileVersionId, createdAt])
+  @@index([requirementAnalysisId, createdAt])
+  @@index([jobDescriptionVersionId, createdAt])
+  @@index([applicationId, createdAt])
+  @@index([workspaceId, inputChecksum, status, createdAt])
+}
+
+model EvidenceScoringRun {
+  id                        String                   @id @default(cuid())
+  workspaceId               String
+  evidenceRetrievalRunId    String
+  careerProfileVersionId    String
+  requirementAnalysisId     String
+  jobDescriptionVersionId   String
+  applicationId             String?
+  contractVersion           String
+  engineVersion             String
+  configurationVersion      String
+  retrievalInputChecksum    String
+  inputChecksum             String
+  status                    EvidenceScoringRunStatus @default(PENDING)
+  result                    Json?
+  summary                   Json?
+  diagnostics               Json?
+  errorSummary              String?
+  createdAt                 DateTime                @default(now())
+  completedAt               DateTime?
+  application               Application?            @relation(fields: [applicationId], references: [id], onDelete: SetNull)
+  careerProfileVersion      CareerProfileVersion    @relation(fields: [careerProfileVersionId], references: [id], onDelete: Restrict)
+  evidenceRetrievalRun      EvidenceRetrievalRun    @relation(fields: [evidenceRetrievalRunId], references: [id], onDelete: Restrict)
+  jobDescriptionVersion     JobDescriptionVersion   @relation(fields: [jobDescriptionVersionId], references: [id], onDelete: Restrict)
+  requirementAnalysis       JobRequirementAnalysis  @relation(fields: [requirementAnalysisId], references: [id], onDelete: Restrict)
+  workspace                 Workspace               @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+  matchReports              MatchReportRun[]
+  structuredResumeVersions   StructuredResumeVersion[]
+
+  @@index([workspaceId, createdAt])
+  @@index([evidenceRetrievalRunId, createdAt])
+  @@index([careerProfileVersionId, createdAt])
+  @@index([requirementAnalysisId, createdAt])
+  @@index([jobDescriptionVersionId, createdAt])
+  @@index([applicationId, createdAt])
+  @@index([workspaceId, inputChecksum, status, createdAt])
+}
+
+model MatchReportRun {
+  id                      String               @id @default(cuid())
+  workspaceId             String
+  evidenceScoringRunId    String
+  evidenceRetrievalRunId  String
+  careerProfileVersionId  String
+  requirementAnalysisId   String
+  jobDescriptionVersionId String
+  applicationId           String?
+  contractVersion         String
+  engineVersion           String
+  configurationVersion    String
+  scoringInputChecksum    String
+  inputChecksum           String
+  status                  MatchReportRunStatus @default(PENDING)
+  result                  Json?
+  summary                 Json?
+  diagnostics             Json?
+  errorSummary            String?
+  createdAt               DateTime             @default(now())
+  completedAt             DateTime?
+  application             Application?         @relation(fields: [applicationId], references: [id], onDelete: SetNull)
+  careerProfileVersion    CareerProfileVersion @relation(fields: [careerProfileVersionId], references: [id], onDelete: Restrict)
+  evidenceRetrievalRun    EvidenceRetrievalRun @relation(fields: [evidenceRetrievalRunId], references: [id], onDelete: Restrict)
+  evidenceScoringRun      EvidenceScoringRun   @relation(fields: [evidenceScoringRunId], references: [id], onDelete: Restrict)
+  jobDescriptionVersion   JobDescriptionVersion @relation(fields: [jobDescriptionVersionId], references: [id], onDelete: Restrict)
+  requirementAnalysis     JobRequirementAnalysis @relation(fields: [requirementAnalysisId], references: [id], onDelete: Restrict)
+  resumeAuditRuns         ResumeAuditRun[]
+  structuredResumeVersions StructuredResumeVersion[]
+  resumeCompositionVersions ResumeCompositionVersion[]
+  workspace               Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+
+  @@index([workspaceId, createdAt])
+  @@index([evidenceScoringRunId, createdAt])
+  @@index([evidenceRetrievalRunId, createdAt])
+  @@index([careerProfileVersionId, createdAt])
+  @@index([requirementAnalysisId, createdAt])
+  @@index([jobDescriptionVersionId, createdAt])
+  @@index([applicationId, createdAt])
+  @@index([workspaceId, inputChecksum, status, createdAt])
+}
+
+model StructuredResumeVersion {
+  id                       String                        @id @default(cuid())
+  workspaceId              String
+  careerProfileVersionId   String
+  requirementAnalysisId    String
+  evidenceRetrievalRunId   String
+  evidenceScoringRunId     String
+  matchReportRunId         String
+  jobDescriptionVersionId  String
+  applicationId            String?
+  predecessorVersionId     String?
+  contractVersion          String
+  engineVersion            String
+  configurationVersion     String
+  matchReportInputChecksum String
+  careerSourceChecksum     String
+  inputChecksum            String
+  status                   StructuredResumeVersionStatus @default(PENDING)
+  plan                     Json?
+  summary                  Json?
+  diagnostics              Json?
+  errorSummary             String?
+  createdAt                DateTime                      @default(now())
+  completedAt              DateTime?
+  application              Application?                  @relation(fields: [applicationId], references: [id], onDelete: SetNull)
+  careerProfileVersion     CareerProfileVersion          @relation(fields: [careerProfileVersionId], references: [id], onDelete: Restrict)
+  evidenceRetrievalRun     EvidenceRetrievalRun          @relation(fields: [evidenceRetrievalRunId], references: [id], onDelete: Restrict)
+  evidenceScoringRun       EvidenceScoringRun            @relation(fields: [evidenceScoringRunId], references: [id], onDelete: Restrict)
+  jobDescriptionVersion    JobDescriptionVersion         @relation(fields: [jobDescriptionVersionId], references: [id], onDelete: Restrict)
+  matchReportRun           MatchReportRun                @relation(fields: [matchReportRunId], references: [id], onDelete: Restrict)
+  predecessorVersion       StructuredResumeVersion?      @relation("StructuredResumeVersionPredecessor", fields: [predecessorVersionId], references: [id], onDelete: SetNull)
+  requirementAnalysis      JobRequirementAnalysis        @relation(fields: [requirementAnalysisId], references: [id], onDelete: Restrict)
+  resumeAuditRuns          ResumeAuditRun[]
+  resumeCompositionVersions ResumeCompositionVersion[]
+  successorVersions        StructuredResumeVersion[]     @relation("StructuredResumeVersionPredecessor")
+  workspace                Workspace                     @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+
+  @@index([workspaceId, createdAt])
+  @@index([careerProfileVersionId, createdAt])
+  @@index([requirementAnalysisId, createdAt])
+  @@index([evidenceRetrievalRunId, createdAt])
+  @@index([evidenceScoringRunId, createdAt])
+  @@index([matchReportRunId, createdAt])
+  @@index([jobDescriptionVersionId, createdAt])
+  @@index([applicationId, createdAt])
+  @@index([workspaceId, inputChecksum, status, createdAt])
+}
+
+model ResumeCompositionVersion {
+  id                          String                         @id @default(cuid())
+  workspaceId                 String
+  structuredResumeVersionId   String
+  careerProfileVersionId      String
+  requirementAnalysisId       String
+  matchReportRunId            String
+  jobDescriptionVersionId     String
+  applicationId               String?
+  predecessorVersionId        String?
+  contractVersion             String
+  engineVersion               String
+  configurationVersion        String
+  structuredResumeInputChecksum String
+  careerSourceChecksum        String
+  inputChecksum               String
+  status                      ResumeCompositionVersionStatus @default(PENDING)
+  content                     Json?
+  summary                     Json?
+  diagnostics                 Json?
+  errorSummary                String?
+  createdAt                   DateTime                       @default(now())
+  completedAt                 DateTime?
+  application                 Application?                   @relation(fields: [applicationId], references: [id], onDelete: SetNull)
+  careerProfileVersion        CareerProfileVersion           @relation(fields: [careerProfileVersionId], references: [id], onDelete: Restrict)
+  jobDescriptionVersion       JobDescriptionVersion          @relation(fields: [jobDescriptionVersionId], references: [id], onDelete: Restrict)
+  matchReportRun              MatchReportRun                 @relation(fields: [matchReportRunId], references: [id], onDelete: Restrict)
+  predecessorVersion          ResumeCompositionVersion?      @relation("ResumeCompositionVersionPredecessor", fields: [predecessorVersionId], references: [id], onDelete: SetNull)
+  requirementAnalysis         JobRequirementAnalysis         @relation(fields: [requirementAnalysisId], references: [id], onDelete: Restrict)
+  resumeAuditRuns             ResumeAuditRun[]
+  structuredResumeVersion     StructuredResumeVersion        @relation(fields: [structuredResumeVersionId], references: [id], onDelete: Restrict)
+  successorVersions           ResumeCompositionVersion[]     @relation("ResumeCompositionVersionPredecessor")
+  workspace                   Workspace                      @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+
+  @@index([workspaceId, createdAt])
+  @@index([structuredResumeVersionId, createdAt])
+  @@index([careerProfileVersionId, createdAt])
+  @@index([requirementAnalysisId, createdAt])
+  @@index([matchReportRunId, createdAt])
+  @@index([jobDescriptionVersionId, createdAt])
+  @@index([applicationId, createdAt])
+  @@index([workspaceId, inputChecksum, status, createdAt])
+}
+
+model ResumeAuditRun {
+  id                           String               @id @default(cuid())
+  workspaceId                  String
+  resumeCompositionVersionId   String
+  structuredResumeVersionId    String
+  careerProfileVersionId       String
+  matchReportRunId             String
+  requirementAnalysisId        String
+  jobDescriptionVersionId      String
+  applicationId                String?
+  contractVersion              String
+  engineVersion                String
+  configurationVersion         String
+  resumeCompositionInputChecksum String
+  inputChecksum                String
+  status                       ResumeAuditRunStatus @default(PENDING)
+  renderingReadiness           String
+  result                       Json?
+  summary                      Json?
+  diagnostics                  Json?
+  errorSummary                 String?
+  createdAt                    DateTime             @default(now())
+  completedAt                  DateTime?
+  application                  Application?         @relation(fields: [applicationId], references: [id], onDelete: SetNull)
+  careerProfileVersion         CareerProfileVersion @relation(fields: [careerProfileVersionId], references: [id], onDelete: Restrict)
+  jobDescriptionVersion        JobDescriptionVersion @relation(fields: [jobDescriptionVersionId], references: [id], onDelete: Restrict)
+  matchReportRun               MatchReportRun       @relation(fields: [matchReportRunId], references: [id], onDelete: Restrict)
+  requirementAnalysis          JobRequirementAnalysis @relation(fields: [requirementAnalysisId], references: [id], onDelete: Restrict)
+  resumeCompositionVersion     ResumeCompositionVersion @relation(fields: [resumeCompositionVersionId], references: [id], onDelete: Restrict)
+  structuredResumeVersion      StructuredResumeVersion @relation(fields: [structuredResumeVersionId], references: [id], onDelete: Restrict)
+  workspace                    Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+
+  @@index([workspaceId, createdAt])
+  @@index([resumeCompositionVersionId, createdAt])
+  @@index([structuredResumeVersionId, createdAt])
+  @@index([careerProfileVersionId, createdAt])
+  @@index([matchReportRunId, createdAt])
+  @@index([requirementAnalysisId, createdAt])
+  @@index([jobDescriptionVersionId, createdAt])
+  @@index([applicationId, createdAt])
+  @@index([workspaceId, inputChecksum, status, createdAt])
+}
+
+model CareerProfileSource {
+  id         String                 @id @default(cuid())
+  workspaceId String
+  filename   String
+  fileType   String
+  mimeType   String
+  sizeBytes  Int
+  checksum   String
+  sourceVersion String?
+  rawPayload Json
+  createdAt  DateTime               @default(now())
+  versions   CareerProfileVersion[]
+  workspace  Workspace              @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+
+  @@unique([workspaceId, checksum])
+  @@index([workspaceId, createdAt])
 }
 
 model AiRun {

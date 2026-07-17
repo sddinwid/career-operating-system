@@ -36,6 +36,7 @@ type ResolveOpportunityArgs = {
   appliedAt: Date;
   existingOpportunity?: {
     id: string;
+    companyId: string;
     title: string;
     jobUrl: string | null;
     source: string | null;
@@ -60,6 +61,7 @@ function opportunityMatchesDesiredState(
   desired: ResolveOpportunityArgs
 ) {
   return (
+    existing.companyId === desired.companyId &&
     existing.title === desired.title.trim() &&
     (canonicalizeJobUrl(existing.jobUrl) ?? null) ===
       (canonicalizeJobUrl(desired.jobUrl) ?? null) &&

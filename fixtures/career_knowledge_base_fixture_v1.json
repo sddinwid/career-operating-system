@@ -1,0 +1,200 @@
+{
+  "_meta": {
+    "documentType": "career_knowledge_base",
+    "schemaVersion": "3.0.0",
+    "owner": "Fixture Candidate"
+  },
+  "candidateProfile": {
+    "_id": "candidate_fixture",
+    "name": "Fixture Candidate",
+    "email": "fixture@example.com",
+    "phone": "555-0100",
+    "linkedin": "linkedin.com/in/fixture-candidate",
+    "github": "github.com/fixture-candidate",
+    "primaryTargetRoles": ["Backend Engineer", "Platform Engineer"],
+    "preferredPositioning": {
+      "default": "Senior Backend Engineer"
+    },
+    "careerThemes": ["backend systems", "platform engineering"]
+  },
+  "resumeGenerationRules": {
+    "_id": "resume_rules_fixture",
+    "globalRules": [
+      "Never invent experience.",
+      "Do not use em dashes."
+    ],
+    "stackOrderingRules": {
+      "pythonBackend": {
+        "priorityOrder": ["Python", "PostgreSQL", "Docker"],
+        "notes": ["Prefer backend evidence first."]
+      }
+    },
+    "coverLetterRules": {
+      "paragraphs": "3"
+    },
+    "recruiterOptimizationRules": {
+      "assumption": "Lead with impact."
+    }
+  },
+  "skills": [
+    {
+      "_id": "skill_python",
+      "name": "Python",
+      "category": "language",
+      "recent": true
+    },
+    {
+      "_id": "skill_postgresql",
+      "name": "PostgreSQL",
+      "category": "database",
+      "recent": true
+    }
+  ],
+  "professionalExperience": [
+    {
+      "_id": "exp_fixture",
+      "company": "Fixture Corp",
+      "title": "Software Engineer",
+      "startDate": "2022-01",
+      "endDate": "2024-06",
+      "themes": ["backend", "APIs"],
+      "technologies": ["Python", "PostgreSQL"],
+      "metrics": [
+        {
+          "description": "Improved throughput",
+          "value": "20%"
+        }
+      ],
+      "facts": ["Built backend services for internal tools."]
+    }
+  ],
+  "projects": [
+    {
+      "_id": "project_fixture",
+      "name": "Fixture Platform",
+      "type": "Internal Platform",
+      "technologies": ["Python", "Docker"],
+      "themes": ["platform", "automation"],
+      "preferredFor": ["Backend Engineer"]
+    }
+  ],
+  "education": [
+    {
+      "degree": "BS Computer Science",
+      "institution": "Fixture University",
+      "year": 2020
+    }
+  ],
+  "certifications": [
+    {
+      "name": "Fixture Cloud",
+      "status": "expired",
+      "includeByDefault": false
+    }
+  ],
+  "knownUnknowns": [
+    "Exact dates for a legacy role before 2020."
+  ],
+  "writingPreferences": {
+    "_id": "writing_fixture",
+    "general": {
+      "tone": ["direct", "grounded"],
+      "avoid": ["em dashes"]
+    }
+  },
+  "jobDescriptionParsingRules": {
+    "_id": "jd_fixture",
+    "extract": ["role title", "required skills"]
+  },
+  "jobMatchingRules": {
+    "_id": "match_fixture",
+    "weights": {
+      "requiredSkillMatch": 10
+    }
+  },
+  "accomplishments": [
+    {
+      "_id": "acc_fixture",
+      "sourceType": "professionalExperience",
+      "sourceId": "exp_fixture",
+      "summary": "Improved throughput by 20 percent for backend workflows.",
+      "metric": {
+        "description": "Improved throughput",
+        "value": 20
+      },
+      "skills": ["Python", "PostgreSQL"],
+      "themes": ["performance"],
+      "evidenceLevel": "verified",
+      "recent": true,
+      "bestFor": ["Backend Engineer"],
+      "priority": 10
+    }
+  ],
+  "resumeBullets": [
+    {
+      "_id": "bullet_fixture",
+      "sourceId": "exp_fixture",
+      "text": "Built Python services backed by PostgreSQL for internal platform workflows.",
+      "skills": ["Python", "PostgreSQL"],
+      "themes": ["backend"],
+      "metricVerified": false,
+      "evidenceLevel": "verified",
+      "priority": 8
+    }
+  ],
+  "architectureExamples": [
+    {
+      "_id": "arch_fixture",
+      "sourceId": "project_fixture",
+      "problem": "Platform automation complexity",
+      "approach": "Used provider abstraction and Docker-based local development.",
+      "tradeoffs": ["Higher abstraction cost for better portability."],
+      "bestFor": ["platform engineering"]
+    }
+  ],
+  "leadershipExamples": [
+    {
+      "_id": "lead_fixture",
+      "sourceId": "exp_fixture",
+      "summary": "Mentored teammates on API design and delivery discipline.",
+      "evidenceLevel": "verified",
+      "bestFor": ["senior engineer"]
+    }
+  ],
+  "productionExamples": [
+    {
+      "_id": "prod_fixture",
+      "sourceId": "exp_fixture",
+      "themes": ["reliability"],
+      "summary": "Supported production API workflows for internal users."
+    }
+  ],
+  "interviewStories": [
+    {
+      "_id": "story_fixture",
+      "title": "Throughput improvement",
+      "sourceIds": ["exp_fixture", "acc_fixture"],
+      "themes": ["performance", "backend"],
+      "situation": "A critical workflow processed too slowly.",
+      "task": "Improve throughput without weakening correctness.",
+      "action": "Optimized processing and simplified query patterns.",
+      "result": "Improved throughput by 20 percent.",
+      "evidenceLevel": "verified"
+    }
+  ],
+  "domainExperience": [
+    {
+      "domain": "Internal Platforms",
+      "sourceIds": ["exp_fixture"],
+      "strength": "strong"
+    }
+  ],
+  "outputGenerationWorkflow": {
+    "_id": "workflow_fixture",
+    "steps": ["Parse the job description.", "Select evidence.", "Check truthfulness."]
+  },
+  "outputTemplates": {
+    "resumeVariants": ["Backend Engineer"],
+    "applicationPackage": ["targeted resume"]
+  }
+}
