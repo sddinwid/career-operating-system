@@ -205,3 +205,17 @@ Reasoning:
 - rendering readiness is derived, versioned workflow state rather than document metadata
 - the audit must not rewrite resume content
 - later rendering stages need a stable readiness contract before DOCX or PDF generation
+
+## M6.1 Resume Studio Revision Decision
+
+The system stores editable and finalized resume revisions in `ResumeRevisionVersion`, not on `ResumeCompositionVersion` and not in `DocumentVersion`.
+
+Reasoning:
+
+- composed resume content must remain immutable and inspectable as the authoritative deterministic base
+- user edits, review notes, local validation, and finalized revision lineage need their own historical record
+- revision-backed audits must be attributable to the revised content without mutating the base audit
+- rendering should consume an explicit finalized revision state rather than an implicitly edited draft
+## M6.2 Decision
+
+Comparison output remains computed instead of persisted. Approval history is persisted separately in `ResumeRenderingApproval` so future renderers can consume exact approved content and audits without coupling rendering state to resume composition or revision rows.

@@ -169,6 +169,11 @@ vi.mock("@/lib/resume-audit/service", () => ({
   }))
 }));
 
+vi.mock("@/lib/resume-rendering-approval/service", () => ({
+  getActiveResumeRenderingApproval: vi.fn(async () => null),
+  listResumeRenderingApprovalHistory: vi.fn(async () => [])
+}));
+
 describe("ApplicationDetailPage", () => {
   it("shows the job-description summary and replacement actions", async () => {
     const page = await ApplicationDetailPage({

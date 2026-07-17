@@ -364,4 +364,42 @@ describe("structured resume engine", () => {
       "MICROSOFT_DOTNET"
     );
   });
+
+  it("qualifies project-only technologies instead of promoting them as unqualified core skills", () => {
+    const base = buildInput();
+    const result = buildStructuredResumePlan({
+      ...base,
+      matchReportResult: {
+        ...base.matchReportResult,
+        resumeGuidance: {
+          ...base.matchReportResult.resumeGuidance,
+          priorityTechnologies: [
+            {
+              technology: "Docker",
+              requirementImportance: 1,
+              evidenceStrengthState: "LIMITED_EVIDENCE",
+              professionalEvidenceCount: 0,
+              recency: "CURRENT",
+              guidance: "QUALIFY"
+            }
+          ],
+          rolesToEmphasize: [],
+          claimsToAvoid: []
+        }
+      }
+    });
+
+    expect(result.skillPlan.entries).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          canonicalSkill: "Docker",
+          decision: "QUALIFY",
+          professionalUse: false,
+          projectUse: true,
+          restrictions: expect.arrayContaining(["PROJECT_ONLY"]),
+          supportingEvidenceIds: expect.arrayContaining(["project_fixture"])
+        })
+      ])
+    );
+  });
 });

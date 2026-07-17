@@ -135,6 +135,7 @@ function buildAuditInput(): ResumeAuditInput {
     runId: "audit-1",
     workspaceId: "workspace-1",
     resumeCompositionVersionId: "resume-composition-1",
+    resumeRevisionVersionId: null,
     resumeCompositionInputChecksum: "composition-checksum-1",
     createdAt: "2026-07-17T12:00:00.000Z",
     inputChecksum: "audit-input-checksum-1",
@@ -374,6 +375,49 @@ describe("buildResumeAudit", () => {
     expect(result.renderingReadiness).toBe("READY_WITH_WARNINGS");
     expect(result.summary.errorCount).toBe(0);
     expect(result.summary.warningCount).toBeGreaterThan(0);
+  });
+
+  it("accepts direct-source GitHub header values during source-fidelity checks", () => {
+    const input = buildAuditInput();
+    input.resumeComposition.header = [
+      {
+        field: "GITHUB",
+        label: "GITHUB",
+        value: "github.com/fixture",
+        included: true,
+        reason: "contact",
+        provenance: {
+          statementId: "header:github",
+          sourceEvidenceIds: ["candidate-1"],
+          sourceCareerRecordIds: ["candidate-1"],
+          requirementIds: [],
+          templateId: "header.direct-source",
+          transformations: [],
+          metricReferences: [],
+          technologies: [],
+          restrictions: [],
+          recordKinds: ["SOURCE_FACT"],
+          confirmationStates: ["SOURCE_PROVIDED"],
+          truthfulnessClassification: "VERIFIED_SOURCE",
+          claimsToAvoidChecked: []
+        }
+      }
+    ];
+
+    const result = buildResumeAudit({
+      input,
+      careerProfile: buildCareerProfile(),
+      structuredResumePlan: {} as never,
+      matchReport: {
+        resumeGuidance: {
+          priorityTechnologies: [{ technology: "TypeScript", guidance: "INCLUDE" }]
+        }
+      } as never
+    });
+
+    expect(result.findings.some((finding) => finding.ruleId === "source-fidelity.mismatch")).toBe(
+      false
+    );
   });
 
   it("blocks rendering when a statement is missing provenance", () => {

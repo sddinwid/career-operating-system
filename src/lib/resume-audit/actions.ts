@@ -27,3 +27,31 @@ export async function runResumeAuditAction(
   const separator = target.includes("?") ? "&" : "?";
   redirect(`${target}${separator}runId=${result.run?.id}&success=${status}` as Parameters<typeof redirect>[0]);
 }
+
+export async function runResumeRevisionAuditAction(
+  resumeRevisionVersionId: string,
+  jobDescriptionVersionId: string,
+  returnTo?: string
+) {
+  const workspace = await getDefaultWorkspace();
+  const result = await runResumeAudit(workspace.id, {
+    resumeRevisionVersionId
+  });
+
+  const target = returnTo ?? `/job-descriptions/${jobDescriptionVersionId}/resume/studio`;
+  const status = result.duplicate ? "audit-reused" : "audit-created";
+
+  revalidatePath("/applications");
+  revalidatePath(`/applications/${result.run?.applicationId ?? ""}`);
+  revalidatePath(`/job-descriptions/${jobDescriptionVersionId}`);
+  revalidatePath(`/job-descriptions/${jobDescriptionVersionId}/resume`);
+  revalidatePath(`/job-descriptions/${jobDescriptionVersionId}/resume/audit`);
+  revalidatePath(`/job-descriptions/${jobDescriptionVersionId}/resume/studio`);
+
+  const separator = target.includes("?") ? "&" : "?";
+  redirect(
+    `${target}${separator}runId=${result.run?.id}&revisionId=${resumeRevisionVersionId}&success=${status}` as Parameters<
+      typeof redirect
+    >[0]
+  );
+}

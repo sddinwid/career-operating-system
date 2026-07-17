@@ -2,13 +2,14 @@
 
 Date: July 17, 2026
 
-`M5.3` adds a deterministic, immutable audit layer on top of one exact `ResumeCompositionVersion`.
+`M5.3` adds a deterministic, immutable audit layer on top of one exact `ResumeCompositionVersion`. `M6.1` extends the same audit engine so it can also run against one exact finalized `ResumeRevisionVersion`.
 
 ## Inputs
 
 Each `ResumeAuditRun` references exactly:
 
 - one `ResumeCompositionVersion`
+- zero or one finalized `ResumeRevisionVersion`
 - one linked `StructuredResumeVersion`
 - one linked `CareerProfileVersion`
 - one linked `MatchReportRun`
@@ -90,6 +91,8 @@ The system computes a deterministic input checksum from:
 
 Identical inputs reuse the latest existing audit run instead of creating a duplicate row.
 
+For revision-backed audits, the deterministic checksum also includes `resumeRevisionVersionId`, so changed revised content does not incorrectly reuse the base-composition audit.
+
 ## UI
 
 Routes:
@@ -99,6 +102,12 @@ Routes:
 - application detail audit summary on `/applications/[applicationId]`
 
 The UI is read-only. It shows status, rendering readiness, finding counts, blocking findings, warning findings, section results, statement findings, and provenance links.
+
+`M6.1` adds revision-audit entry points from:
+
+- finalized Resume Studio revisions
+- the revised resume Studio route after finalization
+- application detail summaries when a finalized revision exists
 
 ## Privacy
 
@@ -117,4 +126,12 @@ The UI is read-only. It shows status, rendering readiness, finding counts, block
 
 ## Next Dependency
 
-`M6.1 - Resume Studio Read-Only Review`
+`M6.2 - Resume Studio Comparison and Rendering Approval`
+## Downstream Use in M6.2
+
+Resume audits now feed two downstream decisions:
+
+- deterministic comparison of audit findings across immutable resume versions
+- immutable rendering approval eligibility
+
+No audit override or manual finding dismissal is introduced.

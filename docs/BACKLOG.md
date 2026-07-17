@@ -80,21 +80,21 @@ This backlog is organized by outcome-based milestones rather than the original p
 - Personal workflow benefit: catches unsupported claims before any export or submission
 - Acceptance summary: deterministic checks for unsupported claims, duplication, experience ceilings, and ATS readability
 
-### `M6.1 - Resume Studio Read-Only Review`
-- Status: `planned`
-- Priority: `P2`
+### `M6.1 - Resume Studio Editing and Versioned Revision`
+- Status: `verified complete`
+- Priority: `done`
 - Milestone: `Milestone 6 - Resume Studio and Review`
 - Dependency: `M5.3`
-- Personal workflow benefit: lets Scott inspect why content was chosen before editing documents manually
-- Acceptance summary: render resume sections, provenance, and evidence explanations without editing
+- Personal workflow benefit: supports safe employer-facing revision without rebuilding a resume from scratch
+- Acceptance summary: mutable draft saves, deterministic local validation, immutable finalized revisions, revision-backed audit, and successor revision lineage
 
-### `M6.2 - Resume Studio Editing and Locking`
-- Status: `planned`
+### `M6.2 - Resume Studio Comparison and Rendering Approval`
+- Status: `in progress - verification pending`
 - Priority: `P2`
 - Milestone: `Milestone 6`
 - Dependency: `M6.1`
-- Personal workflow benefit: supports selective override without rebuilding a resume from scratch
-- Acceptance summary: lock sections, remove or replace bullets, preserve user edits, and save immutable structured versions
+- Personal workflow benefit: makes revised resume approval explicit before rendering and submission
+- Acceptance summary: compare finalized revisions, review deltas, and approve one rendering-ready revision without mutating history; do not mark complete until the required full verification suite passes
 
 ### `M7.1 - DOCX Template and Renderer`
 - Status: `planned`
@@ -292,3 +292,6 @@ This backlog is organized by outcome-based milestones rather than the original p
 - M4.3 - Complete
 - M5.1 - Complete
 - M5.2 - Next
+## Next
+
+- M7.1 — DOCX Renderer and Immutable Document Version

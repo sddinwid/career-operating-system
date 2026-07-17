@@ -19,6 +19,12 @@ import {
   type ResumeAuditResult
 } from "@/lib/resume-audit/contract";
 import { buildResumeAudit } from "@/lib/resume-audit/engine";
+import { projectResumeRevisionToCompositionContent } from "@/lib/resume-revision/engine";
+import {
+  getResumeRevisionVersionById,
+  markResumeRevisionAudited,
+  parseStoredResumeRevisionVersion
+} from "@/lib/resume-revision/service";
 import {
   getResumeCompositionContext,
   getResumeCompositionVersionById,
@@ -28,10 +34,17 @@ import { parseStoredStructuredResumeVersion } from "@/lib/structured-resume/serv
 
 type TransactionClient = Prisma.TransactionClient;
 
-type RunResumeAuditOptions = {
-  resumeCompositionVersionId: string;
-  simulateFailureAfterCreate?: boolean;
-};
+type RunResumeAuditOptions =
+  | {
+      resumeCompositionVersionId: string;
+      resumeRevisionVersionId?: never;
+      simulateFailureAfterCreate?: boolean;
+    }
+  | {
+      resumeCompositionVersionId?: never;
+      resumeRevisionVersionId: string;
+      simulateFailureAfterCreate?: boolean;
+    };
 
 function stableSerialize(value: unknown): string {
   if (value === null || typeof value !== "object") {
@@ -58,12 +71,14 @@ async function computeSha256(value: string) {
 
 export async function computeResumeAuditInputChecksum(args: {
   resumeCompositionVersionId: string;
+  resumeRevisionVersionId?: string | null;
   resumeCompositionInputChecksum: string;
   auditConfiguration: unknown;
 }) {
   return computeSha256(
     stableSerialize({
       resumeCompositionVersionId: args.resumeCompositionVersionId,
+      resumeRevisionVersionId: args.resumeRevisionVersionId ?? null,
       resumeCompositionInputChecksum: args.resumeCompositionInputChecksum,
       resumeAuditContractVersion: RESUME_AUDIT_CONTRACT_VERSION,
       resumeAuditEngineVersion: RESUME_AUDIT_ENGINE_VERSION,
@@ -213,6 +228,7 @@ async function createResumeAuditRecord(args: {
       id: args.result.runId,
       workspaceId: args.workspaceId,
       resumeCompositionVersionId: args.result.resumeCompositionVersionId,
+      resumeRevisionVersionId: args.result.resumeRevisionVersionId,
       structuredResumeVersionId: args.result.structuredResumeVersionId,
       careerProfileVersionId: args.result.careerProfileVersionId,
       matchReportRunId: args.result.matchReportRunId,
@@ -241,29 +257,43 @@ export async function runResumeAudit(
   prismaClient: PrismaClient = prisma
 ) {
   return prismaClient.$transaction(async (transaction) => {
-    const compositionVersion = await getResumeCompositionVersionById(
-      workspaceId,
-      options.resumeCompositionVersionId,
-      transaction
-    );
+    const compositionVersionId =
+      "resumeCompositionVersionId" in options ? options.resumeCompositionVersionId : undefined;
+    const revisionVersion =
+      "resumeRevisionVersionId" in options && options.resumeRevisionVersionId
+        ? await getResumeRevisionVersionById(workspaceId, options.resumeRevisionVersionId, transaction)
+        : null;
+
+    const compositionVersion = revisionVersion
+      ? await getResumeCompositionVersionById(
+          workspaceId,
+          revisionVersion.baseResumeCompositionVersionId,
+          transaction
+        )
+      : await getResumeCompositionVersionById(
+          workspaceId,
+          compositionVersionId ?? "",
+          transaction
+        );
 
     if (!compositionVersion) {
       throw new Error("Resume composition version not found.");
     }
 
-    if (
+    if (!revisionVersion && (
       compositionVersion.status !== ResumeCompositionVersionStatus.READY &&
       compositionVersion.status !== ResumeCompositionVersionStatus.READY_WITH_WARNINGS &&
       compositionVersion.status !== ResumeCompositionVersionStatus.NEEDS_REVIEW
-    ) {
+    )) {
       throw new Error("Only composed resume versions can be audited.");
     }
 
-    const parsedComposition = await parseStoredResumeCompositionVersion(
-      workspaceId,
-      compositionVersion.id,
-      transaction
-    );
+    const parsedRevision = revisionVersion
+      ? await parseStoredResumeRevisionVersion(workspaceId, revisionVersion.id, transaction)
+      : null;
+    const parsedComposition = revisionVersion
+      ? null
+      : await parseStoredResumeCompositionVersion(workspaceId, compositionVersion.id, transaction);
     const parsedStructuredResume = await parseStoredStructuredResumeVersion(
       workspaceId,
       compositionVersion.structuredResumeVersionId,
@@ -277,6 +307,7 @@ export async function runResumeAudit(
 
     const inputChecksum = await computeResumeAuditInputChecksum({
       resumeCompositionVersionId: compositionVersion.id,
+      resumeRevisionVersionId: revisionVersion?.id ?? null,
       resumeCompositionInputChecksum: compositionVersion.inputChecksum,
       auditConfiguration: resumeAuditConfiguration
     });
@@ -304,10 +335,15 @@ export async function runResumeAudit(
         runId: randomUUID(),
         workspaceId,
         resumeCompositionVersionId: compositionVersion.id,
+        resumeRevisionVersionId: revisionVersion?.id ?? null,
         resumeCompositionInputChecksum: compositionVersion.inputChecksum,
         createdAt: new Date().toISOString(),
         inputChecksum,
-        resumeComposition: parsedComposition.content,
+        resumeComposition: revisionVersion
+          ? projectResumeRevisionToCompositionContent({
+              content: parsedRevision!.record.content
+            })
+          : parsedComposition!.content,
         matchReportClaimsToAvoid: parsedMatchReport.result.resumeGuidance.claimsToAvoid.map(
           (item) => item.concept
         ),
@@ -323,6 +359,18 @@ export async function runResumeAudit(
       workspaceId,
       result
     });
+
+    if (revisionVersion) {
+      await markResumeRevisionAudited({
+        workspaceId,
+        revisionId: revisionVersion.id,
+        auditStatus:
+          result.renderingReadiness === "BLOCKED" || result.renderingReadiness === "NEEDS_REVIEW"
+            ? "NEEDS_REVIEW"
+            : "AUDITED",
+        prismaClient: transaction
+      });
+    }
 
     if (options.simulateFailureAfterCreate) {
       throw new Error("Simulated resume audit persistence failure.");

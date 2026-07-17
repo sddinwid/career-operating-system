@@ -3,10 +3,17 @@ import { notFound } from "next/navigation";
 import { runResumeAuditAction } from "@/lib/resume-audit/actions";
 import { getResumeAuditContext } from "@/lib/resume-audit/service";
 import { createResumeCompositionAction } from "@/lib/resume-composition/actions";
+import { ResumeRenderingApprovalPanel } from "@/components/resume-studio/resume-rendering-approval-panel";
 import {
   getResumeCompositionContext,
   parseStoredResumeCompositionVersion
 } from "@/lib/resume-composition/service";
+import { getResumeRevisionContext } from "@/lib/resume-revision/service";
+import {
+  getActiveResumeRenderingApproval,
+  getResumeRenderingApprovalEligibility,
+  listResumeRenderingApprovalHistory
+} from "@/lib/resume-rendering-approval/service";
 import { getDefaultWorkspace } from "@/lib/workspace";
 
 type ResumePageProps = {
@@ -47,6 +54,7 @@ export default async function ResumePage({ params, searchParams }: ResumePagePro
   const workspace = await getDefaultWorkspace();
   const context = await getResumeCompositionContext(workspace.id, jobDescriptionVersionId);
   const auditContext = await getResumeAuditContext(workspace.id, jobDescriptionVersionId);
+  const revisionContext = await getResumeRevisionContext(workspace.id, jobDescriptionVersionId);
 
   if (!context) {
     notFound();
@@ -97,6 +105,14 @@ export default async function ResumePage({ params, searchParams }: ResumePagePro
 
   const { version, content } = await parseStoredResumeCompositionVersion(workspace.id, selectedVersionId);
   const latestAudit = auditContext?.reusableResumeAuditRun;
+  const activeApproval = await getActiveResumeRenderingApproval(workspace.id, {
+    jobDescriptionVersionId,
+    applicationId: version.applicationId
+  });
+  const approvalHistory = await listResumeRenderingApprovalHistory(workspace.id, {
+    jobDescriptionVersionId,
+    applicationId: version.applicationId
+  });
   const latestAuditSummary =
     latestAudit?.summary && typeof latestAudit.summary === "object"
       ? (latestAudit.summary as {
@@ -144,6 +160,26 @@ export default async function ResumePage({ params, searchParams }: ResumePagePro
                 View Resume Audit
               </Link>
             ) : null}
+            {revisionContext?.latestFinalizedRevision ? (
+              <Link
+                className="rounded-full border border-stone-300 px-5 py-3 text-sm font-semibold text-stone-700 transition hover:border-stone-950 hover:text-stone-950"
+                href={`/job-descriptions/${jobDescriptionVersionId}/resume/compare?mode=BASE_VS_REVISION&revisionId=${revisionContext.latestFinalizedRevision.id}`}
+              >
+                Compare with Revision
+              </Link>
+            ) : null}
+            <Link
+              className="rounded-full border border-stone-300 px-5 py-3 text-sm font-semibold text-stone-700 transition hover:border-stone-950 hover:text-stone-950"
+              href={
+                revisionContext?.latestDraft
+                  ? `/job-descriptions/${jobDescriptionVersionId}/resume/studio?revisionId=${revisionContext.latestDraft.id}`
+                  : revisionContext?.latestFinalizedRevision
+                    ? `/job-descriptions/${jobDescriptionVersionId}/resume/studio?revisionId=${revisionContext.latestFinalizedRevision.id}`
+                    : `/job-descriptions/${jobDescriptionVersionId}/resume/studio`
+              }
+            >
+              {revisionContext?.latestFinalizedRevision ? "View Revision" : "Open Resume Studio"}
+            </Link>
             <form
               action={runResumeAuditAction.bind(
                 null,
@@ -210,7 +246,29 @@ export default async function ResumePage({ params, searchParams }: ResumePagePro
             Rendering is blocked until the current resume audit findings are resolved upstream.
           </p>
         ) : null}
+        <p className="mt-4 text-sm text-stone-600">
+          Active rendering approval: {activeApproval ? activeApproval.sourceType.replace(/_/g, " ") : "None"}
+        </p>
       </section>
+
+      {latestAudit ? (
+        <ResumeRenderingApprovalPanel
+          applicationId={version.applicationId}
+          initialActiveApproval={activeApproval}
+          initialEligibility={await getResumeRenderingApprovalEligibility(workspace.id, {
+            jobDescriptionVersionId,
+            applicationId: version.applicationId,
+            sourceType: "BASE_COMPOSITION",
+            sourceId: version.id,
+            resumeAuditRunId: latestAudit.id
+          })}
+          initialHistory={approvalHistory}
+          jobDescriptionVersionId={jobDescriptionVersionId}
+          sourceId={version.id}
+          sourceType="BASE_COMPOSITION"
+          title="Base Composition Approval"
+        />
+      ) : null}
 
       <section className="rounded-3xl border border-stone-300 bg-white p-8 shadow-sm">
         <h2 className="text-2xl font-semibold text-stone-900">Header</h2>

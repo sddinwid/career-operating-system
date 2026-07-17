@@ -110,6 +110,8 @@ function findSourceTexts(
       values.add(careerProfile.candidate.contacts.email ?? "");
       values.add(careerProfile.candidate.contacts.phone ?? "");
       values.add(careerProfile.candidate.location ?? "");
+      values.add(careerProfile.candidate.contacts.linkedinUrl ?? "");
+      values.add(careerProfile.candidate.contacts.githubUrl ?? "");
     }
     const employment = maps.employment.get(id);
     if (employment) {
@@ -937,6 +939,7 @@ export function buildResumeAudit(args: BuildResumeAuditArgs): ResumeAuditResult 
     runId: input.runId,
     workspaceId: input.workspaceId,
     resumeCompositionVersionId: input.resumeCompositionVersionId,
+    resumeRevisionVersionId: input.resumeRevisionVersionId,
     structuredResumeVersionId: composition.structuredResumeVersionId,
     careerProfileVersionId: composition.careerProfileVersionId,
     matchReportRunId: composition.matchReportRunId,

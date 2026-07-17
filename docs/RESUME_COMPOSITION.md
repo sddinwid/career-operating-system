@@ -36,12 +36,16 @@ Known limitations:
 
 - no DOCX rendering
 - no PDF rendering
-- no Resume Studio editing
 - no automatic resume fixing
 - no `DocumentVersion` output yet
 
+`M6.1` now layers Resume Studio revisions on top of immutable composition. The base `ResumeCompositionVersion` still remains unchanged and read-only even when later revisions are created.
+
 Next dependency:
 
-`M5.3 - Resume Quality and Truthfulness Checks`
+`M6.1 - Resume Studio Editing and Versioned Revision`
 
-M5.3 now consumes `ResumeCompositionVersion` and stores rendering-readiness findings in immutable `ResumeAuditRun` rows without mutating the composed resume content.
+M6.1 now consumes `ResumeCompositionVersion` as the immutable base for editable `ResumeRevisionVersion` drafts and finalized revisions without mutating the composed resume content.
+## Downstream Use in M6.2
+
+An immutable base composition can now be compared against finalized revisions and can be approved directly for rendering when its own audit is eligible and no revision is required.

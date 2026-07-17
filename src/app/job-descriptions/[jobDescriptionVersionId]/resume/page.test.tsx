@@ -19,6 +19,24 @@ vi.mock("@/lib/resume-audit/service", () => ({
   }))
 }));
 
+vi.mock("@/lib/resume-rendering-approval/service", () => ({
+  getActiveResumeRenderingApproval: vi.fn(async () => null),
+  getResumeRenderingApprovalEligibility: vi.fn(async () => ({
+    eligible: true,
+    eligibleWithWarnings: false,
+    warningAcknowledgementRequired: false,
+    sourceType: "BASE_COMPOSITION",
+    sourceId: "resume-composition-1",
+    resumeAuditRunId: "resume-audit-1",
+    renderingReadiness: "READY_WITH_WARNINGS",
+    warningCount: 2,
+    blockingCount: 0,
+    contentChecksum: "checksum-1",
+    diagnostics: []
+  })),
+  listResumeRenderingApprovalHistory: vi.fn(async () => [])
+}));
+
 vi.mock("@/lib/resume-composition/service", () => ({
   getResumeCompositionContext: vi.fn(async () => ({
     reusableResumeCompositionVersion: {

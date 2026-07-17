@@ -156,3 +156,19 @@ The system must produce a deterministic immutable audit from one exact `ResumeCo
 - checks project context, certification handling, education fidelity, and skill qualification
 - reports relevance, duplication, ATS structure, seven-second scan, page-budget, and privacy findings
 - assigns explicit rendering readiness without rewriting resume content
+
+## M6.1
+
+The system must support a Resume Studio revision workflow that:
+
+- opens one reusable mutable draft from one exact `ResumeCompositionVersion`
+- preserves upstream composition, structured resume, match report, evidence, and audit records as immutable sources
+- stores user edits, change sets, review notes, diagnostics, and local validation in a dedicated revision contract
+- blocks unsupported metric, technology, years-of-experience, and required-section violations before finalization
+- finalizes revisions transactionally into immutable revision versions
+- returns structured `400`, `404`, `409`, and `422` responses for expected draft and validation failures
+- supports revision-backed audit execution without reusing the base-composition audit for changed revised content
+- supports successor draft creation from a finalized revision while preserving predecessor lineage
+## M6.2 Requirements
+
+Resume comparison must remain deterministic, derived from immutable sources, and auditable. Rendering approval must reject mutable drafts, blocked audits, needs-review audits, checksum mismatches, and stale active-approval assumptions.

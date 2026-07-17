@@ -204,6 +204,10 @@ function parseRequestedYears(texts: string[]) {
   return years.length > 0 ? Math.max(...years) : null;
 }
 
+function dedupeStrings(values: string[]) {
+  return Array.from(new Set(values.filter((value) => value.length > 0)));
+}
+
 export function buildStructuredResumePlan(input: StructuredResumePlanningInput) {
   const parsed = structuredResumePlanningInputSchema.parse(input);
   const diagnostics: EvidenceDiagnostic[] = [];
@@ -491,16 +495,34 @@ export function buildStructuredResumePlan(input: StructuredResumePlanningInput) 
     const matchingProjects = projectPlans.filter((project) =>
       project.technologies.some((item) => item.toLowerCase() === technology.toLowerCase())
     );
+    const eligibleRoles = matchingRoles.filter((role) => role.selectionStatus !== "EXCLUDE");
+    const eligibleProjects = matchingProjects.filter((project) => project.selectionStatus !== "EXCLUDE");
     const relatedClaims = claimRestrictions.filter((claim) =>
       claim.claimConcept.toLowerCase().includes(technology.toLowerCase())
     );
-    const restrictions = relatedClaims.map((claim) => claim.handlingCategory);
+    const restrictions = dedupeStrings([
+      ...relatedClaims.map((claim) => claim.handlingCategory),
+      ...(eligibleRoles.length === 0 &&
+      (eligibleProjects.length > 0 || matchingProjects.length > 0 || matchingSkill?.projectUse === true)
+        ? ["PROJECT_ONLY"]
+        : []),
+      ...(matchingSkill?.recency === "STALE" ? ["STALE_SKILL"] : [])
+    ]);
+    const derivedProfessionalUse =
+      eligibleRoles.length > 0 || matchingSkill?.professionalUse === true;
+    const derivedProjectUse =
+      eligibleProjects.length > 0 ||
+      matchingProjects.length > 0 ||
+      matchingSkill?.projectUse === true ||
+      matchingSkill?.evidenceReferences.some((reference) => reference.startsWith("project_")) === true;
     const decision =
       relatedClaims.some((claim) => ["OMIT", "EXPIRED", "BACKGROUND_ONLY"].includes(claim.handlingCategory))
         ? "EXCLUDE"
-        : relatedClaims.some((claim) => ["QUALIFY", "PROJECT_ONLY", "NEEDS_USER_CONFIRMATION"].includes(claim.handlingCategory))
+        : restrictions.some((restriction) =>
+            ["QUALIFY", "PROJECT_ONLY", "NEEDS_USER_CONFIRMATION", "STALE_SKILL"].includes(restriction)
+          )
           ? "QUALIFY"
-          : matchingRoles.length > 0 || matchingProjects.length > 0
+          : derivedProfessionalUse
             ? "INCLUDE"
             : "DEFER";
     return {
@@ -511,18 +533,23 @@ export function buildStructuredResumePlan(input: StructuredResumePlanningInput) 
       requirementIds: parsed.matchReportResult.requirementConclusions
         .filter((item) => item.requirementText.toLowerCase().includes(technology.toLowerCase()))
         .map((item) => item.requirementId),
-      supportingEvidenceIds: [
-        ...matchingRoles.flatMap((role) => role.eligibleEvidenceIds),
-        ...matchingProjects.flatMap((project) => project.eligibleEvidenceIds)
-      ],
-      professionalUse: matchingRoles.length > 0 || matchingSkill?.professionalUse === true,
-      projectUse: matchingProjects.length > 0 || matchingSkill?.projectUse === true,
+      supportingEvidenceIds: dedupeStrings([
+        ...eligibleRoles.flatMap((role) => role.eligibleEvidenceIds),
+        ...eligibleProjects.flatMap((project) => project.eligibleEvidenceIds),
+        ...(matchingSkill?.evidenceReferences ?? [])
+      ]),
+      professionalUse: derivedProfessionalUse,
+      projectUse: derivedProjectUse,
       recency: matchingSkill?.recency ?? "UNKNOWN",
-      restrictions: restrictions.map(String),
+      restrictions,
       decision,
       decisionReason:
         decision === "INCLUDE"
           ? "Supported by eligible evidence and aligned with prioritized technologies."
+          : decision === "QUALIFY" && restrictions.includes("PROJECT_ONLY")
+            ? "Supported only through project-context evidence and must stay visibly qualified."
+            : decision === "QUALIFY" && restrictions.includes("STALE_SKILL")
+              ? "Supported only through stale evidence and must stay visibly qualified."
           : decision === "QUALIFY"
             ? "Eligible only with visible qualification based on claim restrictions."
             : decision === "DEFER"

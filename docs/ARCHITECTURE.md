@@ -252,6 +252,32 @@ ResumeCompositionVersion
 
 The audit layer is read-only and render-independent. It does not mutate composed content or create document artifacts.
 
+## Resume Studio revision layer
+
+Milestone `M6.1` adds an editable revision layer after immutable resume composition and before rendering:
+
+```text
+ResumeCompositionVersion
+  -> mutable ResumeRevisionVersion draft
+  -> local deterministic revision validation
+  -> immutable finalized ResumeRevisionVersion
+  -> optional revision-backed ResumeAuditRun
+  -> successor draft from finalized revision when more edits are needed
+```
+
+Implementation boundaries:
+
+- `src/lib/resume-revision/contract.ts`
+- `src/lib/resume-revision/config.ts`
+- `src/lib/resume-revision/engine.ts`
+- `src/lib/resume-revision/service.ts`
+- `src/app/api/resume-studio/[revisionId]/route.ts`
+- `src/app/api/resume-studio/[revisionId]/finalize/route.ts`
+- `src/components/resume-studio/resume-studio-editor.tsx`
+- `src/app/job-descriptions/[jobDescriptionVersionId]/resume/studio/page.tsx`
+
+The revision layer preserves immutable upstream composition while allowing user-controlled edits in a separate version history. Draft saves remain mutable, finalized revisions become read-only, and revision-backed audit runs reuse the existing audit engine through a projection back into composition-compatible content.
+
 ## Storage
 
 ### PostgreSQL
@@ -317,3 +343,6 @@ Implementation boundaries:
 - `src/app/job-descriptions/[jobDescriptionVersionId]/resume-plan/page.tsx`
 
 `StructuredResumeVersion` is intentionally separate from `DocumentVersion`. The plan is a render-independent intermediate representation for later composition work in `M5.2`, not an employer-facing artifact.
+## Resume Comparison and Approval
+
+M6.2 keeps comparison as a computed read model. Immutable resume content, immutable audits, and immutable approval rows are the only persisted sources of truth. Rendering approval is stored separately from resume content so future renderers can consume one exact approved source without mutating upstream records.

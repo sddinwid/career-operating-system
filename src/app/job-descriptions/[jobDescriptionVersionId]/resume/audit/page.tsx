@@ -1,10 +1,17 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { ResumeRenderingApprovalPanel } from "@/components/resume-studio/resume-rendering-approval-panel";
 import { runResumeAuditAction } from "@/lib/resume-audit/actions";
 import {
   getResumeAuditContext,
   parseStoredResumeAuditRun
 } from "@/lib/resume-audit/service";
+import { getResumeRevisionContext } from "@/lib/resume-revision/service";
+import {
+  getActiveResumeRenderingApproval,
+  getResumeRenderingApprovalEligibility,
+  listResumeRenderingApprovalHistory
+} from "@/lib/resume-rendering-approval/service";
 import { getDefaultWorkspace } from "@/lib/workspace";
 
 type ResumeAuditPageProps = {
@@ -41,6 +48,7 @@ export default async function ResumeAuditPage({ params, searchParams }: ResumeAu
   const success = getStringParam(query.success);
   const workspace = await getDefaultWorkspace();
   const context = await getResumeAuditContext(workspace.id, jobDescriptionVersionId);
+  const revisionContext = await getResumeRevisionContext(workspace.id, jobDescriptionVersionId);
 
   if (!context) {
     notFound();
@@ -73,6 +81,16 @@ export default async function ResumeAuditPage({ params, searchParams }: ResumeAu
   }
 
   const { run, result } = await parseStoredResumeAuditRun(workspace.id, selectedRunId);
+  const sourceType = run.resumeRevisionVersionId ? "FINALIZED_REVISION" : "BASE_COMPOSITION";
+  const sourceId = run.resumeRevisionVersionId ?? run.resumeCompositionVersionId;
+  const activeApproval = await getActiveResumeRenderingApproval(workspace.id, {
+    jobDescriptionVersionId,
+    applicationId: run.applicationId
+  });
+  const approvalHistory = await listResumeRenderingApprovalHistory(workspace.id, {
+    jobDescriptionVersionId,
+    applicationId: run.applicationId
+  });
   const blockingFindings = result.findings.filter((finding) => finding.blocksRendering);
   const warningFindings = result.findings.filter((finding) => finding.severity === "WARNING");
 
@@ -115,6 +133,18 @@ export default async function ResumeAuditPage({ params, searchParams }: ResumeAu
                 Run Resume Audit
               </button>
             </form>
+            <Link
+              className="rounded-full border border-stone-300 px-5 py-3 text-sm font-semibold text-stone-700 transition hover:border-stone-950 hover:text-stone-950"
+              href={
+                revisionContext?.latestDraft
+                  ? `/job-descriptions/${jobDescriptionVersionId}/resume/studio?revisionId=${revisionContext.latestDraft.id}`
+                  : revisionContext?.latestFinalizedRevision
+                    ? `/job-descriptions/${jobDescriptionVersionId}/resume/studio?revisionId=${revisionContext.latestFinalizedRevision.id}`
+                    : `/job-descriptions/${jobDescriptionVersionId}/resume/studio`
+              }
+            >
+              {revisionContext?.latestFinalizedRevision ? "View Revision" : "Open Resume Studio"}
+            </Link>
             {run.applicationId ? (
               <Link
                 className="rounded-full border border-stone-300 px-5 py-3 text-sm font-semibold text-stone-700 transition hover:border-stone-950 hover:text-stone-950"
@@ -182,6 +212,23 @@ export default async function ResumeAuditPage({ params, searchParams }: ResumeAu
           )}
         </div>
       </section>
+
+      <ResumeRenderingApprovalPanel
+        applicationId={run.applicationId}
+        initialActiveApproval={activeApproval}
+        initialEligibility={await getResumeRenderingApprovalEligibility(workspace.id, {
+          jobDescriptionVersionId,
+          applicationId: run.applicationId,
+          sourceType,
+          sourceId,
+          resumeAuditRunId: run.id
+        })}
+        initialHistory={approvalHistory}
+        jobDescriptionVersionId={jobDescriptionVersionId}
+        sourceId={sourceId}
+        sourceType={sourceType}
+        title={sourceType === "BASE_COMPOSITION" ? "Base Composition Approval" : "Revision Approval"}
+      />
 
       <section className="rounded-3xl border border-stone-300 bg-white p-8 shadow-sm">
         <h2 className="text-2xl font-semibold text-stone-900">Warnings</h2>

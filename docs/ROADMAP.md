@@ -2,7 +2,7 @@
 
 Supersedes the historical roadmap in [reference/Career_Operating_System_Project_Roadmap.docx](../reference/Career_Operating_System_Project_Roadmap.docx).
 
-Current canonical roadmap date: July 16, 2026
+Current canonical roadmap date: July 17, 2026
 
 ## Product Vision
 
@@ -115,8 +115,8 @@ Deterministic rules and verified evidence remain authoritative for:
 - Scope: structured resume schema, deterministic composition, truthfulness and ATS checks
 
 ### Milestone 6 - Resume Studio and Review
-- Status: planned
-- Scope: preview, provenance visibility, selective overrides, locking, immutable structured versions
+- Status: `M6.1` complete, `M6.2` in progress and verification-pending
+- Scope: revision editing, provenance visibility, local validation, comparison, rendering approval, and immutable revision history
 
 ### Milestone 7 - Document Rendering and Artifact Versioning
 - Status: planned
@@ -155,13 +155,12 @@ Near-term sequence:
 8. `M5.1 - Structured Resume Contract` complete
 9. `M5.2 - Deterministic Resume Composition` complete
 10. `M5.3 - Resume Quality and Truthfulness Checks` complete
-11. `M6.1 - Resume Studio Read-Only Review`
+11. `M6.1 - Resume Studio Editing and Versioned Revision` complete
 
 Deferred support slice:
 - `M2.2 - Career Knowledge Validation and Read-Only Inspection` remains intentionally deferred as a larger standalone workspace while the deterministic generation pipeline is being completed end to end
 
 Later sequence:
-- `M6.2 - Resume Studio Editing and Locking`
 - `M7.1 - DOCX Template and Renderer`
 - `M7.2 - Render Validation and PDF Output`
 - `M7.3 - Immutable Document Versioning and Attachment`
@@ -203,4 +202,8 @@ The roadmap rebaseline is successful when:
 Commercial viability remains intact because deterministic, provenance-aware generation is a stronger long-term architecture than prompt-only generation. Multi-user requirements are deferred, not abandoned, until the Scott-specific workflow proves useful end to end.
 ## Immediate Next Step
 
-M5.3 is implemented as deterministic resume audit. The next recommended prompt is `M6.1 - Resume Studio Read-Only Review`.
+Finish verification for `M6.2 - Resume Studio Comparison and Rendering Approval`, then move to `M7.1 - DOCX Template and Renderer`.
+## Resume Workflow Progress
+
+- M6.2 introduces comparison and approval, but remains verification-pending until the required suite is green.
+- M7.1 remains the next renderer milestone.

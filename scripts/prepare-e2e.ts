@@ -60,7 +60,47 @@ async function main() {
           }
         }
       });
+      await transaction.resumeRenderingApproval.deleteMany({
+        where: {
+          OR: [
+            {
+              workspaceId: workspace.id,
+              applicationId: {
+                in: applicationIds
+              }
+            },
+            {
+              workspaceId: workspace.id,
+              jobDescriptionVersion: {
+                opportunityId: {
+                  in: opportunityIds
+                }
+              }
+            }
+          ]
+        }
+      });
       await transaction.resumeAuditRun.deleteMany({
+        where: {
+          OR: [
+            {
+              workspaceId: workspace.id,
+              applicationId: {
+                in: applicationIds
+              }
+            },
+            {
+              workspaceId: workspace.id,
+              jobDescriptionVersion: {
+                opportunityId: {
+                  in: opportunityIds
+                }
+              }
+            }
+          ]
+        }
+      });
+      await transaction.resumeRevisionVersion.deleteMany({
         where: {
           OR: [
             {

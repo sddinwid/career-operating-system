@@ -4,15 +4,15 @@ Date: July 17, 2026
 
 ## Current Milestone
 
-Current milestone: `Milestone 5 - Resume Composition Engine`
+Current milestone: `Milestone 6 - Resume Studio and Review`
 
 Prompt 04D is not automatically next.
 
-The active implementation slice is `M5.3 - Resume Quality and Truthfulness Checks`, and it is now complete.
+The active implementation slice is `M6.2 - Resume Studio Comparison and Rendering Approval`, and it remains verification-pending until the required full suite is green.
 
 ## Last Completed Implementation
 
-Last completed implementation: `M5.3 - Resume Quality and Truthfulness Checks`.
+Last completed implementation: `M6.1 - Resume Studio Editing and Versioned Revision`.
 
 Repository evidence:
 - `src/lib/job-descriptions/service.ts`
@@ -58,6 +58,8 @@ Repository evidence:
   - Evidence: `src/lib/evidence-scoring/config.ts`, `src/lib/evidence-scoring/contract.ts`, `src/lib/evidence-scoring/engine.ts`, `src/lib/evidence-scoring/service.ts`, `src/lib/evidence-scoring/actions.ts`, `src/app/job-descriptions/[jobDescriptionVersionId]/evidence/scores/page.tsx`, `src/lib/evidence-scoring/engine.test.ts`, `src/lib/evidence-scoring/service.test.ts`, `tests/e2e/job-descriptions.spec.ts`
 - Resume audit contract, immutable audit runs, idempotent reuse, and read-only rendering-readiness inspection
   - Evidence: `src/lib/resume-audit/config.ts`, `src/lib/resume-audit/contract.ts`, `src/lib/resume-audit/engine.ts`, `src/lib/resume-audit/service.ts`, `src/lib/resume-audit/actions.ts`, `src/app/job-descriptions/[jobDescriptionVersionId]/resume/audit/page.tsx`, `src/lib/resume-audit/engine.test.ts`, `src/lib/resume-audit/service.test.ts`, `tests/e2e/job-descriptions.spec.ts`
+- Resume Studio draft editing, immutable finalized revisions, revision-backed audit, and successor revision lineage
+  - Evidence: `src/lib/resume-revision/config.ts`, `src/lib/resume-revision/contract.ts`, `src/lib/resume-revision/engine.ts`, `src/lib/resume-revision/service.ts`, `src/app/api/resume-studio/[revisionId]/route.ts`, `src/app/api/resume-studio/[revisionId]/finalize/route.ts`, `src/components/resume-studio/resume-studio-editor.tsx`, `src/app/job-descriptions/[jobDescriptionVersionId]/resume/studio/page.tsx`, `src/lib/resume-revision/engine.test.ts`, `src/lib/resume-revision/service.test.ts`, `src/app/api/resume-studio/[revisionId]/finalize/route.test.ts`, `tests/e2e/job-descriptions.spec.ts`
 
 ### Complete but not yet proven in daily use
 
@@ -119,7 +121,6 @@ These models exist in schema only. No upload/download/rendering services, UI, or
 - Career profile inspection UI
 - Resume generation
 - Cover-letter generation
-- Resume Studio
 - Document rendering
 - Application packages
 - Analytics
@@ -163,7 +164,7 @@ These models exist in schema only. No upload/download/rendering services, UI, or
 
 ## Current Automated Test Status
 
-Latest required verification for `M5.1`:
+Latest required verification for `M6.2`:
 - `npm run db:generate`
 - `npx prisma migrate deploy`
 - `npm run db:seed`
@@ -173,7 +174,7 @@ Latest required verification for `M5.1`:
 - `npm run build`
 - `npm run lint`
 
-Status should be updated only from the latest verified command run.
+Status should be updated only from the latest verified command run. Until that suite is green, `M6.2` must stay verification-pending in project status documents.
 
 ## Current Architecture Decisions
 
@@ -189,7 +190,7 @@ See `docs/DECISIONS.md`.
 
 ## Current Active Priority
 
-The active product priority is to move from deterministic resume audit into `M6.1 - Resume Studio Read-Only Review`.
+The active product priority remains `M6.2 - Resume Studio Comparison and Rendering Approval`, with final completion gated on the required verification suite.
 
 ## Revised Progress Overview
 
@@ -199,6 +200,7 @@ The active product priority is to move from deterministic resume audit into `M6.
 - `Milestone 3 - Job Description Intelligence`: complete, with `M3.1`, `M3.2`, and `M3.3` complete
 - `Milestone 4 - Evidence Retrieval and Scoring`: `M4.1` complete, `M4.2` complete, `M4.3` complete
 - `Milestone 5 - Resume Composition Engine`: `M5.1` complete, `M5.2` complete, `M5.3` complete
+- `Milestone 6 - Resume Studio and Review`: `M6.1` complete, `M6.2` in progress and verification-pending
 - `Milestones 9-12 - Remaining tracker ergonomics, analytics, generic ingestion, and commercialization`: deferred later
 ## Current Milestone
 
@@ -206,4 +208,8 @@ The active product priority is to move from deterministic resume audit into `M6.
 - M5.1 - Complete
 - M5.2 - Complete
 - M5.3 - Complete
-- M6.1 - Next
+- M6.1 - Complete
+- M6.2 - In progress, verification pending
+## Resume Workflow
+
+M6.2 adds deterministic resume comparison, audit-finding comparison, immutable rendering approval, supersession, revocation, and the rendering gate used by future document renderers. The slice should not be treated as complete until the required verification suite passes.

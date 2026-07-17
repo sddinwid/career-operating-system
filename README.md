@@ -16,6 +16,18 @@ Prompt 00 bootstraps a local-first Career Operating System as a Next.js modular 
 - Resume preview and application detail now show audit status, rendering readiness, blocking finding count, and warning count
 - The audit does not rewrite resume content, create `DocumentVersion` rows, or call AI services
 
+## Resume Studio
+
+`M6.1` adds editable resume revisions on top of immutable composed resume content.
+
+- Revisions are stored in immutable `ResumeRevisionVersion` rows with draft, finalized, audited, and superseded states
+- `/job-descriptions/[jobDescriptionVersionId]/resume/studio` supports draft save, local validation, finalization, revision-backed audit, and successor revision creation
+- Revision finalization returns structured `400`, `404`, `409`, and `422` responses for expected domain failures instead of collapsing them into `500`
+- Revision-backed audits remain separate from base-composition audits and do not mutate `ResumeCompositionVersion`
+- Finalized revisions are read-only and can be audited or branched into a successor draft without rewriting upstream composition, scoring, or match-report records
+
+See [docs/RESUME_STUDIO.md](docs/RESUME_STUDIO.md).
+
 ## Stack
 
 - Next.js App Router with strict TypeScript
@@ -207,3 +219,6 @@ M5.1 adds a deterministic, immutable structured resume planning layer derived fr
 - The system still does not generate final resume prose, DOCX files, PDFs, or AI-authored artifacts in this stage
 
 See [docs/STRUCTURED_RESUME_CONTRACT.md](docs/STRUCTURED_RESUME_CONTRACT.md).
+## M6.2 Resume Comparison and Approval
+
+The resume workflow now supports deterministic comparison between immutable resume sources and a separate immutable rendering-approval history. Rendering itself is still out of scope. Future renderers must consume the active approval gate instead of choosing the latest resume content directly.

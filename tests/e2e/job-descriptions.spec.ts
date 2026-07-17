@@ -3,7 +3,7 @@ import { expect, test } from "@playwright/test";
 test("captures, versions, and reuses job descriptions without changing application workflow state", async ({
   page
 }) => {
-  test.setTimeout(45_000);
+  test.setTimeout(65_000);
   const companyName = "E2E Grid Company";
   const roleName = "E2E Grid Role";
   const firstDescription = `${companyName}
@@ -258,10 +258,97 @@ Preferred Qualifications
   await expect(page.getByRole("link", { name: "Resume Composition" })).toBeVisible();
   await expect(page.getByText(/docx/i)).toHaveCount(0);
   await expect(page.getByText(/pdf/i)).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "Open Resume Studio" })).toBeVisible();
+  await page.getByRole("link", { name: "Open Resume Studio" }).click();
+  await expect(page.getByText("Resume Studio")).toBeVisible();
+
+  const summarySection = page
+    .locator("section")
+    .filter({ has: page.getByRole("heading", { name: "Professional Summary" }) });
+  const summaryTextarea = summarySection.getByRole("textbox", { name: "Revised" });
+  await summaryTextarea.fill(
+    "Platform engineer focused on TypeScript, PostgreSQL, and reliable backend platform delivery."
+  );
+
+  const skillsSection = page
+    .locator("section")
+    .filter({ has: page.getByRole("heading", { name: "Skills" }) });
+  const skillCheckboxes = skillsSection.locator('input[type="checkbox"]');
+  const skillUps = skillsSection.locator('button:not([disabled])').filter({ hasText: "Up" });
+  if ((await skillCheckboxes.count()) > 1) {
+    await skillCheckboxes.nth(1).uncheck();
+  }
+  if ((await skillUps.count()) > 0) {
+    await skillUps.first().click();
+  }
+
+  const experienceSection = page
+    .locator("section")
+    .filter({ has: page.getByRole("heading", { name: "Professional Experience" }) });
+  const roleBulletUps = experienceSection.locator('button:not([disabled])').filter({ hasText: "Up" });
+  if ((await roleBulletUps.count()) > 0) {
+    await roleBulletUps.first().click();
+  }
+
+  const projectSection = page
+    .locator("section")
+    .filter({ has: page.getByRole("heading", { name: "Selected Projects" }) });
+  if ((await projectSection.count()) > 0) {
+    const projectCheckboxes = projectSection.locator('input[type="checkbox"]');
+    if ((await projectCheckboxes.count()) > 0) {
+      await projectCheckboxes.first().uncheck();
+    }
+  }
+
+  await page
+    .getByRole("textbox", { name: "Revision note" })
+    .fill("Shortened the summary and trimmed optional content for a tighter employer-facing pass.");
+  await page.getByRole("button", { name: "Save Draft" }).click();
+  await expect(page.getByText("Draft saved.")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Review Notes" })).toBeVisible();
+  await page.reload();
+  await expect(summarySection.getByRole("textbox", { name: "Revised" })).toHaveValue(
+    "Platform engineer focused on TypeScript, PostgreSQL, and reliable backend platform delivery."
+  );
+  await page.getByRole("button", { name: "Finalize for Audit" }).click();
+  await expect(page.getByText("Revision actions")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Run Audit on Revised Resume" })).toBeVisible();
+  await page.getByRole("button", { name: "Run Audit on Revised Resume" }).click();
+  await expect(page.getByText("Revision audit completed successfully.")).toBeVisible();
+  await expect(page.getByText(/READY FOR RENDERING|READY WITH WARNINGS|NEEDS REVIEW|BLOCKED/).first()).toBeVisible();
+  await expect(page.getByRole("link", { name: "Compare with Base" })).toBeVisible();
+  await page.getByRole("link", { name: "Compare with Base" }).click();
+  await expect(page.getByText("Resume comparison")).toBeVisible();
+  await expect(page.getByText("Resume Diff")).toBeVisible();
+  await expect(page.getByText("Audit Comparison")).toBeVisible();
+  await expect(page.getByText(/Provenance preserved|Provenance changed/i).first()).toBeVisible();
+  if ((await page.getByRole("textbox", { name: "Required acknowledgement" }).count()) > 0) {
+    await page.getByRole("checkbox", { name: /approve this resume despite/i }).check();
+    await page
+      .getByRole("textbox", { name: "Required acknowledgement" })
+      .fill("I acknowledge the remaining non-blocking warnings.");
+  }
+  await page.getByRole("button", { name: "Approve for Rendering" }).click();
+  await expect(
+    page.getByText(
+      /Rendering approval is now active|existing record was reused/i
+    )
+  ).toBeVisible();
+  await expect(page.getByText("Approval History")).toBeVisible();
+  await page.getByRole("link", { name: "Back to Revision" }).click();
+  await expect(page.getByRole("link", { name: "Create New Revision" }).first()).toBeVisible();
+  await page.getByRole("link", { name: "Create New Revision" }).first().click();
+  await expect(page.getByText("Resume Studio")).toBeVisible();
+  await expect(page.getByText("Predecessor revision")).toBeVisible();
+  await expect(page.getByText(/docx/i)).toHaveCount(0);
+  await expect(page.getByText(/pdf/i)).toHaveCount(0);
+  await page.getByRole("link", { name: "Back to Resume Preview" }).click();
   await page.getByRole("link", { name: "Open application" }).click();
   await expect(page.getByText("Match report summary")).toBeVisible();
   await expect(page.getByText("Structured Resume Plan Generated")).toBeVisible();
   await expect(page.getByText("Resume Audit Complete")).toBeVisible();
+  await expect(page.getByText(/Active Approval|No Active Approval/).first()).toBeVisible();
+  await expect(page.getByRole("link", { name: "View Comparison" })).toBeVisible();
   await expect(page.getByText(/Resume Generation Ready|Match Report Generated|Match Report Has Critical Gaps|Resume Generation Ready With Limitations/).first()).toBeVisible();
   await expect(page.getByRole("link", { name: "View Match Report" })).toBeVisible();
   await expect(page.getByRole("link", { name: "View Structured Resume Plan" })).toBeVisible();

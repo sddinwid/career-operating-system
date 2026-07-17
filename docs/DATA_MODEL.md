@@ -234,3 +234,36 @@ Behavior:
 - identical composed-resume and audit-version inputs reuse the latest existing audit run
 - changed resume composition or audit versions create a new immutable run
 - audit runs do not create `DocumentVersion` records and do not mutate upstream records
+
+### ResumeRevisionVersion
+
+`ResumeRevisionVersion` stores editable and finalized resume revisions derived from one exact `ResumeCompositionVersion`.
+
+Fields:
+
+- workspace, application, and exact upstream version linkage
+- base resume composition version id
+- predecessor revision id nullable
+- structured resume version, career profile version, match report, requirement analysis, and job description linkage
+- revision contract, engine, and configuration versions
+- source input checksum and deterministic revision input checksum
+- status
+- content JSONB
+- change set JSONB
+- summary JSONB
+- diagnostics JSONB
+- review notes JSONB
+- error summary
+- created, updated, finalized, and superseded timestamps
+
+Behavior:
+
+- one active draft is reused for the same base composition until it is finalized
+- finalization creates an immutable successor revision and marks the mutable draft superseded
+- repeated finalization of the same superseded draft returns the already-created finalized successor
+- revision audits link back through optional `ResumeAuditRun.resumeRevisionVersionId`
+
+- `ResumeRevisionVersion` was added in `M6.1` because editable resume changes, local validation, finalized revision lineage, and revision-backed audits must remain separate from immutable composed resume content and from rendered document artifacts
+## ResumeRenderingApproval
+
+`ResumeRenderingApproval` records one immutable rendering decision for one exact resume content source and one exact audit. It references the upstream composition or finalized revision plus the structured resume, career profile, match report, requirement analysis, job description, and optional application lineage needed for downstream rendering verification.

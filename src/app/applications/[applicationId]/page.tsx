@@ -12,6 +12,11 @@ import {
 } from "@/lib/applications/actions";
 import { runResumeAuditAction } from "@/lib/resume-audit/actions";
 import { getResumeAuditContext } from "@/lib/resume-audit/service";
+import {
+  getActiveResumeRenderingApproval,
+  listResumeRenderingApprovalHistory
+} from "@/lib/resume-rendering-approval/service";
+import { getResumeRevisionContext } from "@/lib/resume-revision/service";
 import { createResumeCompositionAction } from "@/lib/resume-composition/actions";
 import { getResumeCompositionContext } from "@/lib/resume-composition/service";
 import { scoreRetrievedEvidenceAction } from "@/lib/evidence-scoring/actions";
@@ -124,6 +129,23 @@ export default async function ApplicationDetailPage({
   const resumeAuditContext = application.currentJobDescriptionVersion
     ? await getResumeAuditContext(workspace.id, application.currentJobDescriptionVersion.id)
     : null;
+  const resumeRevisionContext = application.currentJobDescriptionVersion
+    ? await getResumeRevisionContext(workspace.id, application.currentJobDescriptionVersion.id)
+    : null;
+  const resumeRenderingApproval =
+    application.currentJobDescriptionVersion
+      ? await getActiveResumeRenderingApproval(workspace.id, {
+          jobDescriptionVersionId: application.currentJobDescriptionVersion.id,
+          applicationId: application.id
+        })
+      : null;
+  const resumeRenderingApprovalHistory =
+    application.currentJobDescriptionVersion
+      ? await listResumeRenderingApprovalHistory(workspace.id, {
+          jobDescriptionVersionId: application.currentJobDescriptionVersion.id,
+          applicationId: application.id
+        })
+      : [];
 
   const isArchived = application.archivedAt !== null;
   const retrievalReady = Boolean(
@@ -422,6 +444,28 @@ export default async function ApplicationDetailPage({
                 View Resume Audit
               </Link>
             ) : null}
+            {application.currentJobDescriptionVersion ? (
+              <Link
+                className="rounded-full border border-stone-300 px-5 py-3 text-sm font-semibold text-stone-700 transition hover:border-stone-950 hover:text-stone-950"
+                href={
+                  resumeRevisionContext?.latestDraft
+                    ? `/job-descriptions/${application.currentJobDescriptionVersion.id}/resume/studio?revisionId=${resumeRevisionContext.latestDraft.id}`
+                    : resumeRevisionContext?.latestFinalizedRevision
+                      ? `/job-descriptions/${application.currentJobDescriptionVersion.id}/resume/studio?revisionId=${resumeRevisionContext.latestFinalizedRevision.id}`
+                      : `/job-descriptions/${application.currentJobDescriptionVersion.id}/resume/studio`
+                }
+              >
+                {resumeRevisionContext?.latestFinalizedRevision ? "View Revision" : "Open Resume Studio"}
+              </Link>
+            ) : null}
+            {application.currentJobDescriptionVersion && resumeRevisionContext?.latestFinalizedRevision ? (
+              <Link
+                className="rounded-full border border-stone-300 px-5 py-3 text-sm font-semibold text-stone-700 transition hover:border-stone-950 hover:text-stone-950"
+                href={`/job-descriptions/${application.currentJobDescriptionVersion.id}/resume/compare?mode=BASE_VS_REVISION&revisionId=${resumeRevisionContext.latestFinalizedRevision.id}`}
+              >
+                View Comparison
+              </Link>
+            ) : null}
             {application.currentJobDescriptionVersion && retrievalReady ? (
               <form
                 action={retrieveCareerEvidenceAction.bind(
@@ -697,6 +741,43 @@ export default async function ApplicationDetailPage({
                   : resumeCompositionContext?.reusableResumeCompositionVersion
                     ? "Ready to audit the current composed resume before any rendering step."
                     : "Requires a composed targeted resume."}
+              </p>
+            </article>
+            <article className="rounded-2xl border border-stone-200 bg-stone-50 p-4">
+              <p className="text-sm font-medium text-stone-500">Resume revision</p>
+              <p className="mt-2 text-lg font-semibold text-stone-900">
+                {resumeRevisionContext?.latestDraft
+                  ? "Draft In Progress"
+                  : resumeRevisionContext?.latestFinalizedRevision
+                    ? "Revision Available"
+                    : resumeCompositionContext?.reusableResumeCompositionVersion
+                      ? "Studio Ready"
+                      : "Studio Not Ready"}
+              </p>
+              <p className="mt-1 text-sm text-stone-600">
+                {resumeRevisionContext?.latestDraft
+                  ? "Resume Studio draft is available for continued editing."
+                  : resumeRevisionContext?.latestFinalizedRevision
+                    ? `${resumeRevisionContext.latestFinalizedRevision.status.replace(/_/g, " ")} â€¢ latest finalized revision`
+                    : resumeCompositionContext?.reusableResumeCompositionVersion
+                      ? "Open Resume Studio to revise the current composed resume."
+                      : "Requires a composed targeted resume before revision can begin."}
+              </p>
+            </article>
+            <article className="rounded-2xl border border-stone-200 bg-stone-50 p-4">
+              <p className="text-sm font-medium text-stone-500">Rendering approval</p>
+              <p className="mt-2 text-lg font-semibold text-stone-900">
+                {resumeRenderingApproval ? "Active Approval" : "No Active Approval"}
+              </p>
+              <p className="mt-1 text-sm text-stone-600">
+                {resumeRenderingApproval
+                  ? `${resumeRenderingApproval.sourceType.replace(/_/g, " ")} • ${resumeRenderingApproval.renderingReadiness.replace(/_/g, " ")} • ${resumeRenderingApproval.warningCount} warnings`
+                  : resumeAuditContext?.reusableResumeAuditRun
+                    ? "Compare and approve an audited immutable resume before rendering."
+                    : "Requires an eligible resume audit before approval can be recorded."}
+              </p>
+              <p className="mt-2 text-sm text-stone-700">
+                Approval history {resumeRenderingApprovalHistory.length}
               </p>
             </article>
             <article className="rounded-2xl border border-stone-200 bg-stone-50 p-4">
