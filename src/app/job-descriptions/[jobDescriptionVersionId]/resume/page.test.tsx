@@ -19,6 +19,10 @@ vi.mock("@/lib/resume-audit/service", () => ({
   }))
 }));
 
+vi.mock("@/lib/document-rendering/service", () => ({
+  getLatestRenderedResumeDocumentVersion: vi.fn(async () => null)
+}));
+
 vi.mock("@/lib/resume-rendering-approval/service", () => ({
   getActiveResumeRenderingApproval: vi.fn(async () => null),
   getResumeRenderingApprovalEligibility: vi.fn(async () => ({
@@ -130,6 +134,7 @@ describe("ResumePage", () => {
     expect(screen.getByText("Diagnostics & Provenance")).toBeVisible();
     expect(screen.getByText("Audit status")).toBeVisible();
     expect(screen.getByText("Rendering readiness")).toBeVisible();
+    expect(screen.getByText("Rendering Output")).toBeVisible();
     expect(screen.getByRole("link", { name: "View Resume Audit" })).toHaveAttribute(
       "href",
       "/job-descriptions/job-description-1/resume/audit?runId=resume-audit-1"

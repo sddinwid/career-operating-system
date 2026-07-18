@@ -115,11 +115,11 @@ Deterministic rules and verified evidence remain authoritative for:
 - Scope: structured resume schema, deterministic composition, truthfulness and ATS checks
 
 ### Milestone 6 - Resume Studio and Review
-- Status: `M6.1` complete, `M6.2` in progress and verification-pending
+- Status: `M6.1` complete, `M6.2` complete
 - Scope: revision editing, provenance visibility, local validation, comparison, rendering approval, and immutable revision history
 
 ### Milestone 7 - Document Rendering and Artifact Versioning
-- Status: planned
+- Status: `M7.1` complete, `M7.2` next
 - Scope: DOCX, PDF, render validation, storage metadata, immutable `DocumentVersion` linkage
 
 ### Milestone 8 - Application Package Generation
@@ -161,7 +161,6 @@ Deferred support slice:
 - `M2.2 - Career Knowledge Validation and Read-Only Inspection` remains intentionally deferred as a larger standalone workspace while the deterministic generation pipeline is being completed end to end
 
 Later sequence:
-- `M7.1 - DOCX Template and Renderer`
 - `M7.2 - Render Validation and PDF Output`
 - `M7.3 - Immutable Document Versioning and Attachment`
 - `M8.1 - Application Package Generation`
@@ -202,8 +201,9 @@ The roadmap rebaseline is successful when:
 Commercial viability remains intact because deterministic, provenance-aware generation is a stronger long-term architecture than prompt-only generation. Multi-user requirements are deferred, not abandoned, until the Scott-specific workflow proves useful end to end.
 ## Immediate Next Step
 
-Finish verification for `M6.2 - Resume Studio Comparison and Rendering Approval`, then move to `M7.1 - DOCX Template and Renderer`.
+Start `M7.2 - Render Validation and PDF Output`.
 ## Resume Workflow Progress
 
-- M6.2 introduces comparison and approval, but remains verification-pending until the required suite is green.
-- M7.1 remains the next renderer milestone.
+- M6.2 introduced comparison and approval and now serves as the rendering gate for M7.1.
+- M7.1 is complete.
+- M7.2 is the next rendering slice.

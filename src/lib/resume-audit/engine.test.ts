@@ -420,6 +420,62 @@ describe("buildResumeAudit", () => {
     );
   });
 
+  it("accepts fact-backed role bullets during source-fidelity checks", () => {
+    const careerProfile = buildCareerProfile();
+    careerProfile.employment[0] = {
+      ...careerProfile.employment[0],
+      responsibilities: [],
+      accomplishments: [],
+      facts: ["Built backend services for internal tools."]
+    };
+
+    const input = buildAuditInput();
+    input.resumeComposition.professionalExperience[0] = {
+      ...input.resumeComposition.professionalExperience[0],
+      bullets: [
+        {
+          statementId: "bullet-1",
+          text: "Built backend services for internal tools.",
+          templateId: "source-preserving.role-bullet",
+          estimatedLineCount: 1,
+          provenance: {
+            statementId: "bullet-1",
+            sourceEvidenceIds: ["role-1"],
+            sourceCareerRecordIds: ["role-1"],
+            requirementIds: ["req-1"],
+            templateId: "source-preserving.role-bullet",
+            transformations: [],
+            metricReferences: [],
+            technologies: ["TypeScript", "PostgreSQL"],
+            restrictions: [],
+            recordKinds: ["SOURCE_FACT"],
+            confirmationStates: ["SOURCE_PROVIDED"],
+            truthfulnessClassification: "VERIFIED_SOURCE",
+            claimsToAvoidChecked: []
+          }
+        }
+      ]
+    };
+
+    const result = buildResumeAudit({
+      input,
+      careerProfile,
+      structuredResumePlan: {} as never,
+      matchReport: {
+        resumeGuidance: {
+          priorityTechnologies: [{ technology: "TypeScript", guidance: "INCLUDE" }]
+        }
+      } as never
+    });
+
+    expect(
+      result.findings.some(
+        (finding) =>
+          finding.ruleId === "source-fidelity.mismatch" && finding.statementId === "bullet-1"
+      )
+    ).toBe(false);
+  });
+
   it("blocks rendering when a statement is missing provenance", () => {
     const input = buildAuditInput();
     input.resumeComposition.professionalExperience[0]!.bullets[0]!.provenance.sourceEvidenceIds = [];

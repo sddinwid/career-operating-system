@@ -22,6 +22,8 @@
     "@prisma/client": "^6.0.0",
     "ag-grid-community": "^36.0.1",
     "ag-grid-react": "^36.0.1",
+    "docx": "^9.7.1",
+    "jszip": "^3.10.1",
     "next": "^15.0.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",

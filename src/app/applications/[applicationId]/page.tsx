@@ -10,6 +10,8 @@ import {
   archiveApplicationAction,
   restoreApplicationAction
 } from "@/lib/applications/actions";
+import { renderApprovedResumeDocumentAction } from "@/lib/document-rendering/actions";
+import { getLatestRenderedResumeDocumentVersion } from "@/lib/document-rendering/service";
 import { runResumeAuditAction } from "@/lib/resume-audit/actions";
 import { getResumeAuditContext } from "@/lib/resume-audit/service";
 import {
@@ -67,7 +69,10 @@ function SuccessBanner({ success }: { success?: string }) {
       "The current composition contract, engine, and configuration already had a successful result for this exact structured plan and career profile, so the existing resume content was reused.",
     "audit-created": "Resume audit completed successfully.",
     "audit-reused":
-      "The current audit contract, engine, and configuration already had a successful result for this exact composed resume, so the existing audit was reused."
+      "The current audit contract, engine, and configuration already had a successful result for this exact composed resume, so the existing audit was reused.",
+    "document-rendered": "Approved resume rendered to an immutable DOCX successfully.",
+    "document-reused":
+      "The active approved resume already had a matching immutable DOCX, so the existing document version was reused."
   };
 
   if (!success || !messages[success]) {
@@ -146,6 +151,13 @@ export default async function ApplicationDetailPage({
           applicationId: application.id
         })
       : [];
+  const latestRenderedResumeDocument =
+    application.currentJobDescriptionVersion
+      ? await getLatestRenderedResumeDocumentVersion(workspace.id, {
+          jobDescriptionVersionId: application.currentJobDescriptionVersion.id,
+          applicationId: application.id
+        })
+      : null;
 
   const isArchived = application.archivedAt !== null;
   const retrievalReady = Boolean(
@@ -248,6 +260,11 @@ export default async function ApplicationDetailPage({
     : resumeAuditContext?.auditReady
       ? "Resume Audit Ready"
       : "Resume Audit Not Ready";
+  const documentRenderingStateLabel = latestRenderedResumeDocument
+    ? "Immutable Resume DOCX Ready"
+    : resumeRenderingApproval
+      ? "Resume DOCX Rendering Ready"
+      : "Resume DOCX Rendering Not Ready";
 
   return (
     <div className="space-y-8">
@@ -570,6 +587,39 @@ export default async function ApplicationDetailPage({
                 </button>
               </form>
             ) : null}
+            {latestRenderedResumeDocument ? (
+              <>
+                <Link
+                  className="rounded-full border border-stone-300 px-5 py-3 text-sm font-semibold text-stone-700 transition hover:border-stone-950 hover:text-stone-950"
+                  href={`/documents/${latestRenderedResumeDocument.id}`}
+                >
+                  View Resume DOCX
+                </Link>
+                <a
+                  className="rounded-full border border-stone-300 px-5 py-3 text-sm font-semibold text-stone-700 transition hover:border-stone-950 hover:text-stone-950"
+                  href={`/api/documents/${latestRenderedResumeDocument.id}/download`}
+                >
+                  Download Resume DOCX
+                </a>
+              </>
+            ) : null}
+            {application.currentJobDescriptionVersion && resumeRenderingApproval ? (
+              <form
+                action={renderApprovedResumeDocumentAction.bind(
+                  null,
+                  application.currentJobDescriptionVersion.id,
+                  application.id,
+                  `/applications/${application.id}`
+                )}
+              >
+                <button
+                  className="rounded-full border border-stone-300 px-5 py-3 text-sm font-semibold text-stone-700 transition hover:border-stone-950 hover:text-stone-950"
+                  type="submit"
+                >
+                  {latestRenderedResumeDocument ? "Render Resume DOCX Again" : "Render Resume DOCX"}
+                </button>
+              </form>
+            ) : null}
             {application.currentJobDescriptionVersion ? (
               <form
                 action={parseJobDescriptionAction.bind(
@@ -778,6 +828,19 @@ export default async function ApplicationDetailPage({
               </p>
               <p className="mt-2 text-sm text-stone-700">
                 Approval history {resumeRenderingApprovalHistory.length}
+              </p>
+            </article>
+            <article className="rounded-2xl border border-stone-200 bg-stone-50 p-4">
+              <p className="text-sm font-medium text-stone-500">Resume DOCX</p>
+              <p className="mt-2 text-lg font-semibold text-stone-900">
+                {documentRenderingStateLabel}
+              </p>
+              <p className="mt-1 text-sm text-stone-600">
+                {latestRenderedResumeDocument
+                  ? `Latest version ${latestRenderedResumeDocument.versionNumber} is available for download.`
+                  : resumeRenderingApproval
+                    ? "An approved resume source is ready for immutable DOCX rendering."
+                    : "Approve a ready audited resume before rendering a DOCX."}
               </p>
             </article>
             <article className="rounded-2xl border border-stone-200 bg-stone-50 p-4">

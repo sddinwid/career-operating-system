@@ -80,13 +80,31 @@ Fields: id, workspaceId, applicationId, stage, scheduledStart, scheduledEnd, tim
 
 Logical artifact record.
 
-Fields: id, workspaceId, applicationId nullable, type, title, status, createdAt, updatedAt.
+Fields: id, workspaceId, applicationId nullable, jobDescriptionVersionId nullable, type, title, status, createdAt, updatedAt.
+
+Semantics:
+
+- one logical document groups immutable versions for the same employer-facing artifact intent
+- M7.1 uses `type=RESUME`
+- document rows are scoped to one workspace and optionally one application plus one job-description lineage
+- the logical row is not the file; the file always lives on `DocumentVersion`
 
 ### DocumentVersion
 
-Fields: id, documentId, versionNumber, format, originalFilename, storedFilename, storagePath, mimeType, sizeBytes, checksum, source, generatedAt, downloadedAt nullable, submittedAt nullable, metadata JSONB.
+Fields: id, documentId, workspaceId, applicationId nullable, jobDescriptionVersionId, resumeRenderingApprovalId, resumeAuditRunId, resumeCompositionVersionId, resumeRevisionVersionId nullable, versionNumber, format, originalFilename, storedFilename, storagePath, mimeType, sizeBytes, checksum, source, renderStatus, renderContractVersion, rendererVersion, templateVersion, configurationVersion, renderInputChecksum, warningCount, validationSummary JSONB nullable, errorSummary nullable, generatedAt, downloadedAt nullable, submittedAt nullable, metadata JSONB.
 
 Unique: documentId plus versionNumber.
+
+Semantics:
+
+- each row is one immutable artifact file
+- M7.1 stores only successful DOCX artifacts for approved resumes
+- `resumeRenderingApprovalId` links the exact approval used for rendering
+- `resumeAuditRunId` links the exact audit that cleared rendering
+- `resumeCompositionVersionId` and optional `resumeRevisionVersionId` preserve the exact approved content source
+- `rendererVersion`, `templateVersion`, and `configurationVersion` make renderer behavior auditable
+- `checksum`, `sizeBytes`, `mimeType`, and `storagePath` describe the persisted file
+- `storagePath` is a relative local storage key, not an absolute filesystem path
 
 ### ImportJob
 

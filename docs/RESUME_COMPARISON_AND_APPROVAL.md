@@ -132,12 +132,12 @@ M6.2 does not log raw resume bodies or raw audit payloads. Approval and comparis
 
 ## Known Limitations
 
-- No DOCX renderer yet
+- DOCX rendering now belongs to `M7.1`, not this milestone
 - No PDF renderer yet
-- No document storage or download path yet
+- Immutable document storage and download now belong to `M7.1`, not this milestone
 - No persisted comparison snapshots
 - No manual finding override workflow
 
 ## M7 Dependency
 
-M7.1 will consume the rendering gate and active approval history to create immutable employer-facing document versions.
+M7.1 now consumes the exact active approval through `getApprovedResumeForRendering(...)` to create immutable employer-facing document versions without selecting resume content independently.

@@ -121,6 +121,7 @@ function findSourceTexts(
       values.add(employment.endDate?.normalized ?? "");
       employment.technologies.forEach((value) => values.add(value));
       employment.accomplishments.forEach((value) => values.add(value));
+      employment.facts.forEach((value) => values.add(value));
       employment.responsibilities.forEach((value) => values.add(value));
       employment.metrics.forEach((value) => {
         values.add(value.value ?? "");

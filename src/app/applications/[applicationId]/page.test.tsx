@@ -174,6 +174,10 @@ vi.mock("@/lib/resume-rendering-approval/service", () => ({
   listResumeRenderingApprovalHistory: vi.fn(async () => [])
 }));
 
+vi.mock("@/lib/document-rendering/service", () => ({
+  getLatestRenderedResumeDocumentVersion: vi.fn(async () => null)
+}));
+
 describe("ApplicationDetailPage", () => {
   it("shows the job-description summary and replacement actions", async () => {
     const page = await ApplicationDetailPage({
@@ -222,6 +226,7 @@ describe("ApplicationDetailPage", () => {
       "/job-descriptions/job-description-2/resume/audit?runId=resume-audit-1"
     );
     expect(screen.getByText("Resume Audit Complete")).toBeVisible();
+    expect(screen.getByText("Resume DOCX Rendering Not Ready")).toBeVisible();
     expect(screen.getByText(/READY WITH WARNINGS/i)).toBeVisible();
     expect(screen.getByRole("link", { name: "Replace Job Description" })).toHaveAttribute(
       "href",

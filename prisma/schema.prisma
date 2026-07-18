@@ -118,6 +118,13 @@ enum DocumentSource {
   OTHER
 }
 
+enum DocumentRenderStatus {
+  PENDING
+  SUCCESS
+  SUCCESS_WITH_WARNINGS
+  FAILED
+}
+
 enum JobDescriptionSourceType {
   MANUAL_PASTE
   LINKEDIN
@@ -268,6 +275,7 @@ model Workspace {
   companies             Company[]
   contacts              Contact[]
   documents             Document[]
+  documentVersions      DocumentVersion[]
   matchReportRuns       MatchReportRun[]
   resumeAuditRuns       ResumeAuditRun[]
   resumeCompositionVersions ResumeCompositionVersion[]
@@ -354,6 +362,7 @@ model Application {
   currentJobDescriptionVersion JobDescriptionVersion? @relation("ApplicationCurrentJobDescription", fields: [currentJobDescriptionVersionId], references: [id], onDelete: SetNull)
   capturedJobDescriptions JobDescriptionVersion[]  @relation("JobDescriptionSourceApplication")
   documents             Document[]                 @relation("ApplicationDocuments")
+  documentVersions      DocumentVersion[]          @relation("ApplicationDocumentVersions")
   interviews            Interview[]
   matchedImportRows     ImportRow[]                @relation("MatchedImportRows")
   statusHistoryEntries  ApplicationStatusHistory[]
@@ -402,6 +411,8 @@ model JobDescriptionVersion {
   matchReportRuns       MatchReportRun[]
   resumeAuditRuns       ResumeAuditRun[]
   resumeCompositionVersions ResumeCompositionVersion[]
+  documents           Document[]
+  documentVersions    DocumentVersion[]
   resumeRenderingApprovals ResumeRenderingApproval[]
   resumeRevisionVersions ResumeRevisionVersion[]
   structuredResumeVersions StructuredResumeVersion[]
@@ -564,22 +575,32 @@ model Document {
   id            String         @id @default(cuid())
   workspaceId   String
   applicationId String?
+  jobDescriptionVersionId String?
   type          DocumentType
   title         String
   status        DocumentStatus @default(DRAFT)
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
   application   Application?   @relation("ApplicationDocuments", fields: [applicationId], references: [id], onDelete: SetNull)
+  jobDescriptionVersion JobDescriptionVersion? @relation(fields: [jobDescriptionVersionId], references: [id], onDelete: SetNull)
   workspace     Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
   versions      DocumentVersion[]
 
   @@index([applicationId, createdAt])
+  @@index([jobDescriptionVersionId, createdAt])
   @@index([workspaceId, type])
 }
 
 model DocumentVersion {
   id               String         @id @default(cuid())
   documentId       String
+  workspaceId      String
+  applicationId    String?
+  jobDescriptionVersionId String
+  resumeRenderingApprovalId String
+  resumeAuditRunId String
+  resumeCompositionVersionId String
+  resumeRevisionVersionId String?
   versionNumber    Int
   format           DocumentFormat
   originalFilename String
@@ -589,14 +610,38 @@ model DocumentVersion {
   sizeBytes        Int
   checksum         String
   source           DocumentSource
+  renderStatus     DocumentRenderStatus @default(PENDING)
+  renderContractVersion String
+  rendererVersion  String
+  templateVersion  String
+  configurationVersion String
+  renderInputChecksum String
+  warningCount     Int            @default(0)
+  validationSummary Json?
+  errorSummary     String?
   generatedAt      DateTime       @default(now())
   downloadedAt     DateTime?
   submittedAt      DateTime?
   metadata         Json?
+  application      Application?   @relation("ApplicationDocumentVersions", fields: [applicationId], references: [id], onDelete: SetNull)
   document         Document       @relation(fields: [documentId], references: [id], onDelete: Restrict)
+  jobDescriptionVersion JobDescriptionVersion @relation(fields: [jobDescriptionVersionId], references: [id], onDelete: Restrict)
+  resumeAuditRun   ResumeAuditRun @relation(fields: [resumeAuditRunId], references: [id], onDelete: Restrict)
+  resumeCompositionVersion ResumeCompositionVersion @relation(fields: [resumeCompositionVersionId], references: [id], onDelete: Restrict)
+  resumeRenderingApproval ResumeRenderingApproval @relation(fields: [resumeRenderingApprovalId], references: [id], onDelete: Restrict)
+  resumeRevisionVersion ResumeRevisionVersion? @relation(fields: [resumeRevisionVersionId], references: [id], onDelete: SetNull)
+  workspace        Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
 
   @@unique([documentId, versionNumber])
   @@index([documentId, generatedAt])
+  @@index([workspaceId, generatedAt])
+  @@index([applicationId, generatedAt])
+  @@index([jobDescriptionVersionId, generatedAt])
+  @@index([resumeRenderingApprovalId, generatedAt])
+  @@index([resumeAuditRunId, generatedAt])
+  @@index([resumeCompositionVersionId, generatedAt])
+  @@index([resumeRevisionVersionId, generatedAt])
+  @@index([workspaceId, renderInputChecksum, renderStatus, generatedAt])
 }
 
 model ImportJob {
@@ -891,6 +936,7 @@ model ResumeCompositionVersion {
   predecessorVersion          ResumeCompositionVersion?      @relation("ResumeCompositionVersionPredecessor", fields: [predecessorVersionId], references: [id], onDelete: SetNull)
   requirementAnalysis         JobRequirementAnalysis         @relation(fields: [requirementAnalysisId], references: [id], onDelete: Restrict)
   resumeAuditRuns             ResumeAuditRun[]
+  documentVersions            DocumentVersion[]
   resumeRenderingApprovals    ResumeRenderingApproval[]
   resumeRevisionVersions      ResumeRevisionVersion[]
   structuredResumeVersion     StructuredResumeVersion        @relation(fields: [structuredResumeVersionId], references: [id], onDelete: Restrict)
@@ -942,6 +988,7 @@ model ResumeRevisionVersion {
   predecessorRevision           ResumeRevisionVersion?      @relation("ResumeRevisionVersionPredecessor", fields: [predecessorRevisionId], references: [id], onDelete: SetNull)
   requirementAnalysis           JobRequirementAnalysis      @relation(fields: [requirementAnalysisId], references: [id], onDelete: Restrict)
   resumeAuditRuns               ResumeAuditRun[]
+  documentVersions              DocumentVersion[]
   resumeRenderingApprovals      ResumeRenderingApproval[]
   structuredResumeVersion       StructuredResumeVersion     @relation(fields: [structuredResumeVersionId], references: [id], onDelete: Restrict)
   successorRevisions            ResumeRevisionVersion[]     @relation("ResumeRevisionVersionPredecessor")
@@ -989,6 +1036,7 @@ model ResumeAuditRun {
   jobDescriptionVersion        JobDescriptionVersion @relation(fields: [jobDescriptionVersionId], references: [id], onDelete: Restrict)
   matchReportRun               MatchReportRun       @relation(fields: [matchReportRunId], references: [id], onDelete: Restrict)
   requirementAnalysis          JobRequirementAnalysis @relation(fields: [requirementAnalysisId], references: [id], onDelete: Restrict)
+  documentVersions             DocumentVersion[]
   resumeCompositionVersion     ResumeCompositionVersion @relation(fields: [resumeCompositionVersionId], references: [id], onDelete: Restrict)
   resumeRenderingApprovals     ResumeRenderingApproval[]
   resumeRevisionVersion        ResumeRevisionVersion? @relation(fields: [resumeRevisionVersionId], references: [id], onDelete: SetNull)
@@ -1046,6 +1094,7 @@ model ResumeRenderingApproval {
   matchReportRun             MatchReportRun                @relation(fields: [matchReportRunId], references: [id], onDelete: Restrict)
   predecessorApproval        ResumeRenderingApproval?      @relation("ResumeRenderingApprovalPredecessor", fields: [predecessorApprovalId], references: [id], onDelete: SetNull)
   requirementAnalysis        JobRequirementAnalysis        @relation(fields: [requirementAnalysisId], references: [id], onDelete: Restrict)
+  documentVersions           DocumentVersion[]
   resumeAuditRun             ResumeAuditRun                @relation(fields: [resumeAuditRunId], references: [id], onDelete: Restrict)
   resumeCompositionVersion   ResumeCompositionVersion?     @relation(fields: [resumeCompositionVersionId], references: [id], onDelete: SetNull)
   resumeRevisionVersion      ResumeRevisionVersion?        @relation(fields: [resumeRevisionVersionId], references: [id], onDelete: SetNull)

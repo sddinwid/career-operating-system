@@ -1,4 +1,6 @@
-import { expect, test } from "@playwright/test";
+import { promises as fs } from "node:fs";
+import JSZip from "jszip";
+import { expect, test, type Page } from "@playwright/test";
 
 test("captures, versions, and reuses job descriptions without changing application workflow state", async ({
   page
@@ -6,6 +8,10 @@ test("captures, versions, and reuses job descriptions without changing applicati
   test.setTimeout(65_000);
   const companyName = "E2E Grid Company";
   const roleName = "E2E Grid Role";
+  const candidateName = "Fixture Candidate";
+  const approvedRoleBullet = "Built backend services for internal tools.";
+  const approvedAccomplishmentBullet = "Improved throughput by 20 percent.";
+  const approvedProject = "Fixture Platform";
   const firstDescription = `${companyName}
 ${roleName}
 Hybrid role based in Chicago, IL. Full-time position.
@@ -51,6 +57,7 @@ Preferred Qualifications
     .filter({ has: page.getByText("Status", { exact: true }) })
     .first();
   const initialStatusText = (await statusCard.textContent()) ?? "";
+  const applicationId = preparedApplicationIdFromUrl(page.url());
   const initialStatusValue = initialStatusText.includes("INTERVIEW")
     ? "INTERVIEW"
     : "APPLIED";
@@ -258,6 +265,7 @@ Preferred Qualifications
   await expect(page.getByRole("link", { name: "Resume Composition" })).toBeVisible();
   await expect(page.getByText(/docx/i)).toHaveCount(0);
   await expect(page.getByText(/pdf/i)).toHaveCount(0);
+  await approveForRendering(page, { required: true });
   await expect(page.getByRole("link", { name: "Open Resume Studio" })).toBeVisible();
   await page.getByRole("link", { name: "Open Resume Studio" }).click();
   await expect(page.getByText("Resume Studio")).toBeVisible();
@@ -293,12 +301,6 @@ Preferred Qualifications
   const projectSection = page
     .locator("section")
     .filter({ has: page.getByRole("heading", { name: "Selected Projects" }) });
-  if ((await projectSection.count()) > 0) {
-    const projectCheckboxes = projectSection.locator('input[type="checkbox"]');
-    if ((await projectCheckboxes.count()) > 0) {
-      await projectCheckboxes.first().uncheck();
-    }
-  }
 
   await page
     .getByRole("textbox", { name: "Revision note" })
@@ -322,18 +324,7 @@ Preferred Qualifications
   await expect(page.getByText("Resume Diff")).toBeVisible();
   await expect(page.getByText("Audit Comparison")).toBeVisible();
   await expect(page.getByText(/Provenance preserved|Provenance changed/i).first()).toBeVisible();
-  if ((await page.getByRole("textbox", { name: "Required acknowledgement" }).count()) > 0) {
-    await page.getByRole("checkbox", { name: /approve this resume despite/i }).check();
-    await page
-      .getByRole("textbox", { name: "Required acknowledgement" })
-      .fill("I acknowledge the remaining non-blocking warnings.");
-  }
-  await page.getByRole("button", { name: "Approve for Rendering" }).click();
-  await expect(
-    page.getByText(
-      /Rendering approval is now active|existing record was reused/i
-    )
-  ).toBeVisible();
+  await approveForRendering(page, { required: false });
   await expect(page.getByText("Approval History")).toBeVisible();
   await page.getByRole("link", { name: "Back to Revision" }).click();
   await expect(page.getByRole("link", { name: "Create New Revision" }).first()).toBeVisible();
@@ -347,11 +338,114 @@ Preferred Qualifications
   await expect(page.getByText("Match report summary")).toBeVisible();
   await expect(page.getByText("Structured Resume Plan Generated")).toBeVisible();
   await expect(page.getByText("Resume Audit Complete")).toBeVisible();
+  if ((await page.getByRole("button", { name: /Render Resume DOCX/ }).count()) === 0) {
+    await page.getByRole("link", { name: "View Resume Audit" }).click();
+    await approveForRendering(page, { required: true });
+    await page.getByRole("link", { name: "Open application" }).click();
+  }
+  await expect(page.getByText(/Resume DOCX Rendering Ready|Immutable Resume DOCX Ready/)).toBeVisible();
   await expect(page.getByText(/Active Approval|No Active Approval/).first()).toBeVisible();
   await expect(page.getByRole("link", { name: "View Comparison" })).toBeVisible();
   await expect(page.getByText(/Resume Generation Ready|Match Report Generated|Match Report Has Critical Gaps|Resume Generation Ready With Limitations/).first()).toBeVisible();
   await expect(page.getByRole("link", { name: "View Match Report" })).toBeVisible();
   await expect(page.getByRole("link", { name: "View Structured Resume Plan" })).toBeVisible();
+  const renderRequest = page.waitForResponse(
+    (response) =>
+      response.request().method() === "POST" &&
+      response.url().includes(`/applications/${applicationId}`) &&
+      response.status() === 303
+  );
+  await page.getByRole("button", { name: "Render Resume DOCX" }).click();
+  const renderResponse = await renderRequest;
+  expect(renderResponse.ok()).toBeFalsy();
+  expect(renderResponse.status()).toBe(303);
+  await expect(page.getByText("Approved resume rendered to an immutable DOCX successfully.")).toBeVisible();
+  await expect(page.getByRole("link", { name: "View Resume DOCX" })).toBeVisible();
+
+  const renderedDocumentLink = page.getByRole("link", { name: "View Resume DOCX" });
+  const renderedDocumentHref = await renderedDocumentLink.getAttribute("href");
+  expect(renderedDocumentHref).toMatch(/^\/documents\/[^/]+$/);
+  expect(renderedDocumentHref?.split("/").pop()).toBeTruthy();
+
+  await renderedDocumentLink.click();
+  await expect(page.getByRole("heading", { name: `${companyName} ${roleName} Resume` })).toBeVisible();
+  await expect(page.getByText(/Version 1/i).first()).toBeVisible();
+  await expect(page.getByText(/Filename/i)).toBeVisible();
+  await expect(page.getByText(/Renderer version: m7\.1\.0/i)).toBeVisible();
+  await expect(page.getByText(/Template version: resume-docx-v1/i)).toBeVisible();
+  await expect(page.getByText(/Approval/i).first()).toBeVisible();
+  await expect(page.getByText(/Audit/i).first()).toBeVisible();
+  const sizeText = await page
+    .locator("article")
+    .filter({ has: page.getByText("Size", { exact: true }) })
+    .first()
+    .textContent();
+  expect(Number.parseInt(sizeText?.replace(/\D+/g, "") ?? "0", 10)).toBeGreaterThan(0);
+  await expect(page.getByText(/Preview [0-9a-f]{12}/i)).toBeVisible();
+  await expect(page.getByRole("link", { name: /PDF/i })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: /PDF/i })).toHaveCount(0);
+  await expect(page.getByText("1 immutable version stored for this logical document.")).toBeVisible();
+
+  const downloadPromise = page.waitForEvent("download");
+  await page.getByRole("link", { name: "Download DOCX" }).click();
+  const download = await downloadPromise;
+  const suggestedFilename = download.suggestedFilename();
+  expect(suggestedFilename).toContain("Fixture_Candidate");
+  expect(suggestedFilename.endsWith(".docx")).toBe(true);
+  const downloadPath = test.info().outputPath(suggestedFilename);
+  await download.saveAs(downloadPath);
+  const downloadedFile = await fs.readFile(downloadPath);
+  expect(downloadedFile.byteLength).toBeGreaterThan(0);
+
+  const zip = await JSZip.loadAsync(downloadedFile);
+  expect(zip.file("[Content_Types].xml")).toBeTruthy();
+  expect(zip.file("word/document.xml")).toBeTruthy();
+  const documentXml = await zip.file("word/document.xml")?.async("string");
+  if (!documentXml) {
+    throw new Error("Expected word/document.xml to be present in the rendered DOCX.");
+  }
+  expect(documentXml).toContain(candidateName);
+  expect(documentXml).toContain("Professional Summary");
+  expect(documentXml).toContain("Core Skills");
+  expect(documentXml).toContain("Professional Experience");
+  expect(
+    documentXml.includes(approvedRoleBullet) || documentXml.includes(approvedAccomplishmentBullet)
+  ).toBe(true);
+  if (documentXml.includes("Selected Projects")) {
+    expect(documentXml).toContain(approvedProject);
+  }
+  expect(documentXml).not.toContain("Shortened the summary and trimmed optional content for a tighter employer-facing pass.");
+  expect(documentXml).not.toContain("I acknowledge the remaining non-blocking warnings.");
+  expect(documentXml).not.toContain("exp_fixture");
+  expect(documentXml).not.toContain("project_fixture");
+  expect(documentXml).not.toContain("candidate_fixture");
+  expect(documentXml).not.toContain("sourceEvidenceIds");
+  expect(documentXml).not.toContain("resumeRevisionVersionId");
+  expect(documentXml).not.toMatch(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i);
+
+  await page.getByRole("link", { name: "Open application" }).click();
+  await expect(statusCard).toContainText(initialStatusText.trim());
+  await expect(statusHistorySection.locator("article")).toHaveCount(initialStatusHistoryCount);
+  const rerenderRequest = page.waitForResponse(
+    (response) =>
+      response.request().method() === "POST" &&
+      response.url().includes(`/applications/${applicationId}`) &&
+      response.status() === 303
+  );
+  await page.getByRole("button", { name: "Render Resume DOCX Again" }).click();
+  const rerenderResponse = await rerenderRequest;
+  expect(rerenderResponse.status()).toBe(303);
+  await expect(
+    page.getByText(
+      "The active approved resume already had a matching immutable DOCX, so the existing document version was reused."
+    )
+  ).toBeVisible();
+  await page.getByRole("link", { name: "View Resume DOCX" }).click();
+  await expect(page.getByText("1 immutable version stored for this logical document.")).toBeVisible();
+  const reusedDocumentHref = page.url();
+  expect(reusedDocumentHref.endsWith(renderedDocumentHref ?? "")).toBe(true);
+
+  await page.getByRole("link", { name: "Open application" }).click();
   await page.getByRole("button", { name: "Create Structured Resume Plan" }).click();
   await expect(
     page.getByText(
@@ -454,3 +548,60 @@ Preferred Qualifications
       .filter({ hasText: nextStatusValue })
   ).toHaveCount(1);
 });
+
+function preparedApplicationIdFromUrl(url: string) {
+  const match = url.match(/\/applications\/([^/?]+)/);
+  if (!match?.[1]) {
+    throw new Error(`Could not determine application id from url: ${url}`);
+  }
+
+  return match[1];
+}
+
+const RENDERING_WARNING_ACKNOWLEDGEMENT =
+  "I acknowledge the remaining non-blocking warnings.";
+
+async function approveForRendering(
+  page: Page,
+  options: { required: boolean }
+) {
+  const warningCheckbox = page.getByRole("checkbox", {
+    name: /approve this resume despite/i
+  });
+  if ((await warningCheckbox.count()) > 0) {
+    await warningCheckbox.check();
+    const acknowledgementField = page.getByRole("textbox", {
+      name: "Required acknowledgement"
+    });
+    await acknowledgementField.fill(RENDERING_WARNING_ACKNOWLEDGEMENT);
+    await expect(acknowledgementField).toHaveValue(RENDERING_WARNING_ACKNOWLEDGEMENT);
+  }
+
+  const approvalButton = page.getByRole("button", { name: "Approve for Rendering" });
+  const alreadyActiveMessage = page.getByText(
+    "The proposed content is already the active approved resume for rendering."
+  );
+  if (await alreadyActiveMessage.count()) {
+    return true;
+  }
+
+  if (!(await approvalButton.isEnabled())) {
+    if (await alreadyActiveMessage.count()) {
+      return true;
+    }
+    if (!options.required) {
+      return false;
+    }
+  }
+
+  if (!options.required && !(await approvalButton.isEnabled())) {
+    return false;
+  }
+
+  await expect(approvalButton).toBeEnabled();
+  await approvalButton.click();
+  await expect(
+    page.getByText(/Rendering approval is now active|existing record was reused/i)
+  ).toBeVisible();
+  return true;
+}

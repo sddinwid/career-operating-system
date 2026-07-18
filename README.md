@@ -222,3 +222,18 @@ See [docs/STRUCTURED_RESUME_CONTRACT.md](docs/STRUCTURED_RESUME_CONTRACT.md).
 ## M6.2 Resume Comparison and Approval
 
 The resume workflow now supports deterministic comparison between immutable resume sources and a separate immutable rendering-approval history. Rendering itself is still out of scope. Future renderers must consume the active approval gate instead of choosing the latest resume content directly.
+
+## M7.1 DOCX Rendering
+
+The resume workflow now supports deterministic DOCX rendering from the active rendering approval gate.
+
+- DOCX artifacts are stored as immutable `DocumentVersion` rows linked back to approval, audit, composition, and optional revision lineage
+- Resume pages and application detail pages can render, inspect, and download the latest immutable DOCX
+- Render reuse is keyed from the exact approved rendering inputs, so the same approved source reuses the existing immutable document version
+- Rendering is blocked unless one active `ResumeRenderingApproval` exists for the exact application and job-description lineage
+- Artifact detail lives at `/documents/[documentVersionId]`
+- Downloads stream from `/api/documents/[documentVersionId]/download` with a DOCX MIME type and a sanitized suggested filename
+- Artifacts are written under the local ignored storage root from `LOCAL_DATA_DIR`, not into the repository
+- PDF output, attachment workflows, and broader document navigation remain later milestones
+
+See [docs/DOCX_RENDERING.md](docs/DOCX_RENDERING.md).

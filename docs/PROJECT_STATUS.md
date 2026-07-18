@@ -4,15 +4,15 @@ Date: July 17, 2026
 
 ## Current Milestone
 
-Current milestone: `Milestone 6 - Resume Studio and Review`
+Current milestone: `Milestone 7 - Document Rendering and Artifact Versioning`
 
 Prompt 04D is not automatically next.
 
-The active implementation slice is `M6.2 - Resume Studio Comparison and Rendering Approval`, and it remains verification-pending until the required full suite is green.
+The active implementation slice is `M7.2 - Render Validation and PDF Output`.
 
 ## Last Completed Implementation
 
-Last completed implementation: `M6.1 - Resume Studio Editing and Versioned Revision`.
+Last completed implementation: `M7.1 - DOCX Template and Renderer`.
 
 Repository evidence:
 - `src/lib/job-descriptions/service.ts`
@@ -117,11 +117,9 @@ These models exist in schema only. No upload/download/rendering services, UI, or
 - Today screen
 - Contacts page
 - Interviews page
-- Documents workspace
+- Documents workspace shell beyond the new rendered document detail view
 - Career profile inspection UI
-- Resume generation
 - Cover-letter generation
-- Document rendering
 - Application packages
 - Analytics
 - Authentication
@@ -130,7 +128,6 @@ These models exist in schema only. No upload/download/rendering services, UI, or
 
 ## Known Failures
 
-- No verified end-to-end document workflow exists despite document-related models.
 - Navigation items for `Calendar`, `Companies`, `Contacts`, `Interviews`, `Documents`, `Career Profile`, `Analytics`, and `Settings` still point to placeholder `#` links.
   - Evidence: `src/lib/navigation.ts`
 - The home page is still a foundation/health landing page, not a real Today workflow.
@@ -141,7 +138,8 @@ These models exist in schema only. No upload/download/rendering services, UI, or
 ### Blocking debt for Milestone 3
 
 - Career knowledge now has an implemented contract and importer, but the large standalone inspection surface is intentionally deferred.
-- `Document`, `DocumentVersion`, and `AiRun` are still model-only and do not yet support deterministic generation flows.
+- `AiRun` is still model-only and does not yet support deterministic generation flows.
+- `prisma migrate dev` is still not healthy because Prisma's shadow database cannot replay one older migration from scratch.
 
 ### Near-term debt
 
@@ -164,7 +162,7 @@ These models exist in schema only. No upload/download/rendering services, UI, or
 
 ## Current Automated Test Status
 
-Latest required verification for `M6.2`:
+Latest verified `M7.1` completion sequence:
 - `npm run db:generate`
 - `npx prisma migrate deploy`
 - `npm run db:seed`
@@ -173,8 +171,6 @@ Latest required verification for `M6.2`:
 - `npm run typecheck`
 - `npm run build`
 - `npm run lint`
-
-Status should be updated only from the latest verified command run. Until that suite is green, `M6.2` must stay verification-pending in project status documents.
 
 ## Current Architecture Decisions
 
@@ -190,7 +186,7 @@ See `docs/DECISIONS.md`.
 
 ## Current Active Priority
 
-The active product priority remains `M6.2 - Resume Studio Comparison and Rendering Approval`, with final completion gated on the required verification suite.
+The active product priority is now `M7.2 - Render Validation and PDF Output`.
 
 ## Revised Progress Overview
 
@@ -200,7 +196,8 @@ The active product priority remains `M6.2 - Resume Studio Comparison and Renderi
 - `Milestone 3 - Job Description Intelligence`: complete, with `M3.1`, `M3.2`, and `M3.3` complete
 - `Milestone 4 - Evidence Retrieval and Scoring`: `M4.1` complete, `M4.2` complete, `M4.3` complete
 - `Milestone 5 - Resume Composition Engine`: `M5.1` complete, `M5.2` complete, `M5.3` complete
-- `Milestone 6 - Resume Studio and Review`: `M6.1` complete, `M6.2` in progress and verification-pending
+- `Milestone 6 - Resume Studio and Review`: `M6.1` complete, `M6.2` complete
+- `Milestone 7 - Rendering and Packaging`: `M7.1` complete, `M7.2` next
 - `Milestones 9-12 - Remaining tracker ergonomics, analytics, generic ingestion, and commercialization`: deferred later
 ## Current Milestone
 
@@ -209,7 +206,17 @@ The active product priority remains `M6.2 - Resume Studio Comparison and Renderi
 - M5.2 - Complete
 - M5.3 - Complete
 - M6.1 - Complete
-- M6.2 - In progress, verification pending
+- M6.2 - Complete
+- M7.1 - Complete
+- M7.2 - Next
 ## Resume Workflow
 
-M6.2 adds deterministic resume comparison, audit-finding comparison, immutable rendering approval, supersession, revocation, and the rendering gate used by future document renderers. The slice should not be treated as complete until the required verification suite passes.
+M7.1 adds deterministic DOCX rendering, immutable `DocumentVersion` creation, active-approval render reuse, local artifact storage, and document download routes on top of the `M6.2` rendering gate. The required verification suite now passes on the current repository state.
+
+## Migration Health
+
+- `prisma/migrations/20260718050000_m7_1_docx_renderer/migration.sql` deploys successfully with `prisma migrate deploy`
+- `prisma migrate dev` still fails because the older migration `20260716110000_m4_1_evidence_retrieval` cannot be replayed inside Prisma's shadow database
+- the observed failure was `P3006` with nested `P1014`, reporting that the underlying table for model `JobRequirementAnalysis` does not exist
+- this does not invalidate the deployed M7.1 migration because deploy succeeded against the real database
+- the shadow-database replay problem remains technical debt for future migration-history reset compatibility

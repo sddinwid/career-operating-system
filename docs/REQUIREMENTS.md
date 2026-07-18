@@ -172,3 +172,14 @@ The system must support a Resume Studio revision workflow that:
 ## M6.2 Requirements
 
 Resume comparison must remain deterministic, derived from immutable sources, and auditable. Rendering approval must reject mutable drafts, blocked audits, needs-review audits, checksum mismatches, and stale active-approval assumptions.
+
+## M7.1 Requirements
+
+DOCX rendering must remain deterministic and approval-gated.
+
+- only the exact active approved resume source may render
+- rendering must not mutate resume composition, revision, audit, application, or job-description records
+- rendered artifacts must persist as immutable `Document` and `DocumentVersion` records
+- downloads must stream with a DOCX MIME type and sanitized filename behavior
+- file integrity must be checked through persisted size and checksum metadata
+- rendered output must remain ATS-friendly DOCX rather than PDF or image-based output

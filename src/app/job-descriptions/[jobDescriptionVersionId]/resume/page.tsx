@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { runResumeAuditAction } from "@/lib/resume-audit/actions";
+import { renderApprovedResumeDocumentAction } from "@/lib/document-rendering/actions";
+import { getLatestRenderedResumeDocumentVersion } from "@/lib/document-rendering/service";
 import { getResumeAuditContext } from "@/lib/resume-audit/service";
 import { createResumeCompositionAction } from "@/lib/resume-composition/actions";
 import { ResumeRenderingApprovalPanel } from "@/components/resume-studio/resume-rendering-approval-panel";
@@ -32,7 +34,10 @@ function SuccessBanner({ success }: { success?: string }) {
       "The current composition contract, engine, and configuration already had a successful result for this exact structured plan and career profile, so the existing resume content was reused.",
     "audit-created": "Resume audit completed successfully.",
     "audit-reused":
-      "The current audit contract, engine, and configuration already had a successful result for this exact composed resume, so the existing audit was reused."
+      "The current audit contract, engine, and configuration already had a successful result for this exact composed resume, so the existing audit was reused.",
+    "document-rendered": "Approved resume rendered to an immutable DOCX successfully.",
+    "document-reused":
+      "The active approved resume already had a matching immutable DOCX, so the existing document version was reused."
   };
 
   if (!success || !messages[success]) {
@@ -106,6 +111,10 @@ export default async function ResumePage({ params, searchParams }: ResumePagePro
   const { version, content } = await parseStoredResumeCompositionVersion(workspace.id, selectedVersionId);
   const latestAudit = auditContext?.reusableResumeAuditRun;
   const activeApproval = await getActiveResumeRenderingApproval(workspace.id, {
+    jobDescriptionVersionId,
+    applicationId: version.applicationId
+  });
+  const latestDocumentVersion = await getLatestRenderedResumeDocumentVersion(workspace.id, {
     jobDescriptionVersionId,
     applicationId: version.applicationId
   });
@@ -249,6 +258,25 @@ export default async function ResumePage({ params, searchParams }: ResumePagePro
         <p className="mt-4 text-sm text-stone-600">
           Active rendering approval: {activeApproval ? activeApproval.sourceType.replace(/_/g, " ") : "None"}
         </p>
+        {latestDocumentVersion ? (
+          <div className="mt-4 rounded-2xl border border-stone-200 bg-stone-50 px-4 py-4 text-sm text-stone-700">
+            Latest immutable DOCX version {latestDocumentVersion.versionNumber} is ready.
+            {" "}
+            <Link className="font-semibold text-stone-900 underline" href={`/documents/${latestDocumentVersion.id}`}>
+              View document version
+            </Link>
+            {" "}
+            or
+            {" "}
+            <a
+              className="font-semibold text-stone-900 underline"
+              href={`/api/documents/${latestDocumentVersion.id}/download`}
+            >
+              download the DOCX
+            </a>
+            .
+          </div>
+        ) : null}
       </section>
 
       {latestAudit ? (
@@ -269,6 +297,57 @@ export default async function ResumePage({ params, searchParams }: ResumePagePro
           title="Base Composition Approval"
         />
       ) : null}
+
+      <section className="rounded-3xl border border-stone-300 bg-white p-8 shadow-sm">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <h2 className="text-2xl font-semibold text-stone-900">Rendering Output</h2>
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-stone-600">
+              Render a DOCX only from the active approved resume source after the deterministic audit gate passes.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-3">
+            {latestDocumentVersion ? (
+              <>
+                <Link
+                  className="rounded-full border border-stone-300 px-5 py-3 text-sm font-semibold text-stone-700 transition hover:border-stone-950 hover:text-stone-950"
+                  href={`/documents/${latestDocumentVersion.id}`}
+                >
+                  View Document Version
+                </Link>
+                <a
+                  className="rounded-full border border-stone-300 px-5 py-3 text-sm font-semibold text-stone-700 transition hover:border-stone-950 hover:text-stone-950"
+                  href={`/api/documents/${latestDocumentVersion.id}/download`}
+                >
+                  Download DOCX
+                </a>
+              </>
+            ) : null}
+            {activeApproval ? (
+              <form
+                action={renderApprovedResumeDocumentAction.bind(
+                  null,
+                  jobDescriptionVersionId,
+                  version.applicationId,
+                  `/job-descriptions/${jobDescriptionVersionId}/resume`
+                )}
+              >
+                <button
+                  className="rounded-full bg-stone-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-stone-800"
+                  type="submit"
+                >
+                  {latestDocumentVersion ? "Render Approved DOCX Again" : "Render Approved DOCX"}
+                </button>
+              </form>
+            ) : null}
+          </div>
+        </div>
+        {!activeApproval ? (
+          <p className="mt-6 rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm text-stone-700">
+            Approve either the base composition or a finalized revision before rendering an immutable resume document.
+          </p>
+        ) : null}
+      </section>
 
       <section className="rounded-3xl border border-stone-300 bg-white p-8 shadow-sm">
         <h2 className="text-2xl font-semibold text-stone-900">Header</h2>

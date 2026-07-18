@@ -89,15 +89,15 @@ This backlog is organized by outcome-based milestones rather than the original p
 - Acceptance summary: mutable draft saves, deterministic local validation, immutable finalized revisions, revision-backed audit, and successor revision lineage
 
 ### `M6.2 - Resume Studio Comparison and Rendering Approval`
-- Status: `in progress - verification pending`
+- Status: `verified complete`
 - Priority: `P2`
 - Milestone: `Milestone 6`
 - Dependency: `M6.1`
 - Personal workflow benefit: makes revised resume approval explicit before rendering and submission
-- Acceptance summary: compare finalized revisions, review deltas, and approve one rendering-ready revision without mutating history; do not mark complete until the required full verification suite passes
+- Acceptance summary: compare finalized revisions, review deltas, and approve one rendering-ready revision without mutating history
 
 ### `M7.1 - DOCX Template and Renderer`
-- Status: `planned`
+- Status: `verified complete`
 - Priority: `P2`
 - Milestone: `Milestone 7 - Document Rendering and Artifact Versioning`
 - Dependency: `M6.2`

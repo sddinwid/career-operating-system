@@ -1,6 +1,9 @@
+import { promises as fs } from "node:fs";
+import path from "node:path";
 import { ApplicationStatus, PrismaClient } from "@prisma/client";
 import { createApplication } from "@/lib/applications/service";
 import { importCareerKnowledge } from "@/lib/career/service";
+import { env } from "@/lib/env";
 
 const prisma = new PrismaClient();
 
@@ -51,6 +54,41 @@ async function main() {
     const companyIds = Array.from(
       new Set(existingApplications.map((application) => application.opportunity.companyId))
     );
+    const jobDescriptionVersionIds = (
+      await prisma.jobDescriptionVersion.findMany({
+        where: {
+          workspaceId: workspace.id,
+          opportunityId: {
+            in: opportunityIds
+          }
+        },
+        select: {
+          id: true
+        }
+      })
+    ).map((version) => version.id);
+    const documentIds = (
+      await prisma.document.findMany({
+        where: {
+          workspaceId: workspace.id,
+          OR: [
+            {
+              applicationId: {
+                in: applicationIds
+              }
+            },
+            {
+              jobDescriptionVersionId: {
+                in: jobDescriptionVersionIds
+              }
+            }
+          ]
+        },
+        select: {
+          id: true
+        }
+      })
+    ).map((document) => document.id);
 
     await prisma.$transaction(async (transaction) => {
       await transaction.activity.deleteMany({
@@ -58,6 +96,42 @@ async function main() {
           applicationId: {
             in: applicationIds
           }
+        }
+      });
+      await transaction.documentVersion.deleteMany({
+        where: {
+          OR: [
+            {
+              workspaceId: workspace.id,
+              applicationId: {
+                in: applicationIds
+              }
+            },
+            {
+              workspaceId: workspace.id,
+              jobDescriptionVersionId: {
+                in: jobDescriptionVersionIds
+              }
+            }
+          ]
+        }
+      });
+      await transaction.document.deleteMany({
+        where: {
+          OR: [
+            {
+              workspaceId: workspace.id,
+              applicationId: {
+                in: applicationIds
+              }
+            },
+            {
+              workspaceId: workspace.id,
+              jobDescriptionVersionId: {
+                in: jobDescriptionVersionIds
+              }
+            }
+          ]
         }
       });
       await transaction.resumeRenderingApproval.deleteMany({
@@ -311,6 +385,16 @@ async function main() {
         }
       });
     });
+
+    for (const documentId of documentIds) {
+      await fs.rm(
+        path.resolve(env.LOCAL_DATA_DIR, "artifacts", "documents", workspace.id, documentId),
+        {
+          recursive: true,
+          force: true
+        }
+      );
+    }
   }
 
   await createApplication(workspace.id, {
@@ -320,11 +404,40 @@ async function main() {
     status: ApplicationStatus.APPLIED
   });
 
-  await importCareerKnowledge({
+  const imported = await importCareerKnowledge({
     filePath: "fixtures/career_knowledge_base_fixture_v1.json",
     prismaClient: prisma,
     workspaceId: workspace.id
   });
+  const fixtureVersionId = imported.versionId ?? imported.reusedVersionId;
+
+  if (fixtureVersionId) {
+    await prisma.$transaction(async (transaction) => {
+      await transaction.careerProfileVersion.updateMany({
+        where: {
+          workspaceId: workspace.id,
+          active: true,
+          NOT: {
+            id: fixtureVersionId
+          }
+        },
+        data: {
+          active: false,
+          supersededAt: new Date()
+        }
+      });
+
+      await transaction.careerProfileVersion.update({
+        where: {
+          id: fixtureVersionId
+        },
+        data: {
+          active: true,
+          supersededAt: null
+        }
+      });
+    });
+  }
 }
 
 main()

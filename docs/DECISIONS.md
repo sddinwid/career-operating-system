@@ -219,3 +219,15 @@ Reasoning:
 ## M6.2 Decision
 
 Comparison output remains computed instead of persisted. Approval history is persisted separately in `ResumeRenderingApproval` so future renderers can consume exact approved content and audits without coupling rendering state to resume composition or revision rows.
+
+## M7.1 DOCX Rendering Decision
+
+M7.1 renders directly to OOXML DOCX using `docx` and validates the resulting ZIP container with `jszip`.
+
+Reasoning:
+
+- direct OOXML generation avoids introducing LibreOffice, Microsoft Word automation, or platform-specific desktop dependencies
+- ZIP inspection provides a cheap integrity check for required DOCX entries before persistence and download
+- local ignored storage keeps artifacts local-first and private to the workspace environment
+- relative storage keys avoid leaking absolute filesystem paths into persisted metadata or URLs
+- strict `getApprovedResumeForRendering(...)` dependency preserves exact approval, audit, and content lineage
