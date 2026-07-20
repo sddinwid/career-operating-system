@@ -2,6 +2,10 @@
 
 Prompt 00 bootstraps a local-first Career Operating System as a Next.js modular monolith for Windows, using PostgreSQL and Prisma without authentication or cloud dependencies.
 
+## Cover Letter Composition
+
+`M8.1` adds deterministic, immutable cover-letter composition. The repository now exposes `/job-descriptions/[jobDescriptionVersionId]/cover-letter` as a read-only preview backed by `CoverLetterCompositionVersion` rows with paragraph-level provenance and exact upstream linkage.
+
 ## Resume Composition
 
 `M5.2` adds deterministic employer-facing resume composition on top of immutable structured resume plans. The repository now exposes `/job-descriptions/[jobDescriptionVersionId]/resume` as a read-only preview backed by immutable `ResumeCompositionVersion` rows.
@@ -150,6 +154,17 @@ Milestone `M4.2` adds deterministic, explainable scoring on top of one immutable
 - The read-only score screen lives at `/job-descriptions/[jobDescriptionVersionId]/evidence/scores`
 
 See [docs/EVIDENCE_SCORING.md](docs/EVIDENCE_SCORING.md).
+
+## Cover-letter workflow
+
+Milestone `M8.1` composes concise, evidence-backed cover letters from existing authoritative artifacts.
+
+- Successful cover-letter compositions are stored immutably in `CoverLetterCompositionVersion`
+- Exact inputs reuse the latest successful cover-letter version instead of mutating prior content
+- Optional resume sources are used only for deterministic overlap checks and traceability
+- The preview remains read-only and does not create `DocumentVersion` records or rendered files
+
+See [docs/COVER_LETTER_COMPOSITION.md](docs/COVER_LETTER_COMPOSITION.md).
 
 ## Verification commands
 

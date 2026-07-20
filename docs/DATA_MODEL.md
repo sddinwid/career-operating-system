@@ -200,6 +200,10 @@ Behavior:
 
 `MatchReportRun` stores immutable report results with references to workspace, evidence scoring run, evidence retrieval run, career profile version, requirement analysis, job description version, and optional application. It also stores contract, engine, configuration, scoring checksum, deterministic input checksum, summary JSON, diagnostics JSON, and completion timestamps.
 
+## CoverLetterCompositionVersion
+
+`CoverLetterCompositionVersion` stores immutable cover-letter compositions with references to workspace, optional application, job opportunity, job description version, career profile version, requirement analysis, evidence retrieval run, evidence scoring run, match report run, optional resume composition source, optional finalized resume revision source, and optional predecessor version. It also stores contract, engine, configuration, deterministic input checksums, structured content JSON, summary JSON, diagnostics JSON, and completion timestamps.
+
 ## StructuredResumeVersion
 
 `StructuredResumeVersion` stores immutable structured resume plans with references to workspace, career profile version, requirement analysis, evidence retrieval run, evidence scoring run, match report run, job description version, optional application, and optional predecessor version.

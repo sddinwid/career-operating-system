@@ -10,6 +10,22 @@ declare global {
   }
 }
 
+function isApplicationsViewCommandResponse(
+  response: import("@playwright/test").Response,
+  commandType: "create" | "rename"
+) {
+  if (
+    response.request().method() !== "POST" ||
+    !response.url().includes("/api/applications/views") ||
+    response.status() !== 200
+  ) {
+    return false;
+  }
+
+  const payload = response.request().postDataJSON() as { type?: string } | null;
+  return payload?.type === commandType;
+}
+
 test("supports saved views, persistence, detail navigation, rollback, and search", async ({
   page
 }) => {
@@ -174,13 +190,9 @@ test("supports saved views, persistence, detail navigation, rollback, and search
 
   await page.getByRole("button", { name: "Create saved view" }).click();
   await page.getByLabel("Saved view name").fill(initialViewName);
-  const createViewResponse = page.waitForResponse((response) => {
-    return (
-      response.request().method() === "POST" &&
-      response.url().includes("/api/applications/views") &&
-      response.status() === 200
-    );
-  });
+  const createViewResponse = page.waitForResponse((response) =>
+    isApplicationsViewCommandResponse(response, "create")
+  );
   await page.getByRole("button", { name: "Save View" }).click();
   await createViewResponse;
   await expect(page.getByText("Saved view created.")).toBeVisible();
@@ -270,13 +282,9 @@ test("supports saved views, persistence, detail navigation, rollback, and search
 
   await page.getByRole("button", { name: "Rename view" }).click();
   await page.getByLabel("Rename saved view").fill(renamedViewName);
-  const renameViewResponse = page.waitForResponse((response) => {
-    return (
-      response.request().method() === "POST" &&
-      response.url().includes("/api/applications/views") &&
-      response.status() === 200
-    );
-  });
+  const renameViewResponse = page.waitForResponse((response) =>
+    isApplicationsViewCommandResponse(response, "rename")
+  );
   await page.getByRole("button", { name: "Save Name" }).click();
   await renameViewResponse;
   await expect(page.getByText("Saved view renamed.")).toBeVisible();

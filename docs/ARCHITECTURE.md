@@ -345,6 +345,34 @@ Development document files under a configurable data directory outside source-co
 
 The derived pipeline now extends from immutable evidence scoring into immutable match-report runs. `MatchReportRun` consumes a successful `EvidenceScoringRun`, preserves exact upstream ids, stores deterministic JSON results, and never mutates scoring, retrieval, parser, requirement, career-profile, or application records.
 
+## M8.1 Cover Letter Composition
+
+Milestone `M8.1` adds a parallel narrative path that sits beside the resume pipeline without reusing `DocumentVersion` or introducing editing or rendering concerns.
+
+```text
+CareerProfileVersion
+  + confirmed JobRequirementAnalysis
+  + successful EvidenceRetrievalRun
+  + successful EvidenceScoringRun
+  + successful MatchReportRun
+  + optional ResumeCompositionVersion or finalized ResumeRevisionVersion
+  -> deterministic paragraph selection
+  -> paragraph-level provenance
+  -> resume-overlap checks
+  -> immutable CoverLetterCompositionVersion
+```
+
+Implementation boundaries:
+
+- `src/lib/cover-letter-composition/contract.ts` defines the structured cover-letter contract
+- `src/lib/cover-letter-composition/config.ts` defines deterministic limits, ordering, and writing constraints
+- `src/lib/cover-letter-composition/engine.ts` performs deterministic paragraph construction and diagnostics
+- `src/lib/cover-letter-composition/service.ts` enforces eligibility, exact-input reuse, workspace ownership, and immutable persistence
+- `src/lib/cover-letter-composition/actions.ts` integrates the generation action into existing UI flows
+- `src/app/job-descriptions/[jobDescriptionVersionId]/cover-letter/page.tsx` exposes the read-only preview
+
+The milestone stops at immutable structured composition. It does not add cover-letter revisions, persistent cover-letter audit, approval, DOCX/PDF rendering, or `DocumentVersion` output.
+
 ## M5.1 Structured Resume Contract
 
 The derived pipeline now extends one step further into immutable structured resume planning.

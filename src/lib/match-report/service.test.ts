@@ -31,6 +31,7 @@ async function cleanupWorkspace(workspaceId: string) {
     where: { document: { workspaceId } }
   });
   await prisma.document.deleteMany({ where: { workspaceId } });
+  await prisma.coverLetterCompositionVersion.deleteMany({ where: { workspaceId } });
   await prisma.matchReportRun.deleteMany({ where: { workspaceId } });
   await prisma.evidenceScoringRun.deleteMany({ where: { workspaceId } });
   await prisma.evidenceRetrievalRun.deleteMany({ where: { workspaceId } });

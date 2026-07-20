@@ -191,6 +191,16 @@ vi.mock("@/lib/structured-resume/service", () => ({
   }))
 }));
 
+vi.mock("@/lib/cover-letter-composition/service", () => ({
+  getCoverLetterCompositionContext: vi.fn(async () => ({
+    compositionReady: true,
+    reusableMatchReportRun: {
+      id: "report-run-1"
+    },
+    reusableCoverLetterCompositionVersion: null
+  }))
+}));
+
 describe("MatchReportPage", () => {
   it("renders the decision summary, strengths, gaps, and structured guidance", async () => {
     const page = await MatchReportPage({

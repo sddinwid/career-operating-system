@@ -218,6 +218,10 @@ Versioning:
 
 The product stores explainable match reports as immutable derived runs rather than mutating applications or scoring records. The report uses deterministic aggregation and a bounded internal `alignmentIndex` for tier assignment, but the UI does not present it as hiring probability.
 
+## M8.1 Cover Letter Composition Decision
+
+Cover-letter composition is stored in `CoverLetterCompositionVersion`, not `DocumentVersion`, so paragraph provenance, resume-overlap checks, deterministic reuse, and writing diagnostics remain inspectable before later editing, approval, or rendering work begins.
+
 ## M5.2 Resume Composition Decision
 
 The system stores employer-facing structured resume content in `ResumeCompositionVersion`, not `DocumentVersion`, so provenance, deterministic reuse, and immutable history remain inspectable before rendering begins.

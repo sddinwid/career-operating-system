@@ -154,6 +154,18 @@ vi.mock("@/lib/resume-composition/service", () => ({
   }))
 }));
 
+vi.mock("@/lib/cover-letter-composition/service", () => ({
+  getCoverLetterCompositionContext: vi.fn(async () => ({
+    compositionReady: true,
+    reusableMatchReportRun: {
+      id: "report-run-1"
+    },
+    reusableCoverLetterCompositionVersion: {
+      id: "cover-letter-1"
+    }
+  }))
+}));
+
 vi.mock("@/lib/resume-audit/service", () => ({
   getResumeAuditContext: vi.fn(async () => ({
     auditReady: true,

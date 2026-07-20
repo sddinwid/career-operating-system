@@ -5,6 +5,7 @@ import { runResumeAuditAction } from "@/lib/resume-audit/actions";
 import { renderApprovedResumeDocumentAction } from "@/lib/document-rendering/actions";
 import { getLatestRenderedResumeDocumentVersion } from "@/lib/document-rendering/service";
 import { getResumeAuditContext } from "@/lib/resume-audit/service";
+import { getCoverLetterCompositionContext } from "@/lib/cover-letter-composition/service";
 import { createResumeCompositionAction } from "@/lib/resume-composition/actions";
 import { ResumeRenderingApprovalPanel } from "@/components/resume-studio/resume-rendering-approval-panel";
 import {
@@ -64,6 +65,7 @@ export default async function ResumePage({ params, searchParams }: ResumePagePro
   const context = await getResumeCompositionContext(workspace.id, jobDescriptionVersionId);
   const auditContext = await getResumeAuditContext(workspace.id, jobDescriptionVersionId);
   const revisionContext = await getResumeRevisionContext(workspace.id, jobDescriptionVersionId);
+  const coverLetterContext = await getCoverLetterCompositionContext(workspace.id, jobDescriptionVersionId);
 
   if (!context) {
     notFound();
@@ -177,6 +179,14 @@ export default async function ResumePage({ params, searchParams }: ResumePagePro
                 href={`/job-descriptions/${jobDescriptionVersionId}/resume/audit?runId=${latestAudit.id}`}
               >
                 View Resume Audit
+              </Link>
+            ) : null}
+            {coverLetterContext?.reusableCoverLetterCompositionVersion ? (
+              <Link
+                className="rounded-full border border-stone-300 px-5 py-3 text-sm font-semibold text-stone-700 transition hover:border-stone-950 hover:text-stone-950"
+                href={`/job-descriptions/${jobDescriptionVersionId}/cover-letter?versionId=${coverLetterContext.reusableCoverLetterCompositionVersion.id}`}
+              >
+                View Cover Letter
               </Link>
             ) : null}
             {revisionContext?.latestFinalizedRevision ? (

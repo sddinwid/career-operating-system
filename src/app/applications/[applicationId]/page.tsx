@@ -22,6 +22,8 @@ import {
 import { getResumeRevisionContext } from "@/lib/resume-revision/service";
 import { createResumeCompositionAction } from "@/lib/resume-composition/actions";
 import { getResumeCompositionContext } from "@/lib/resume-composition/service";
+import { createCoverLetterCompositionAction } from "@/lib/cover-letter-composition/actions";
+import { getCoverLetterCompositionContext } from "@/lib/cover-letter-composition/service";
 import { scoreRetrievedEvidenceAction } from "@/lib/evidence-scoring/actions";
 import { getEvidenceScoringContext } from "@/lib/evidence-scoring/service";
 import { generateMatchReportAction } from "@/lib/match-report/actions";
@@ -68,6 +70,9 @@ function SuccessBanner({ success }: { success?: string }) {
     "composition-created": "Targeted resume composed successfully.",
     "composition-reused":
       "The current composition contract, engine, and configuration already had a successful result for this exact structured plan and career profile, so the existing resume content was reused.",
+    "cover-letter-created": "Cover letter composed successfully.",
+    "cover-letter-reused":
+      "The current cover-letter contract, engine, and configuration already had a successful result for these exact inputs, so the existing composition was reused.",
     "audit-created": "Resume audit completed successfully.",
     "audit-reused":
       "The current audit contract, engine, and configuration already had a successful result for this exact composed resume, so the existing audit was reused.",
@@ -134,6 +139,9 @@ export default async function ApplicationDetailPage({
     : null;
   const resumeCompositionContext = application.currentJobDescriptionVersion
     ? await getResumeCompositionContext(workspace.id, application.currentJobDescriptionVersion.id)
+    : null;
+  const coverLetterContext = application.currentJobDescriptionVersion
+    ? await getCoverLetterCompositionContext(workspace.id, application.currentJobDescriptionVersion.id)
     : null;
   const resumeAuditContext = application.currentJobDescriptionVersion
     ? await getResumeAuditContext(workspace.id, application.currentJobDescriptionVersion.id)
@@ -466,6 +474,14 @@ export default async function ApplicationDetailPage({
                 View Targeted Resume
               </Link>
             ) : null}
+            {coverLetterContext?.reusableCoverLetterCompositionVersion ? (
+              <Link
+                className="rounded-full border border-stone-300 px-5 py-3 text-sm font-semibold text-stone-700 transition hover:border-stone-950 hover:text-stone-950"
+                href={`/job-descriptions/${application.currentJobDescriptionVersion?.id}/cover-letter?versionId=${coverLetterContext.reusableCoverLetterCompositionVersion.id}`}
+              >
+                View Cover Letter
+              </Link>
+            ) : null}
             {resumeAuditContext?.reusableResumeAuditRun ? (
               <Link
                 className="rounded-full border border-stone-300 px-5 py-3 text-sm font-semibold text-stone-700 transition hover:border-stone-950 hover:text-stone-950"
@@ -543,6 +559,25 @@ export default async function ApplicationDetailPage({
                   type="submit"
                 >
                   Generate Match Report
+                </button>
+              </form>
+            ) : null}
+            {application.currentJobDescriptionVersion &&
+            coverLetterContext?.compositionReady &&
+            reportContext?.reusableMatchReportRun ? (
+              <form
+                action={createCoverLetterCompositionAction.bind(
+                  null,
+                  reportContext.reusableMatchReportRun.id,
+                  application.currentJobDescriptionVersion.id,
+                  `/applications/${application.id}`
+                )}
+              >
+                <button
+                  className="rounded-full border border-stone-300 px-5 py-3 text-sm font-semibold text-stone-700 transition hover:border-stone-950 hover:text-stone-950"
+                  type="submit"
+                >
+                  Generate Cover Letter
                 </button>
               </form>
             ) : null}

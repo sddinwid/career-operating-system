@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
+import { createCoverLetterCompositionAction } from "@/lib/cover-letter-composition/actions";
+import { getCoverLetterCompositionContext } from "@/lib/cover-letter-composition/service";
 import { createStructuredResumePlanAction } from "@/lib/structured-resume/actions";
 import { getStructuredResumeContext } from "@/lib/structured-resume/service";
 import { parseStoredMatchReportRun, getMatchReportContext } from "@/lib/match-report/service";
@@ -20,6 +22,9 @@ function SuccessBanner({ success }: { success?: string }) {
     "report-created": "Match report generated successfully.",
     "report-reused":
       "The current report contract, engine, and configuration already had a successful result for this exact scoring run, so the existing match report was reused.",
+    "cover-letter-created": "Cover letter composed successfully.",
+    "cover-letter-reused":
+      "The current cover-letter contract, engine, and configuration already had a successful result for these exact inputs, so the existing composition was reused.",
     "plan-created": "Structured resume plan created successfully.",
     "plan-reused":
       "The current structured resume contract, engine, and configuration already had a successful result for this exact match report and career profile, so the existing plan was reused."
@@ -80,6 +85,7 @@ export default async function MatchReportPage({ params, searchParams }: MatchRep
   const workspace = await getDefaultWorkspace();
   const context = await getMatchReportContext(workspace.id, jobDescriptionVersionId);
   const resumePlanContext = await getStructuredResumeContext(workspace.id, jobDescriptionVersionId);
+  const coverLetterContext = await getCoverLetterCompositionContext(workspace.id, jobDescriptionVersionId);
 
   if (!context) {
     notFound();
@@ -170,6 +176,30 @@ export default async function MatchReportPage({ params, searchParams }: MatchRep
               >
                 Open application
               </Link>
+            ) : null}
+            {coverLetterContext?.reusableCoverLetterCompositionVersion ? (
+              <Link
+                className="rounded-full border border-stone-300 px-5 py-3 text-sm font-semibold text-stone-700 transition hover:border-stone-950 hover:text-stone-950"
+                href={`/job-descriptions/${jobDescriptionVersionId}/cover-letter?versionId=${coverLetterContext.reusableCoverLetterCompositionVersion.id}`}
+              >
+                View Cover Letter
+              </Link>
+            ) : coverLetterContext?.compositionReady ? (
+              <form
+                action={createCoverLetterCompositionAction.bind(
+                  null,
+                  run.id,
+                  jobDescriptionVersionId,
+                  `/job-descriptions/${jobDescriptionVersionId}/match-report?runId=${run.id}`
+                )}
+              >
+                <button
+                  className="rounded-full border border-stone-300 px-5 py-3 text-sm font-semibold text-stone-700 transition hover:border-stone-950 hover:text-stone-950"
+                  type="submit"
+                >
+                  Generate Cover Letter
+                </button>
+              </form>
             ) : null}
             {resumePlanContext?.reusableStructuredResumeVersion ? (
               <Link

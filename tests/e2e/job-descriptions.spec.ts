@@ -91,6 +91,7 @@ async function cleanupFieldguideStandaloneFixture() {
     await transaction.document.deleteMany({ where: scopedDocumentWhere });
     await transaction.resumeRenderingApproval.deleteMany({ where: scopedDocumentWhere });
     await transaction.resumeAuditRun.deleteMany({ where: scopedDocumentWhere });
+    await transaction.coverLetterCompositionVersion.deleteMany({ where: scopedDocumentWhere });
     await transaction.resumeRevisionVersion.deleteMany({ where: scopedDocumentWhere });
     await transaction.resumeCompositionVersion.deleteMany({ where: scopedDocumentWhere });
     await transaction.structuredResumeVersion.deleteMany({ where: scopedDocumentWhere });
@@ -747,6 +748,47 @@ Preferred Qualifications
   await expect(page.getByRole("heading", { name: "Evidence Traceability" })).toBeVisible();
   await expect(page.getByText(/hiring probability/i)).toBeVisible();
   await expect(page.getByText(/match percentage/i)).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Generate Cover Letter" })).toBeVisible();
+  await page.getByRole("button", { name: "Generate Cover Letter" }).click();
+  await expect(page.getByText("Cover letter composed successfully.")).toBeVisible();
+  await expect(page.getByRole("link", { name: "View Cover Letter" })).toBeVisible();
+  await Promise.all([
+    page.waitForURL(/\/job-descriptions\/[^/]+\/cover-letter\?versionId=[^&]+(?:&.*)?$/, {
+      timeout: 15_000
+    }),
+    page.getByRole("link", { name: "View Cover Letter" }).click()
+  ]);
+  await expect(page.getByText("Deterministic cover-letter preview")).toBeVisible();
+  await expect(page.getByText("Dear Hiring Team,")).toBeVisible();
+  await expect(page.getByRole("heading", { name: roleName })).toBeVisible();
+  await expect(page.getByText(companyName, { exact: true }).first()).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Paragraph Provenance" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Diagnostics" })).toBeVisible();
+  await expect(page.getByText(/\u2014/)).toHaveCount(0);
+  const coverLetterVersionUrl = page.url();
+  await expect(
+    page
+      .locator("section")
+      .filter({ has: page.getByRole("heading", { name: "Paragraph Provenance" }) })
+      .locator("article")
+  ).toHaveCount(5);
+  const wordCountCard = page
+    .locator("article")
+    .filter({ has: page.getByText("Word count", { exact: true }) })
+    .first();
+  const wordCountText = await wordCountCard.textContent();
+  const coverLetterWordCount = Number.parseInt(wordCountText?.replace(/\D+/g, "") ?? "0", 10);
+  expect(coverLetterWordCount).toBeGreaterThanOrEqual(250);
+  expect(coverLetterWordCount).toBeLessThanOrEqual(400);
+  await page.getByRole("link", { name: "Open application" }).click();
+  await expect(page.getByRole("button", { name: "Generate Cover Letter" })).toBeVisible();
+  await page.getByRole("button", { name: "Generate Cover Letter" }).click();
+  await expect(
+    page.getByText(/existing composition was reused/i)
+  ).toBeVisible();
+  await page.goto(coverLetterVersionUrl, { waitUntil: "networkidle" });
+  expect(page.url()).toContain(coverLetterVersionUrl.split("versionId=").at(-1)?.split("&")[0] ?? "");
+  await page.getByRole("link", { name: "Back to Match Report" }).click();
   await expect(page.getByRole("button", { name: "Create Structured Resume Plan" })).toBeVisible();
   await page.getByRole("button", { name: "Create Structured Resume Plan" }).click();
   await expect(page.getByText("Structured resume plan created successfully.")).toBeVisible();

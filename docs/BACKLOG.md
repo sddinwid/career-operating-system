@@ -117,7 +117,7 @@ This backlog is organized by outcome-based milestones rather than the original p
 - Acceptance summary: direct deterministic PDF rendering, shared artifact validation, PDF browser verification, and immutable version reuse
 
 ### `M7.3 - Immutable Document Versioning and Attachment`
-- Status: `planned`
+- Status: `deferred`
 - Priority: `P2`
 - Milestone: `Milestone 7`
 
@@ -136,13 +136,13 @@ These remain intentionally deferred after the July 19, 2026 navigation/discovery
 - Personal workflow benefit: tracks exactly which artifact version was downloaded or submitted
 - Acceptance summary: persisted document metadata, immutable version records, and application linkage
 
-### `M8.1 - Application Package Generation`
-- Status: `planned`
+### `M8.1 - Deterministic Cover Letter Composition`
+- Status: `verified complete`
 - Priority: `P2`
 - Milestone: `Milestone 8 - Application Package Generation`
-- Dependency: `M7.3`
-- Personal workflow benefit: replaces repeated chat-based creation of resume, cover letter, and application collateral
-- Acceptance summary: create a package with targeted resume, concise cover letter, and supporting responses tied to one application
+- Dependency: `M4.3`
+- Personal workflow benefit: replaces repeated chat-based cover-letter drafting while preserving evidence, provenance, and truthfulness checks
+- Acceptance summary: immutable deterministic cover-letter composition, paragraph-level provenance, read-only preview, and idempotent reuse without editing or rendering
 
 ## Later
 

@@ -529,6 +529,26 @@ async function main() {
           ]
         }
       });
+      await transaction.coverLetterCompositionVersion.deleteMany({
+        where: {
+          OR: [
+            {
+              workspaceId: workspace.id,
+              applicationId: {
+                in: applicationIds
+              }
+            },
+            {
+              workspaceId: workspace.id,
+              jobDescriptionVersion: {
+                opportunityId: {
+                  in: opportunityIds
+                }
+              }
+            }
+          ]
+        }
+      });
       await transaction.resumeCompositionVersion.deleteMany({
         where: {
           OR: [

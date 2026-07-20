@@ -4,11 +4,11 @@ Date: July 20, 2026
 
 ## Current Milestone
 
-Current milestone: `Milestone 7 - Document Rendering and Artifact Versioning`
+Current milestone: `Milestone 8 - Application Package Generation`
 
 Prompt 04D is not automatically next.
 
-The active implementation slice is `M7.3 - Immutable Document Versioning and Attachment`.
+The active implementation slice is `M8.1 - Deterministic Cover Letter Composition`.
 
 ## Last Completed Implementation
 
@@ -125,7 +125,7 @@ These models exist in schema only. No deterministic generation workflows current
 - Interviews page
 - Documents workspace shell beyond the new rendered document detail view
 - Career profile inspection UI
-- Cover-letter generation
+- Deterministic cover-letter composition
 - Application packages
 - Analytics
 - Authentication
@@ -197,7 +197,7 @@ See `docs/DECISIONS.md`.
 
 ## Current Active Priority
 
-The active product priority is now `M7.3 - Immutable Document Versioning and Attachment`.
+The active product priority is now `M8.1 - Deterministic Cover Letter Composition`.
 
 ## Revised Progress Overview
 
@@ -208,7 +208,8 @@ The active product priority is now `M7.3 - Immutable Document Versioning and Att
 - `Milestone 4 - Evidence Retrieval and Scoring`: `M4.1` complete, `M4.2` complete, `M4.3` complete
 - `Milestone 5 - Resume Composition Engine`: `M5.1` complete, `M5.2` complete, `M5.3` complete
 - `Milestone 6 - Resume Studio and Review`: `M6.1` complete, `M6.2` complete
-- `Milestone 7 - Rendering and Packaging`: `M7.1` complete, `M7.2` complete, `M7.3` next
+- `Milestone 7 - Rendering and Packaging`: `M7.1` complete, `M7.2` complete, `M7.3` deferred
+- `Milestone 8 - Application Package Generation`: `M8.1` complete
 - `Milestones 9-12 - Remaining tracker ergonomics, analytics, generic ingestion, and commercialization`: deferred later
 ## Current Milestone
 
@@ -220,7 +221,7 @@ The active product priority is now `M7.3 - Immutable Document Versioning and Att
 - M6.2 - Complete
 - M7.1 - Complete
 - M7.2 - Complete
-- M7.3 - Next
+- M8.1 - Complete
 ## Resume Workflow
 
 M7.2 adds direct deterministic PDF rendering, shared artifact validation, immutable `DocumentVersion` reuse by format, PDF browser verification, and shared download handling on top of the existing `M6.2` rendering gate. The required verification suite now passes on the current repository state.

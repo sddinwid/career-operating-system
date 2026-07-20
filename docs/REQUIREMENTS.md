@@ -104,6 +104,7 @@ Career Knowledge Base
 - Enforce truthfulness, experience ceilings, duplication limits, and section ordering rules.
 - Generate immutable, versioned artifacts linked to their source versions and target application.
 - Support resume, cover letter, application-answer, and related package artifacts as separate but linked outputs.
+- Cover-letter generation must remain deterministic, provenance-aware, concise, and read-only until later editing, audit, approval, and rendering milestones are implemented.
 
 ### Spreadsheet compatibility and later tracker ergonomics
 

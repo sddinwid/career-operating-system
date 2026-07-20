@@ -172,6 +172,13 @@ enum MatchReportRunStatus {
   FAILED
 }
 
+enum CoverLetterCompositionVersionStatus {
+  PENDING
+  SUCCESS
+  SUCCESS_WITH_WARNINGS
+  FAILED
+}
+
 enum StructuredResumeVersionStatus {
   PENDING
   READY
@@ -273,6 +280,7 @@ model Workspace {
   careerProfileSources  CareerProfileSource[]
   careerProfileVersions CareerProfileVersion[]
   companies             Company[]
+  coverLetterCompositionVersions CoverLetterCompositionVersion[]
   contacts              Contact[]
   documents             Document[]
   documentVersions      DocumentVersion[]
@@ -332,6 +340,7 @@ model JobOpportunity {
   capturedAt      DateTime             @default(now())
   status          JobOpportunityStatus @default(DISCOVERED)
   company         Company              @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  coverLetterCompositionVersions CoverLetterCompositionVersion[]
   jobDescriptionVersions JobDescriptionVersion[]
   workspace       Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
   applications    Application[]
@@ -359,6 +368,7 @@ model Application {
   opportunity           JobOpportunity             @relation(fields: [opportunityId], references: [id], onDelete: Restrict)
   activities            Activity[]                 @relation("ApplicationActivities")
   aiRuns                AiRun[]                    @relation("ApplicationAiRuns")
+  coverLetterCompositionVersions CoverLetterCompositionVersion[]
   currentJobDescriptionVersion JobDescriptionVersion? @relation("ApplicationCurrentJobDescription", fields: [currentJobDescriptionVersionId], references: [id], onDelete: SetNull)
   capturedJobDescriptions JobDescriptionVersion[]  @relation("JobDescriptionSourceApplication")
   documents             Document[]                 @relation("ApplicationDocuments")
@@ -409,6 +419,7 @@ model JobDescriptionVersion {
   evidenceRetrievalRuns EvidenceRetrievalRun[]
   evidenceScoringRuns   EvidenceScoringRun[]
   matchReportRuns       MatchReportRun[]
+  coverLetterCompositionVersions CoverLetterCompositionVersion[]
   resumeAuditRuns       ResumeAuditRun[]
   resumeCompositionVersions ResumeCompositionVersion[]
   documents           Document[]
@@ -477,6 +488,7 @@ model JobRequirementAnalysis {
   evidenceRetrievalRuns EvidenceRetrievalRun[]
   evidenceScoringRuns   EvidenceScoringRun[]
   matchReportRuns       MatchReportRun[]
+  coverLetterCompositionVersions CoverLetterCompositionVersion[]
   resumeAuditRuns       ResumeAuditRun[]
   resumeCompositionVersions ResumeCompositionVersion[]
   resumeRenderingApprovals ResumeRenderingApproval[]
@@ -725,6 +737,7 @@ model CareerProfileVersion {
   source            CareerProfileSource   @relation(fields: [sourceId], references: [id], onDelete: Restrict)
   successors        CareerProfileVersion[] @relation("CareerProfileVersionPredecessor")
   workspace         Workspace             @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+  coverLetterCompositionVersions CoverLetterCompositionVersion[]
   evidenceRetrievalRuns EvidenceRetrievalRun[]
   evidenceScoringRuns   EvidenceScoringRun[]
   matchReportRuns       MatchReportRun[]
@@ -762,6 +775,7 @@ model EvidenceRetrievalRun {
   jobDescriptionVersion  JobDescriptionVersion      @relation(fields: [jobDescriptionVersionId], references: [id], onDelete: Restrict)
   requirementAnalysis    JobRequirementAnalysis     @relation(fields: [requirementAnalysisId], references: [id], onDelete: Restrict)
   workspace              Workspace                  @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+  coverLetterCompositionVersions CoverLetterCompositionVersion[]
   scoringRuns            EvidenceScoringRun[]
   matchReportRuns        MatchReportRun[]
   structuredResumeVersions StructuredResumeVersion[]
@@ -800,6 +814,7 @@ model EvidenceScoringRun {
   jobDescriptionVersion     JobDescriptionVersion   @relation(fields: [jobDescriptionVersionId], references: [id], onDelete: Restrict)
   requirementAnalysis       JobRequirementAnalysis  @relation(fields: [requirementAnalysisId], references: [id], onDelete: Restrict)
   workspace                 Workspace               @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+  coverLetterCompositionVersions CoverLetterCompositionVersion[]
   matchReports              MatchReportRun[]
   structuredResumeVersions   StructuredResumeVersion[]
 
@@ -839,6 +854,7 @@ model MatchReportRun {
   evidenceScoringRun      EvidenceScoringRun   @relation(fields: [evidenceScoringRunId], references: [id], onDelete: Restrict)
   jobDescriptionVersion   JobDescriptionVersion @relation(fields: [jobDescriptionVersionId], references: [id], onDelete: Restrict)
   requirementAnalysis     JobRequirementAnalysis @relation(fields: [requirementAnalysisId], references: [id], onDelete: Restrict)
+  coverLetterCompositionVersions CoverLetterCompositionVersion[]
   resumeAuditRuns         ResumeAuditRun[]
   structuredResumeVersions StructuredResumeVersion[]
   resumeCompositionVersions ResumeCompositionVersion[]
@@ -935,6 +951,7 @@ model ResumeCompositionVersion {
   matchReportRun              MatchReportRun                 @relation(fields: [matchReportRunId], references: [id], onDelete: Restrict)
   predecessorVersion          ResumeCompositionVersion?      @relation("ResumeCompositionVersionPredecessor", fields: [predecessorVersionId], references: [id], onDelete: SetNull)
   requirementAnalysis         JobRequirementAnalysis         @relation(fields: [requirementAnalysisId], references: [id], onDelete: Restrict)
+  coverLetterCompositionVersions CoverLetterCompositionVersion[]
   resumeAuditRuns             ResumeAuditRun[]
   documentVersions            DocumentVersion[]
   resumeRenderingApprovals    ResumeRenderingApproval[]
@@ -983,6 +1000,7 @@ model ResumeRevisionVersion {
   application                   Application?               @relation(fields: [applicationId], references: [id], onDelete: SetNull)
   baseResumeCompositionVersion  ResumeCompositionVersion    @relation(fields: [baseResumeCompositionVersionId], references: [id], onDelete: Restrict)
   careerProfileVersion          CareerProfileVersion        @relation(fields: [careerProfileVersionId], references: [id], onDelete: Restrict)
+  coverLetterCompositionVersions CoverLetterCompositionVersion[]
   jobDescriptionVersion         JobDescriptionVersion       @relation(fields: [jobDescriptionVersionId], references: [id], onDelete: Restrict)
   matchReportRun                MatchReportRun              @relation(fields: [matchReportRunId], references: [id], onDelete: Restrict)
   predecessorRevision           ResumeRevisionVersion?      @relation("ResumeRevisionVersionPredecessor", fields: [predecessorRevisionId], references: [id], onDelete: SetNull)
@@ -1004,6 +1022,62 @@ model ResumeRevisionVersion {
   @@index([requirementAnalysisId, createdAt])
   @@index([jobDescriptionVersionId, createdAt])
   @@index([applicationId, createdAt])
+  @@index([workspaceId, inputChecksum, status, createdAt])
+}
+
+model CoverLetterCompositionVersion {
+  id                         String                               @id @default(cuid())
+  workspaceId                String
+  applicationId              String?
+  jobOpportunityId           String
+  jobDescriptionVersionId    String
+  careerProfileVersionId     String
+  requirementAnalysisId      String
+  evidenceRetrievalRunId     String
+  evidenceScoringRunId       String
+  matchReportRunId           String
+  resumeCompositionVersionId String?
+  resumeRevisionVersionId    String?
+  predecessorId              String?
+  contractVersion            String
+  engineVersion              String
+  configurationVersion       String
+  matchReportInputChecksum   String
+  careerSourceChecksum       String
+  resumeSourceInputChecksum  String?
+  inputChecksum              String
+  status                     CoverLetterCompositionVersionStatus @default(PENDING)
+  content                    Json?
+  summary                    Json?
+  diagnostics                Json?
+  errorSummary               String?
+  createdAt                  DateTime                             @default(now())
+  completedAt                DateTime?
+  application                Application?                        @relation(fields: [applicationId], references: [id], onDelete: SetNull)
+  careerProfileVersion       CareerProfileVersion                @relation(fields: [careerProfileVersionId], references: [id], onDelete: Restrict)
+  evidenceRetrievalRun       EvidenceRetrievalRun                @relation(fields: [evidenceRetrievalRunId], references: [id], onDelete: Restrict)
+  evidenceScoringRun         EvidenceScoringRun                  @relation(fields: [evidenceScoringRunId], references: [id], onDelete: Restrict)
+  jobDescriptionVersion      JobDescriptionVersion               @relation(fields: [jobDescriptionVersionId], references: [id], onDelete: Restrict)
+  jobOpportunity             JobOpportunity                      @relation(fields: [jobOpportunityId], references: [id], onDelete: Restrict)
+  matchReportRun             MatchReportRun                      @relation(fields: [matchReportRunId], references: [id], onDelete: Restrict)
+  predecessor                CoverLetterCompositionVersion?      @relation("CoverLetterCompositionVersionPredecessor", fields: [predecessorId], references: [id], onDelete: SetNull)
+  requirementAnalysis        JobRequirementAnalysis              @relation(fields: [requirementAnalysisId], references: [id], onDelete: Restrict)
+  resumeCompositionVersion   ResumeCompositionVersion?           @relation(fields: [resumeCompositionVersionId], references: [id], onDelete: SetNull)
+  resumeRevisionVersion      ResumeRevisionVersion?              @relation(fields: [resumeRevisionVersionId], references: [id], onDelete: SetNull)
+  successorVersions          CoverLetterCompositionVersion[]     @relation("CoverLetterCompositionVersionPredecessor")
+  workspace                  Workspace                           @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+
+  @@index([workspaceId, createdAt])
+  @@index([applicationId, createdAt])
+  @@index([jobOpportunityId, createdAt])
+  @@index([jobDescriptionVersionId, createdAt])
+  @@index([careerProfileVersionId, createdAt])
+  @@index([requirementAnalysisId, createdAt])
+  @@index([evidenceRetrievalRunId, createdAt])
+  @@index([evidenceScoringRunId, createdAt])
+  @@index([matchReportRunId, createdAt])
+  @@index([resumeCompositionVersionId, createdAt])
+  @@index([resumeRevisionVersionId, createdAt])
   @@index([workspaceId, inputChecksum, status, createdAt])
 }
 
