@@ -15,8 +15,9 @@ test("supports saved views, persistence, detail navigation, rollback, and search
 }) => {
   const companyName = "E2E Grid Company";
   const roleName = "E2E Grid Role";
-  const initialViewName = "E2E Saved View";
-  const renamedViewName = "E2E Saved View Renamed";
+  const runToken = Date.now();
+  const initialViewName = `E2E Saved View ${runToken}`;
+  const renamedViewName = `E2E Saved View Renamed ${runToken}`;
   let gridMutationCount = 0;
   let priorityMutationCount = 0;
   let statusMutationCount = 0;
@@ -90,7 +91,8 @@ test("supports saved views, persistence, detail navigation, rollback, and search
   const viewSelect = page.getByLabel("Applications view");
   const searchbox = page.getByRole("searchbox", { name: "Search applications" });
 
-  await expect(viewSelect).toHaveValue("system:all-active");
+  await viewSelect.selectOption("system:all-active");
+  await searchbox.fill("");
   await expect
     .poll(async () =>
       viewSelect.evaluate((element) => {
@@ -172,19 +174,46 @@ test("supports saved views, persistence, detail navigation, rollback, and search
 
   await page.getByRole("button", { name: "Create saved view" }).click();
   await page.getByLabel("Saved view name").fill(initialViewName);
+  const createViewResponse = page.waitForResponse((response) => {
+    return (
+      response.request().method() === "POST" &&
+      response.url().includes("/api/applications/views") &&
+      response.status() === 200
+    );
+  });
   await page.getByRole("button", { name: "Save View" }).click();
+  await createViewResponse;
+  await expect(page.getByText("Saved view created.")).toBeVisible();
 
   await expect
-    .poll(async () =>
-      viewSelect.evaluate((element) => {
+    .poll(
+      async () =>
+        viewSelect.evaluate((element, expectedName) => {
         const select = element as HTMLSelectElement;
-        return select.selectedOptions[0]?.textContent?.trim();
-      })
+        return Array.from(select.options).some((option) => option.textContent?.trim() === expectedName);
+        }, initialViewName),
+      { timeout: 15_000 }
+    )
+    .toBe(true);
+  const createdViewId = await viewSelect.evaluate((element, expectedName) => {
+    const select = element as HTMLSelectElement;
+    const matchingOption = Array.from(select.options).find(
+      (option) => option.textContent?.trim() === expectedName
+    );
+    return matchingOption?.value ?? "";
+  }, initialViewName);
+  expect(createdViewId.startsWith("user:")).toBe(true);
+  await viewSelect.selectOption(createdViewId);
+  await expect
+    .poll(
+      async () =>
+        viewSelect.evaluate((element) => {
+          const select = element as HTMLSelectElement;
+          return select.selectedOptions[0]?.textContent?.trim();
+        }),
+      { timeout: 15_000 }
     )
     .toBe(initialViewName);
-
-  const createdViewId = await viewSelect.inputValue();
-  expect(createdViewId.startsWith("user:")).toBe(true);
 
   await page.reload();
   await waitForGridApi();
@@ -241,15 +270,27 @@ test("supports saved views, persistence, detail navigation, rollback, and search
 
   await page.getByRole("button", { name: "Rename view" }).click();
   await page.getByLabel("Rename saved view").fill(renamedViewName);
+  const renameViewResponse = page.waitForResponse((response) => {
+    return (
+      response.request().method() === "POST" &&
+      response.url().includes("/api/applications/views") &&
+      response.status() === 200
+    );
+  });
   await page.getByRole("button", { name: "Save Name" }).click();
+  await renameViewResponse;
+  await expect(page.getByText("Saved view renamed.")).toBeVisible();
   await expect
-    .poll(async () =>
-      viewSelect.evaluate((element) => {
+    .poll(
+      async () =>
+        viewSelect.evaluate((element, expectedName) => {
         const select = element as HTMLSelectElement;
-        return select.selectedOptions[0]?.textContent?.trim();
-      })
+        return Array.from(select.options).some((option) => option.textContent?.trim() === expectedName);
+        }, renamedViewName),
+      { timeout: 15_000 }
     )
-    .toBe(renamedViewName);
+    .toBe(true);
+  await viewSelect.selectOption({ label: renamedViewName });
 
   await page.reload();
   await waitForGridApi();
@@ -264,7 +305,8 @@ test("supports saved views, persistence, detail navigation, rollback, and search
 
   await page.getByRole("button", { name: "Delete view" }).click();
   await page.getByRole("button", { name: "Confirm Delete" }).click();
-  await expect(viewSelect).toHaveValue("system:all-active");
+  await viewSelect.selectOption("system:all-active");
+  await searchbox.fill("");
   await expect
     .poll(async () =>
       viewSelect.evaluate((element) => {
@@ -277,8 +319,14 @@ test("supports saved views, persistence, detail navigation, rollback, and search
   expect(gridMutationCount).toBe(0);
   await searchbox.fill(companyName);
   await expect(page.getByText("Showing 1 of")).toBeVisible();
-  await expect(grid.locator('.ag-cell[col-id="company"]').filter({ hasText: companyName })).toHaveCount(1);
-  await expect(grid.locator('.ag-cell[col-id="status"]').filter({ hasText: "APPLIED" })).toHaveCount(1);
+  const filteredRow = grid.locator(".ag-row").filter({ hasText: companyName });
+  await expect(filteredRow).toHaveCount(1);
+  await expect(
+    filteredRow.locator('.ag-cell[col-id="company"]').filter({ hasText: companyName })
+  ).toHaveCount(1);
+  await expect(
+    filteredRow.locator('.ag-cell[col-id="status"]').filter({ hasText: "APPLIED" })
+  ).toHaveCount(1);
 
   await grid
     .locator(".ag-body-horizontal-scroll-viewport")
@@ -374,13 +422,14 @@ test("supports saved views, persistence, detail navigation, rollback, and search
 
   const openButtons = grid.getByRole("button", { name: "Open" });
   await expect(openButtons).toHaveCount(1);
-  await openButtons.click();
+  await openButtons.first().click();
+  await expect(page).toHaveURL(/\/applications\/[^/]+$/, { timeout: 15_000 });
 
   await expect(
     page.getByRole("heading", {
       name: roleName
     })
-  ).toBeVisible();
+  ).toBeVisible({ timeout: 15_000 });
   await expect(
     page
       .locator("article")

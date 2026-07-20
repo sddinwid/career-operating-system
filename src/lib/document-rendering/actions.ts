@@ -2,22 +2,26 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { DocumentFormat } from "@prisma/client";
 import { renderApprovedResumeDocument } from "@/lib/document-rendering/service";
 import { getDefaultWorkspace } from "@/lib/workspace";
 
 export async function renderApprovedResumeDocumentAction(
   jobDescriptionVersionId: string,
+  format: DocumentFormat,
   applicationId?: string | null,
   returnTo?: string
 ) {
   const workspace = await getDefaultWorkspace();
   const result = await renderApprovedResumeDocument(workspace.id, {
     jobDescriptionVersionId,
-    applicationId: applicationId ?? null
+    applicationId: applicationId ?? null,
+    format
   });
 
   const target = returnTo ?? `/job-descriptions/${jobDescriptionVersionId}/resume`;
-  const status = result.duplicate ? "document-reused" : "document-rendered";
+  const formatKey = format.toLowerCase();
+  const status = result.duplicate ? `${formatKey}-document-reused` : `${formatKey}-document-rendered`;
 
   revalidatePath("/applications");
   if (applicationId) {

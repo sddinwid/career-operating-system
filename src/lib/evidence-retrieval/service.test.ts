@@ -1,6 +1,11 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, describe, expect, it } from "vitest";
-import { ApplicationStatus, JobDescriptionSourceType, PrismaClient } from "@prisma/client";
+import {
+  ApplicationStatus,
+  JobDescriptionSourceType,
+  Prisma,
+  PrismaClient
+} from "@prisma/client";
 import { createApplication } from "@/lib/applications/service";
 import { importCareerKnowledge } from "@/lib/career/service";
 import {
@@ -11,6 +16,7 @@ import {
 import { parseStoredJobDescriptionVersion } from "@/lib/job-descriptions/parse-service";
 import { saveJobDescriptionForApplication } from "@/lib/job-descriptions/service";
 import {
+  getEvidenceRetrievalContext,
   parseStoredEvidenceRetrievalRun,
   retrieveCareerEvidence
 } from "@/lib/evidence-retrieval/service";
@@ -126,6 +132,35 @@ async function importCareerFixture(workspaceId: string) {
   });
 }
 
+function buildLegacyStoredAnalysis(analysis: Prisma.JsonValue) {
+  const cloned = JSON.parse(JSON.stringify(analysis)) as Record<string, unknown>;
+  const requirements = Array.isArray(cloned.requirements)
+    ? cloned.requirements.map((requirement) => {
+        if (typeof requirement !== "object" || !requirement) {
+          return requirement;
+        }
+
+        const { levelApplicability, ...rest } = requirement as Record<string, unknown>;
+        void levelApplicability;
+        return rest;
+      })
+    : cloned.requirements;
+  const summary = {
+    ...(cloned.summary as Record<string, unknown>)
+  };
+
+  delete summary.qualificationExtractionCount;
+  delete summary.responsibilityExtractionCount;
+  delete summary.downstreamReadiness;
+
+  return {
+    ...cloned,
+    classifierVersion: "m3.3.0",
+    requirements,
+    summary
+  };
+}
+
 describe("evidence retrieval service", () => {
   afterAll(async () => {
     for (const workspaceId of createdWorkspaceIds) {
@@ -228,5 +263,57 @@ describe("evidence retrieval service", () => {
     });
 
     expect(count).toBe(0);
+  });
+
+  it("keeps legacy confirmed analyses readable but not downstream-ready until a current confirmed analysis exists", async () => {
+    const workspace = await createWorkspace();
+    const { version, parse, analysis } = await prepareConfirmedAnalysis(workspace.id);
+    await importCareerFixture(workspace.id);
+
+    const legacyAnalysis = buildLegacyStoredAnalysis(analysis.analysis as Prisma.JsonValue);
+    await prisma.jobRequirementAnalysis.create({
+      data: {
+        id: randomUUID(),
+        workspaceId: workspace.id,
+        jobDescriptionVersionId: version.id,
+        jobDescriptionParseId: parse.id,
+        contractVersion: "1.0.0",
+        classifierVersion: "m3.3.0",
+        sourceChecksum: version.checksum,
+        parserVersion: "m3.2.0",
+        status: "CONFIRMED",
+        analysis: legacyAnalysis as Prisma.InputJsonValue,
+        diagnostics: (legacyAnalysis as Record<string, unknown>).diagnostics as Prisma.InputJsonValue,
+        createdByWorkflow: "test.legacy.analysis",
+        confirmedAt: new Date("2026-07-17T12:00:00.000Z")
+      }
+    });
+
+    await prisma.jobRequirementAnalysis.update({
+      where: { id: analysis.id },
+      data: { status: "SUPERSEDED" }
+    });
+
+    const legacyContext = await getEvidenceRetrievalContext(workspace.id, version.id, prisma);
+
+    expect(legacyContext?.latestConfirmedRequirementAnalysis?.classifierVersion).toBe("m3.3.0");
+    expect(legacyContext?.requirementAnalysisDownstreamReadiness).toBe("NEEDS_REVIEW");
+    expect(legacyContext?.downstreamReadyRequirementAnalysis).toBeNull();
+    await expect(
+      retrieveCareerEvidence(workspace.id, { jobDescriptionVersionId: version.id }, prisma)
+    ).rejects.toThrow(/not ready for downstream automation yet/i);
+
+    const revisedDraft = await ensureRequirementAnalysisDraft(workspace.id, version.id, prisma);
+    const currentConfirmed = await confirmRequirementAnalysis(
+      workspace.id,
+      revisedDraft.analysis!.id,
+      true
+    );
+
+    const currentContext = await getEvidenceRetrievalContext(workspace.id, version.id, prisma);
+
+    expect(currentConfirmed?.status).toBe("CONFIRMED");
+    expect(currentContext?.latestConfirmedRequirementAnalysis?.classifierVersion).toBe("m3.3.3");
+    expect(currentContext?.downstreamReadyRequirementAnalysis?.id).toBe(currentConfirmed?.id);
   });
 });

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { DocumentFormat } from "@prisma/client";
 import {
   formatApplicationDate,
   formatApplicationDateTime,
@@ -70,8 +71,11 @@ function SuccessBanner({ success }: { success?: string }) {
     "audit-created": "Resume audit completed successfully.",
     "audit-reused":
       "The current audit contract, engine, and configuration already had a successful result for this exact composed resume, so the existing audit was reused.",
-    "document-rendered": "Approved resume rendered to an immutable DOCX successfully.",
-    "document-reused":
+    "pdf-document-rendered": "Approved resume rendered to an immutable PDF successfully.",
+    "pdf-document-reused":
+      "The active approved resume already had a matching immutable PDF, so the existing document version was reused.",
+    "docx-document-rendered": "Approved resume rendered to an immutable DOCX successfully.",
+    "docx-document-reused":
       "The active approved resume already had a matching immutable DOCX, so the existing document version was reused."
   };
 
@@ -151,11 +155,20 @@ export default async function ApplicationDetailPage({
           applicationId: application.id
         })
       : [];
-  const latestRenderedResumeDocument =
+  const latestRenderedResumePdf =
     application.currentJobDescriptionVersion
       ? await getLatestRenderedResumeDocumentVersion(workspace.id, {
           jobDescriptionVersionId: application.currentJobDescriptionVersion.id,
-          applicationId: application.id
+          applicationId: application.id,
+          format: DocumentFormat.PDF
+        })
+      : null;
+  const latestRenderedResumeDocx =
+    application.currentJobDescriptionVersion
+      ? await getLatestRenderedResumeDocumentVersion(workspace.id, {
+          jobDescriptionVersionId: application.currentJobDescriptionVersion.id,
+          applicationId: application.id,
+          format: DocumentFormat.DOCX
         })
       : null;
 
@@ -260,11 +273,11 @@ export default async function ApplicationDetailPage({
     : resumeAuditContext?.auditReady
       ? "Resume Audit Ready"
       : "Resume Audit Not Ready";
-  const documentRenderingStateLabel = latestRenderedResumeDocument
-    ? "Immutable Resume DOCX Ready"
+  const documentRenderingStateLabel = latestRenderedResumePdf
+    ? "Immutable Resume PDF Ready"
     : resumeRenderingApproval
-      ? "Resume DOCX Rendering Ready"
-      : "Resume DOCX Rendering Not Ready";
+      ? "Resume PDF Rendering Ready"
+      : "Resume PDF Rendering Not Ready";
 
   return (
     <div className="space-y-8">
@@ -587,38 +600,73 @@ export default async function ApplicationDetailPage({
                 </button>
               </form>
             ) : null}
-            {latestRenderedResumeDocument ? (
+            {latestRenderedResumePdf ? (
               <>
                 <Link
                   className="rounded-full border border-stone-300 px-5 py-3 text-sm font-semibold text-stone-700 transition hover:border-stone-950 hover:text-stone-950"
-                  href={`/documents/${latestRenderedResumeDocument.id}`}
+                  href={`/documents/${latestRenderedResumePdf.id}`}
+                >
+                  View Resume PDF
+                </Link>
+                <a
+                  className="rounded-full border border-stone-300 px-5 py-3 text-sm font-semibold text-stone-700 transition hover:border-stone-950 hover:text-stone-950"
+                  href={`/api/documents/${latestRenderedResumePdf.id}/download`}
+                >
+                  Download Resume PDF
+                </a>
+              </>
+            ) : null}
+            {latestRenderedResumeDocx ? (
+              <>
+                <Link
+                  className="rounded-full border border-stone-300 px-5 py-3 text-sm font-semibold text-stone-700 transition hover:border-stone-950 hover:text-stone-950"
+                  href={`/documents/${latestRenderedResumeDocx.id}`}
                 >
                   View Resume DOCX
                 </Link>
                 <a
                   className="rounded-full border border-stone-300 px-5 py-3 text-sm font-semibold text-stone-700 transition hover:border-stone-950 hover:text-stone-950"
-                  href={`/api/documents/${latestRenderedResumeDocument.id}/download`}
+                  href={`/api/documents/${latestRenderedResumeDocx.id}/download`}
                 >
                   Download Resume DOCX
                 </a>
               </>
             ) : null}
             {application.currentJobDescriptionVersion && resumeRenderingApproval ? (
-              <form
-                action={renderApprovedResumeDocumentAction.bind(
-                  null,
-                  application.currentJobDescriptionVersion.id,
-                  application.id,
-                  `/applications/${application.id}`
-                )}
-              >
-                <button
-                  className="rounded-full border border-stone-300 px-5 py-3 text-sm font-semibold text-stone-700 transition hover:border-stone-950 hover:text-stone-950"
-                  type="submit"
+              <>
+                <form
+                  action={renderApprovedResumeDocumentAction.bind(
+                    null,
+                    application.currentJobDescriptionVersion.id,
+                    DocumentFormat.PDF,
+                    application.id,
+                    `/applications/${application.id}`
+                  )}
                 >
-                  {latestRenderedResumeDocument ? "Render Resume DOCX Again" : "Render Resume DOCX"}
-                </button>
-              </form>
+                  <button
+                    className="rounded-full border border-stone-300 px-5 py-3 text-sm font-semibold text-stone-700 transition hover:border-stone-950 hover:text-stone-950"
+                    type="submit"
+                  >
+                    {latestRenderedResumePdf ? "Render Resume PDF Again" : "Render Resume PDF"}
+                  </button>
+                </form>
+                <form
+                  action={renderApprovedResumeDocumentAction.bind(
+                    null,
+                    application.currentJobDescriptionVersion.id,
+                    DocumentFormat.DOCX,
+                    application.id,
+                    `/applications/${application.id}`
+                  )}
+                >
+                  <button
+                    className="rounded-full border border-stone-300 px-5 py-3 text-sm font-semibold text-stone-700 transition hover:border-stone-950 hover:text-stone-950"
+                    type="submit"
+                  >
+                    {latestRenderedResumeDocx ? "Render Resume DOCX Again" : "Render Resume DOCX"}
+                  </button>
+                </form>
+              </>
             ) : null}
             {application.currentJobDescriptionVersion ? (
               <form
@@ -831,16 +879,16 @@ export default async function ApplicationDetailPage({
               </p>
             </article>
             <article className="rounded-2xl border border-stone-200 bg-stone-50 p-4">
-              <p className="text-sm font-medium text-stone-500">Resume DOCX</p>
+              <p className="text-sm font-medium text-stone-500">Resume PDF</p>
               <p className="mt-2 text-lg font-semibold text-stone-900">
                 {documentRenderingStateLabel}
               </p>
               <p className="mt-1 text-sm text-stone-600">
-                {latestRenderedResumeDocument
-                  ? `Latest version ${latestRenderedResumeDocument.versionNumber} is available for download.`
+                {latestRenderedResumePdf
+                  ? `Latest version ${latestRenderedResumePdf.versionNumber} is available for download.`
                   : resumeRenderingApproval
-                    ? "An approved resume source is ready for immutable DOCX rendering."
-                    : "Approve a ready audited resume before rendering a DOCX."}
+                    ? "An approved resume source is ready for immutable PDF rendering."
+                    : "Approve a ready audited resume before rendering a PDF."}
               </p>
             </article>
             <article className="rounded-2xl border border-stone-200 bg-stone-50 p-4">

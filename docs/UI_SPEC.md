@@ -93,3 +93,10 @@ Month cards show counts by activity type. Day view shows a chronological timelin
 - Applications ready for outreach
 - Stale applications
 - Quick actions
+
+## Corrective navigation state
+
+- Primary product actions: Open Applications, Browse Jobs, Browse Documents
+- Secondary creation actions: New Application, New Job
+- Diagnostics remain separate from product workflow actions
+- Deferred workspaces remain visible as disabled `Coming later` items

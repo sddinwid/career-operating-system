@@ -30,9 +30,10 @@ import {
   DOCUMENT_RENDER_CONFIGURATION_VERSION,
   DOCUMENT_RENDER_CONTRACT_VERSION,
   DOCUMENT_RENDERER_VERSION,
-  DOCUMENT_TEMPLATE_VERSION,
-  documentRenderConfiguration
+  documentRenderConfiguration,
+  getDocumentTemplateVersion
 } from "@/lib/document-rendering/config";
+import { buildPdfResumeBuffer, validatePdfResumeBuffer } from "@/lib/document-rendering/pdf";
 import type { ResumeCompositionContent } from "@/lib/resume-composition/contract";
 
 type TransactionClient = Prisma.TransactionClient;
@@ -40,6 +41,7 @@ type TransactionClient = Prisma.TransactionClient;
 type RenderApprovedResumeDocumentOptions = {
   jobDescriptionVersionId: string;
   applicationId?: string | null;
+  format?: DocumentFormat;
 };
 
 type PersistedDocumentVersion = Awaited<ReturnType<typeof getDocumentVersionById>>;
@@ -109,13 +111,19 @@ function buildDocumentTitle(content: ResumeCompositionContent) {
   return `${content.targetCompany} ${content.targetRole} Resume`;
 }
 
-function buildOriginalFilename(content: ResumeCompositionContent, versionNumber: number) {
+function buildOriginalFilename(
+  content: ResumeCompositionContent,
+  versionNumber: number,
+  format: DocumentFormat
+) {
   const name = content.header.find((entry) => entry.field === "NAME" && entry.included)?.value ?? "Candidate";
-  return `${sanitizeFilenameSegment(name)}_${sanitizeFilenameSegment(content.targetCompany)}_${sanitizeFilenameSegment(content.targetRole)}_Resume_v${versionNumber}.docx`;
+  const extension = format === DocumentFormat.PDF ? "pdf" : "docx";
+  return `${sanitizeFilenameSegment(name)}_${sanitizeFilenameSegment(content.targetCompany)}_${sanitizeFilenameSegment(content.targetRole)}_Resume_v${versionNumber}.${extension}`;
 }
 
-function buildStoredFilename(documentVersionId: string) {
-  return `${documentVersionId}.docx`;
+function buildStoredFilename(documentVersionId: string, format: DocumentFormat) {
+  const extension = format === DocumentFormat.PDF ? "pdf" : "docx";
+  return `${documentVersionId}.${extension}`;
 }
 
 export function toSafeDownloadFilename(filename: string) {
@@ -377,13 +385,19 @@ async function renderResumeBuffer(content: ResumeCompositionContent) {
   return Packer.toBuffer(buildDocx(content));
 }
 
+async function renderPdfBuffer(content: ResumeCompositionContent) {
+  return buildPdfResumeBuffer(content);
+}
+
 async function computeRenderInputChecksum(args: {
   approvalId: string;
   auditId: string;
   sourceType: string;
   sourceId: string;
   contentChecksum: string;
+  format: DocumentFormat;
 }) {
+  const templateVersion = getDocumentTemplateVersion(args.format);
   return computeSha256(
     stableSerialize({
       approvalId: args.approvalId,
@@ -391,9 +405,10 @@ async function computeRenderInputChecksum(args: {
       sourceType: args.sourceType,
       sourceId: args.sourceId,
       contentChecksum: args.contentChecksum,
+      format: args.format,
       renderContractVersion: DOCUMENT_RENDER_CONTRACT_VERSION,
       rendererVersion: DOCUMENT_RENDERER_VERSION,
-      templateVersion: DOCUMENT_TEMPLATE_VERSION,
+      templateVersion,
       configurationVersion: DOCUMENT_RENDER_CONFIGURATION_VERSION,
       configuration: documentRenderConfiguration
     })
@@ -462,6 +477,7 @@ export async function getDocumentVersionById(
             select: {
               id: true,
               versionNumber: true,
+              format: true,
               generatedAt: true,
               renderStatus: true,
               sizeBytes: true
@@ -492,6 +508,7 @@ export async function getLatestRenderedResumeDocumentVersion(
   args: {
     jobDescriptionVersionId: string;
     applicationId?: string | null;
+    format?: DocumentFormat;
   },
   prismaClient: PrismaClient | TransactionClient = prisma
 ) {
@@ -500,6 +517,7 @@ export async function getLatestRenderedResumeDocumentVersion(
       workspaceId,
       jobDescriptionVersionId: args.jobDescriptionVersionId,
       applicationId: args.applicationId ?? null,
+      ...(args.format ? { format: args.format } : {}),
       document: {
         type: DocumentType.RESUME
       },
@@ -597,6 +615,8 @@ export async function renderApprovedResumeDocument(
   options: RenderApprovedResumeDocumentOptions,
   prismaClient: PrismaClient = prisma
 ) {
+  const format = options.format ?? DocumentFormat.DOCX;
+  const templateVersion = getDocumentTemplateVersion(format);
   const approved = await getApprovedResumeForRendering(workspaceId, {
     jobDescriptionVersionId: options.jobDescriptionVersionId,
     applicationId: options.applicationId ?? undefined
@@ -607,7 +627,8 @@ export async function renderApprovedResumeDocument(
     auditId: approved.auditId,
     sourceType: approved.sourceType,
     sourceId: approved.sourceId,
-    contentChecksum: approved.contentChecksum
+    contentChecksum: approved.contentChecksum,
+    format
   });
 
   const duplicate = await prismaClient.documentVersion.findFirst({
@@ -615,6 +636,7 @@ export async function renderApprovedResumeDocument(
       workspaceId,
       jobDescriptionVersionId: options.jobDescriptionVersionId,
       applicationId: options.applicationId ?? null,
+      format,
       renderInputChecksum,
       renderStatus: {
         in: [DocumentRenderStatus.SUCCESS, DocumentRenderStatus.SUCCESS_WITH_WARNINGS]
@@ -638,11 +660,17 @@ export async function renderApprovedResumeDocument(
       ? await getResumeRevisionVersionById(workspaceId, approved.sourceId, prismaClient)
       : null;
 
-  const buffer = await renderResumeBuffer(approved.content);
-  const validationSummary = await validateDocxBuffer(buffer);
+  const buffer =
+    format === DocumentFormat.PDF
+      ? await renderPdfBuffer(approved.content)
+      : await renderResumeBuffer(approved.content);
+  const validationSummary =
+    format === DocumentFormat.PDF
+      ? await validatePdfResumeBuffer(buffer, approved.content)
+      : await validateDocxBuffer(buffer);
 
   if (!validationSummary.valid) {
-    throw new Error("Rendered DOCX validation failed.");
+    throw new Error(`Rendered ${format} validation failed.`);
   }
 
   const checksum = await computeBufferSha256(buffer);
@@ -669,7 +697,7 @@ export async function renderApprovedResumeDocument(
 
       const versionNumber = (latestVersion?.versionNumber ?? 0) + 1;
       const documentVersionId = randomUUID();
-      const storedFilename = buildStoredFilename(documentVersionId);
+      const storedFilename = buildStoredFilename(documentVersionId, format);
       const storagePath = buildStoragePath(workspaceId, document.id, storedFilename);
       absolutePath = resolveAbsoluteStoragePath(storagePath);
 
@@ -690,11 +718,14 @@ export async function renderApprovedResumeDocument(
             (approved.sourceType === "BASE_COMPOSITION" ? approved.sourceId : revision?.baseResumeCompositionVersionId ?? ""),
           resumeRevisionVersionId: approved.approval.resumeRevisionVersionId,
           versionNumber,
-          format: DocumentFormat.DOCX,
-          originalFilename: buildOriginalFilename(approved.content, versionNumber),
+          format,
+          originalFilename: buildOriginalFilename(approved.content, versionNumber, format),
           storedFilename,
           storagePath,
-          mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+          mimeType:
+            format === DocumentFormat.PDF
+              ? "application/pdf"
+              : "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
           sizeBytes: buffer.byteLength,
           checksum,
           source: DocumentSource.GENERATED,
@@ -704,7 +735,7 @@ export async function renderApprovedResumeDocument(
               : DocumentRenderStatus.SUCCESS,
           renderContractVersion: DOCUMENT_RENDER_CONTRACT_VERSION,
           rendererVersion: DOCUMENT_RENDERER_VERSION,
-          templateVersion: DOCUMENT_TEMPLATE_VERSION,
+          templateVersion,
           configurationVersion: DOCUMENT_RENDER_CONFIGURATION_VERSION,
           renderInputChecksum,
           warningCount: approved.audit.summary.warningCount,
@@ -713,6 +744,7 @@ export async function renderApprovedResumeDocument(
             sourceType: approved.sourceType,
             sourceId: approved.sourceId,
             contentChecksum: approved.contentChecksum,
+            format,
             renderingReadiness: approved.renderingReadiness,
             sectionOrder: approved.content.finalSectionOrder,
             estimatedPageCount: approved.content.summary.estimatedPageCount,

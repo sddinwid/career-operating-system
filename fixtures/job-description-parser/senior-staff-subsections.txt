@@ -1,0 +1,9 @@
+Acme
+Backend Engineer
+
+Higher-Level Responsibilities
+At the Senior level, you may:
+Lead roadmap tradeoffs across services
+
+At the Staff level, you may:
+Drive cross-team architecture strategy

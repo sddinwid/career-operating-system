@@ -1,6 +1,6 @@
 # DOCX Rendering
 
-M7.1 renders employer-facing resumes into deterministic DOCX files only.
+M7.1 introduced deterministic DOCX rendering, and M7.2 keeps DOCX inside the shared multi-format rendering contract.
 
 ## Rendering Input Contract
 
@@ -22,14 +22,14 @@ M7.1 renders employer-facing resumes into deterministic DOCX files only.
 
 ## Versions
 
-- render contract version: `1.0.0`
-- renderer version: `m7.1.0`
+- render contract version: `1.1.0`
+- renderer version: `m7.2.0`
 - template version: `resume-docx-v1`
 - configuration version: `local-first-v1`
 
 ## ATS Layout Decisions
 
-- DOCX only, no PDF in M7.1
+- DOCX remains one shared output format
 - plain text-forward structure with standard headings
 - no images, tables, columns, or decorative layout dependencies
 - section order comes from the approved resume content
@@ -135,11 +135,10 @@ M7.1 renders employer-facing resumes into deterministic DOCX files only.
 
 ## Known Limitations
 
-- no PDF rendering
 - no hyperlink fields
 - no temp-file plus atomic move flow
 - no attachment package workflow yet
 
-## M7.2 Dependency
+## Shared Contract
 
-M7.2 should build on the same approval gate and immutable artifact model to add PDF rendering and broader render validation.
+M7.2 reuses the same approval gate, format-aware render-input checksum, immutable artifact lineage, relative local storage, and download integrity checks for DOCX and PDF.

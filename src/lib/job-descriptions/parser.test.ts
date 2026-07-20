@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
   JOB_DESCRIPTION_PARSE_CONTRACT_VERSION,
@@ -13,6 +14,14 @@ const baseContext = {
   sourceUrl: "https://company.example/jobs/1",
   sourceChecksum: "checksum-1"
 } as const;
+const fieldguideFixture = readFileSync(
+  "fixtures/fieldguide-software-engineer-all-levels.txt",
+  "utf8"
+);
+const marathonFixture = readFileSync(
+  "fixtures/job-description-parser/workday-marathon-health-software-engineer.txt",
+  "utf8"
+);
 
 function parse(text: string) {
   return parseNormalizedJobDescription({
@@ -108,7 +117,7 @@ Benefits
     ]);
     expect(first.result?.roleMetadata.companyName?.agreementWithOpportunity).toBe("MATCH");
     expect(first.result?.roleMetadata.roleTitle?.agreementWithOpportunity).toBe("MATCH");
-    expect(first.diagnostics).toEqual([]);
+    expect(first.diagnostics.some((diagnostic) => diagnostic.severity !== "INFO")).toBe(false);
     expect(first.result?.responsibilities[0]?.id).toBe(
       "responsibility-5-1-build-reliable-type-script-services-acro"
     );
@@ -215,6 +224,279 @@ Requirements
     expect(result.result).toBeNull();
     expect(
       result.diagnostics.some((diagnostic) => diagnostic.code === "DESCRIPTION_TOO_SHORT")
+    ).toBe(true);
+  });
+
+  it("keeps Fieldguide responsibilities, competency sections, preferred items, and context atomic", () => {
+    const result = parseNormalizedJobDescription({
+      ...baseContext,
+      opportunityCompanyName: "Fieldguide",
+      opportunityRoleTitle: "Software Engineer (All Levels)",
+      normalizedText: fieldguideFixture,
+      parsedAt: new Date("2026-07-18T19:00:00.000Z")
+    });
+
+    expect(result.status).toBe("SUCCESS_WITH_WARNINGS");
+    expect(result.result?.roleMetadata.companyName?.value).toBe("Fieldguide");
+    expect(result.result?.roleMetadata.roleTitle?.value).toBe("Software Engineer (All Levels)");
+    expect(result.result?.roleMetadata.employmentType?.value).toBe("FULL_TIME");
+    expect(result.result?.roleMetadata.seniority?.value).toBe("MULTI_LEVEL");
+    expect(result.result?.roleMetadata.workArrangement?.value).toBe(
+      "REMOTE_WITH_HYBRID_CONDITION"
+    );
+    expect(result.result?.roleMetadata.location?.value).toBe("Remote, United States");
+    expect(result.result?.roleMetadata.secondaryLocation?.value).toBe(
+      "San Francisco, CA (Bay Area hybrid)"
+    );
+    expect(result.result?.roleMetadata.department?.value).toBe("Engineering");
+    expect(result.result?.compensation.minimumSalary?.value).toBe(150000);
+    expect(result.result?.compensation.maximumSalary?.value).toBe(260000);
+    expect(result.result?.compensation.equity?.value).toBe("EQUITY");
+    expect(
+      result.result?.sections.some((item) =>
+        ["Employment Type", "Location Type", "Department", "Engineering"].includes(item.heading)
+      )
+    ).toBe(false);
+    expect(result.result?.responsibilities).toHaveLength(5);
+    expect(
+      result.result?.responsibilities.some((item) =>
+        item.text.includes("Design, build, and deliver high-quality features")
+      )
+    ).toBe(true);
+    expect(
+      result.result?.responsibilities.some((item) =>
+        item.text.includes("Contribute to a supportive, growth-oriented engineering culture")
+      )
+    ).toBe(true);
+    expect(
+      result.result?.sections.find((item) => item.type === "CORE_COMPETENCIES")
+    ).toBeTruthy();
+    expect(
+      result.result?.sections.filter((item) => item.parentSectionId !== null).map((item) => item.type)
+    ).toEqual(
+      expect.arrayContaining([
+        "TECHNICAL_CRAFT",
+        "IMPACT_EXECUTION",
+        "COLLABORATION_INFLUENCE",
+        "CULTURE_GROWTH"
+      ])
+    );
+    expect(
+      result.result?.qualifications.filter((item) => {
+        const section = result.result?.sections.find((candidate) => candidate.id === item.sourceSectionId);
+        return section?.heading === "Technical Craft";
+      }).length
+    ).toBe(4);
+    expect(
+      result.result?.qualifications.filter((item) => {
+        const section = result.result?.sections.find((candidate) => candidate.id === item.sourceSectionId);
+        return section?.heading === "Impact & Execution";
+      }).length
+    ).toBe(3);
+    expect(
+      result.result?.qualifications.filter((item) => {
+        const section = result.result?.sections.find((candidate) => candidate.id === item.sourceSectionId);
+        return section?.heading === "Collaboration & Influence";
+      }).length
+    ).toBe(3);
+    expect(
+      result.result?.qualifications.filter((item) => {
+        const section = result.result?.sections.find((candidate) => candidate.id === item.sourceSectionId);
+        return section?.heading === "Culture & Growth";
+      }).length
+    ).toBe(4);
+    expect(
+      result.result?.qualifications.some(
+        (item) =>
+          item.originalText.includes("TypeScript, React, Node.js, Python, and GraphQL") &&
+          item.levelApplicability === "ALL_LEVELS"
+      )
+    ).toBe(true);
+    expect(
+      result.result?.qualifications.some(
+        (item) =>
+          item.originalText.includes("AWS, Postgres, and Hasura") &&
+          item.explicitLabel === "PREFERRED"
+      )
+    ).toBe(true);
+    expect(
+      result.result?.qualifications.some(
+        (item) =>
+          item.originalText.includes("Take increasing ownership") &&
+          item.levelApplicability === "CONDITIONAL_HIGHER_LEVEL"
+      )
+    ).toBe(true);
+    expect(
+      result.result?.qualifications.some(
+        (item) =>
+          item.originalText.includes("Lead complex projects or systems") &&
+          item.levelApplicability === "SENIOR_ONLY"
+      )
+    ).toBe(true);
+    expect(
+      result.result?.qualifications.some(
+        (item) =>
+          item.originalText.includes("Drive company-level technical initiatives") &&
+          item.levelApplicability === "STAFF_ONLY"
+      )
+    ).toBe(true);
+    expect(result.result?.technologies.map((item) => item.canonicalName)).toEqual(
+      expect.arrayContaining([
+        "AWS",
+        "CI/CD",
+        "FedRAMP",
+        "GraphQL",
+        "Hasura",
+        "Machine Learning",
+        "Node.js",
+        "PostgreSQL",
+        "Python",
+        "React",
+        "SOC 2",
+        "TypeScript"
+      ])
+    );
+    expect(
+      result.result?.qualifications.filter((item) => item.explicitLabel === "PREFERRED").length
+    ).toBe(7);
+    expect(
+      result.result?.sections.find((item) => item.type === "COMPANY_VALUES")
+    ).toBeTruthy();
+    expect(
+      result.result?.qualifications.some((item) =>
+        item.originalText.includes("remote candidates anywhere in the US")
+      )
+    ).toBe(true);
+    expect(
+      result.result?.qualifications.some((item) =>
+        item.originalText.includes("Bay Area-based employees will work in a hybrid setting")
+      )
+    ).toBe(true);
+    expect(
+      result.result?.qualifications.some((item) =>
+        item.originalText.includes("final level will be determined during the interview process")
+      )
+    ).toBe(true);
+    expect(
+      result.diagnostics.some((diagnostic) => diagnostic.code === "NO_REQUIREMENTS_SECTION")
+    ).toBe(false);
+    expect(
+      result.diagnostics.some(
+        (diagnostic) =>
+          diagnostic.code === "UNRECOGNIZED_SECTION_HEADING" &&
+          /Core Competencies|Our Values/i.test(diagnostic.message)
+      )
+    ).toBe(false);
+  });
+
+  it("parses Workday-style Marathon postings without promoting wrapper chrome into sections", () => {
+    const result = parseNormalizedJobDescription({
+      ...baseContext,
+      opportunityCompanyName: "Marathon Health",
+      opportunityRoleTitle: "Software Engineer",
+      sourceUrl:
+        "https://marathonhealth.wd501.myworkdayjobs.com/Marathon-Health-Careers/job/Remote/Software-Engineer_JR108257-1",
+      normalizedText: marathonFixture,
+      parsedAt: new Date("2026-07-19T21:30:00.000Z")
+    });
+
+    expect(result.status).toBe("SUCCESS");
+    expect(result.result?.parserVersion).toBe(JOB_DESCRIPTION_PARSER_VERSION);
+    expect(result.result?.roleMetadata.companyName?.value).toBe("Marathon Health");
+    expect(result.result?.roleMetadata.roleTitle?.value).toBe("Software Engineer");
+    expect(result.result?.roleMetadata.location?.value).toBe("Remote");
+    expect(result.result?.roleMetadata.workArrangement?.value).toBe("REMOTE");
+    expect(result.result?.roleMetadata.employmentType?.value).toBe("FULL_TIME");
+    expect(result.result?.roleMetadata.requisitionId?.value).toBe("JR108257");
+    expect(result.result?.roleMetadata.postedText?.value).toBe("Posted 2 Days Ago");
+    expect(result.result?.compensation.minimumSalary?.value).toBe(80000);
+    expect(result.result?.compensation.maximumSalary?.value).toBe(110000);
+    expect(result.result?.compensation.payPeriod?.value).toBe("YEAR");
+    expect(result.result?.responsibilities).toHaveLength(8);
+    expect(result.result?.responsibilities[0]?.text).toContain("Feature Development:");
+    expect(result.result?.responsibilities[7]?.text).toContain("Continuous Improvement:");
+    expect(result.result?.qualifications.some((item) => /2\+\s+years of software development experience/i.test(item.originalText))).toBe(true);
+    expect(
+      result.result?.qualifications.some(
+        (item) => item.equivalencyText === "Equivalent education/experience accepted"
+      )
+    ).toBe(true);
+    expect(result.result?.qualifications.some((item) => /Agile Scrum environment/i.test(item.originalText))).toBe(true);
+    expect(result.result?.qualifications.filter((item) => item.explicitLabel === "PREFERRED").length).toBeGreaterThanOrEqual(8);
+    expect(
+      result.result?.qualifications.some(
+        (item) =>
+          item.sourceGroupId !== null &&
+          /Bachelors or Masters Degree/i.test(item.originalText)
+      )
+    ).toBe(true);
+    expect(
+      result.result?.qualifications.some(
+        (item) =>
+          item.sourceGroupId !== null &&
+          /AWS Certified Cloud Practitioner certification or equivalent/i.test(item.originalText)
+      )
+    ).toBe(true);
+    expect(
+      result.result?.qualifications.some(
+        (item) => /Pay Range:/i.test(item.originalText)
+      )
+    ).toBe(false);
+    expect(result.result?.technologies.map((item) => item.canonicalName)).toEqual(
+      expect.arrayContaining([
+        "API Gateway",
+        "AWS",
+        "Agile Scrum",
+        "Athena",
+        "Azure DevOps",
+        "C#",
+        "CI/CD",
+        "CloudWatch",
+        "Debezium",
+        "ECS",
+        "EKS",
+        "Freshworks",
+        "Kafka",
+        "Lambda",
+        "Microservices",
+        "NServiceBus",
+        "NetSuite",
+        "PostgreSQL",
+        "REST API",
+        "React",
+        "React Native",
+        "Ruby on Rails",
+        "S3",
+        "SNS",
+        "Salesforce",
+        "Terraform",
+        "TypeScript"
+      ])
+    );
+    expect(result.result?.experienceRequirements.some((item) => item.minimumYears === 2 && item.plusIndicator)).toBe(true);
+    expect(result.result?.educationRequirements.some((item) => /Bachelors|Masters/i.test(item.sourceText))).toBe(true);
+    expect(
+      result.result?.qualifications.some(
+        (item) => item.equivalencyText === "Equivalent education/experience accepted"
+      )
+    ).toBe(true);
+    expect(result.result?.certificationRequirements.some((item) => /AWS Certified Cloud Practitioner/i.test(item.name))).toBe(true);
+    expect(
+      result.result?.sections.some((item) =>
+        ["Remote", "Full-time", "Apply", "Save", "Show all"].includes(item.heading)
+      )
+    ).toBe(false);
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "NO_RESPONSIBILITIES_SECTION")).toBe(false);
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "NO_REQUIREMENTS_SECTION")).toBe(false);
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "COMPANY_MISMATCH_WITH_OPPORTUNITY")).toBe(false);
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "WORKDAY_WRAPPER_NOISE_REMOVED")).toBe(true);
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "WORKDAY_METADATA_BLOCK_DETECTED")).toBe(true);
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "RESERVED_ABOUT_HEADING_NOT_COMPANY")).toBe(true);
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "LABELED_RESPONSIBILITIES_DETECTED")).toBe(true);
+    expect(
+      result.diagnostics.some(
+        (diagnostic) => diagnostic.code === "COMPENSATION_EXCLUDED_FROM_REQUIREMENTS"
+      )
     ).toBe(true);
   });
 });

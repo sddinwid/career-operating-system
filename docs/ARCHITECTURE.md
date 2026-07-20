@@ -118,6 +118,16 @@ Application or /jobs/new form
 The implementation remains inside the modular monolith:
 
 - `src/lib/job-descriptions/schemas.ts` validates shared intake payloads
+
+## July 19, 2026 navigation correction
+
+The application shell now separates:
+
+- implemented product workspaces
+- deferred workspaces
+- diagnostics
+
+Jobs and Documents indexes are read-only aggregation surfaces over existing immutable records. They do not introduce new source-of-truth models.
 - `src/lib/job-descriptions/normalize.ts` performs deterministic text normalization for downstream parsing
 - `src/lib/job-descriptions/checksum.ts` calculates the normalized checksum server-side
 - `src/lib/job-descriptions/service.ts` handles company reuse, opportunity resolution, idempotency, version creation, superseding, and retrieval
@@ -154,6 +164,18 @@ Implementation boundaries:
 - `src/lib/job-descriptions/parse-service.ts` handles workspace ownership, idempotent reuse, and immutable persistence
 - `src/lib/job-descriptions/parse-actions.ts` exposes the on-demand parse action to the UI
 
+Production-hardening correction on July 18, 2026:
+
+- list-oriented sections now preserve atomic item boundaries unless deterministic wrapped-line signals show a continuation
+- known competency and values headings now resolve to canonical parent-child section metadata with stored canonical heading, parent section id, hierarchy depth, list orientation, and applicability
+- parser diagnostics now measure merged-item risk and extraction coverage before downstream review can proceed confidently
+
+Production-hardening correction on July 19, 2026:
+
+- Workday-style metadata blocks and wrapper chrome are normalized before section detection so `Apply`, `Save`, `Show all`, location chips, and footer noise do not become fake sections
+- parse output now preserves requisition id, posted text, compensation, labeled responsibilities, preferred-attribute technologies, and education-equivalency metadata from Workday postings such as Marathon Health without mutating source text
+- parser-level decomposition handles compound degree, experience, methodology, tooling, and certification paragraphs so downstream review receives one independently reviewable expectation per record plus shared provenance metadata such as `sourceGroupId` and `equivalencyText`
+
 `JobDescriptionParse` was chosen instead of mutating `JobDescriptionVersion` so the repository can preserve multiple parser versions, failed diagnostics, and parse history without rewriting the underlying source record.
 
 ## Requirement classification and review
@@ -176,6 +198,12 @@ Implementation boundaries:
 - `src/lib/job-descriptions/requirement-analysis-service.ts`
 - `src/lib/job-descriptions/requirement-analysis-actions.ts`
 - `src/app/job-descriptions/[jobDescriptionVersionId]/requirements/page.tsx`
+
+Production-hardening correction on July 18, 2026:
+
+- reviewed items now preserve applicability from parse through immutable analysis persistence
+- requirement review renders canonical section hierarchy and applicability instead of collapsing everything back to broad section labels
+- downstream readiness remains a deterministic gate driven by coverage diagnostics rather than UI review state alone
 
 ## Evidence retrieval
 
@@ -347,9 +375,9 @@ Implementation boundaries:
 
 M6.2 keeps comparison as a computed read model. Immutable resume content, immutable audits, and immutable approval rows are the only persisted sources of truth. Rendering approval is stored separately from resume content so future renderers can consume one exact approved source without mutating upstream records.
 
-## DOCX Rendering
+## Document Rendering
 
-M7.1 adds a narrow document-rendering module at `src/lib/document-rendering/` and keeps the rendering boundary strict:
+M7.2 keeps the document-rendering module at `src/lib/document-rendering/` narrow and preserves a strict rendering boundary:
 
 - the renderer must call `getApprovedResumeForRendering(...)` instead of selecting the latest resume content directly
 - the active approval resolves the exact approved content source, exact audit, exact rendering readiness, and exact content checksum
@@ -360,15 +388,15 @@ Current rendering flow:
 1. resolve the active approved resume through the rendering gate
 2. compute an exact render-input checksum from approval id, audit id, source type, source id, checksum, and renderer/template/config versions
 3. reuse the latest successful `DocumentVersion` when that checksum already exists
-4. render DOCX bytes with `docx`
-5. inspect the ZIP container with `jszip`
+4. render direct artifact bytes for the requested format
+5. validate the artifact before persistence
 6. create or reuse the logical `Document`
 7. write the artifact into local ignored storage under a relative storage key
 8. persist the immutable `DocumentVersion`
 
 Failure handling:
 
-- invalid DOCX ZIP output fails before persistence
+- invalid DOCX or PDF output fails before persistence
 - transaction failure after file write triggers orphan cleanup via file deletion
 - download reads re-check size and checksum before streaming bytes
 
@@ -376,5 +404,5 @@ Storage notes:
 
 - `storagePath` is always stored as a relative key beneath `LOCAL_DATA_DIR`
 - download routes never accept arbitrary paths
-- M7.1 does not use LibreOffice, Microsoft Word automation, or PDF conversion
-- M7.1 does not currently use a separate temp file plus atomic rename; it writes the final relative path and removes the file if the transaction fails
+- M7.2 does not use LibreOffice, Microsoft Word automation, browser screenshots, or DOCX-to-PDF conversion
+- M7.2 does not currently use a separate temp file plus atomic rename; it writes the final relative path and removes the file if the transaction fails

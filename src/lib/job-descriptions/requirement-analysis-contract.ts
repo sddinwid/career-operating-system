@@ -2,13 +2,14 @@ import { z } from "zod";
 import {
   confidenceLevelSchema,
   diagnosticSeveritySchema,
+  levelApplicabilitySchema,
   extractionRuleSchema,
   requirementLabelSchema,
   sourceLocationSchema
 } from "@/lib/job-descriptions/parser-contract";
 
 export const JOB_REQUIREMENT_ANALYSIS_CONTRACT_VERSION = "1.0.0";
-export const JOB_REQUIREMENT_CLASSIFIER_VERSION = "m3.3.0";
+export const JOB_REQUIREMENT_CLASSIFIER_VERSION = "m3.3.3";
 
 const semanticVersionSchema = z.string().regex(/^[A-Za-z0-9.-]+$/);
 
@@ -61,6 +62,9 @@ export type RequirementAnalysisReviewStatus = z.infer<
 export const itemConfirmationStateSchema = z.enum(["UNCONFIRMED", "CONFIRMED"]);
 export type ItemConfirmationState = z.infer<typeof itemConfirmationStateSchema>;
 
+export const downstreamReadinessSchema = z.enum(["READY", "NEEDS_REVIEW", "BLOCKED"]);
+export type DownstreamReadiness = z.infer<typeof downstreamReadinessSchema>;
+
 export const analysisDiagnosticSchema = z.object({
   code: z.string().min(1),
   severity: diagnosticSeveritySchema,
@@ -99,6 +103,12 @@ export const analyzedRequirementSchema = z.object({
   category: requirementCategorySchema,
   kinds: z.array(requirementKindSchema).min(1),
   explicitSourceLabel: requirementLabelSchema.nullable(),
+  levelApplicability: levelApplicabilitySchema,
+  sourceGroupId: z
+    .string()
+    .min(1)
+    .nullish()
+    .transform((value) => value ?? null),
   sourceSectionId: z.string().min(1).nullable(),
   sourceSectionType: z.string().min(1).nullable(),
   sourceLocation: sourceLocationSchema.nullable(),
@@ -106,6 +116,11 @@ export const analyzedRequirementSchema = z.object({
   experienceText: z.string().min(1).nullable(),
   degreeRequirement: z.string().min(1).nullable(),
   certificationRequirement: z.string().min(1).nullable(),
+  equivalencyText: z
+    .string()
+    .min(1)
+    .nullish()
+    .transform((value) => value ?? null),
   domainReferences: z.array(z.string().min(1)),
   leadershipReferences: z.array(z.string().min(1)),
   confidence: confidenceLevelSchema,
@@ -156,7 +171,10 @@ export const requirementAnalysisSummarySchema = z.object({
   userAddedRequirementsCount: z.number().int().nonnegative(),
   unresolvedReviewItemsCount: z.number().int().nonnegative(),
   lowConfidenceCount: z.number().int().nonnegative(),
-  excludedRequirementsCount: z.number().int().nonnegative()
+  excludedRequirementsCount: z.number().int().nonnegative(),
+  qualificationExtractionCount: z.number().int().nonnegative(),
+  responsibilityExtractionCount: z.number().int().nonnegative(),
+  downstreamReadiness: downstreamReadinessSchema
 });
 export type RequirementAnalysisSummary = z.infer<typeof requirementAnalysisSummarySchema>;
 

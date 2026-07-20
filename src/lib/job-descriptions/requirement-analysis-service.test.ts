@@ -1,6 +1,13 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { afterAll, describe, expect, it } from "vitest";
-import { ApplicationStatus, JobDescriptionSourceType, PrismaClient } from "@prisma/client";
+import {
+  ApplicationStatus,
+  JobDescriptionSourceType,
+  Prisma,
+  PrismaClient
+} from "@prisma/client";
 import { createApplication } from "@/lib/applications/service";
 import { parseStoredJobDescriptionVersion } from "@/lib/job-descriptions/parse-service";
 import {
@@ -10,6 +17,8 @@ import {
   ensureRequirementAnalysisDraft,
   excludeRequirementAnalysisItem,
   getJobRequirementAnalysisById,
+  getJobRequirementAnalysisContext,
+  parseStoredJobRequirementAnalysis,
   updateRequirementAnalysisRequirement
 } from "@/lib/job-descriptions/requirement-analysis-service";
 import { saveJobDescriptionForApplication } from "@/lib/job-descriptions/service";
@@ -79,6 +88,13 @@ function buildInput(descriptionText: string) {
   } as const;
 }
 
+function loadFieldguideFixture() {
+  return readFileSync(
+    path.join(process.cwd(), "fixtures", "fieldguide-software-engineer-all-levels.txt"),
+    "utf8"
+  );
+}
+
 async function createParsedVersion(workspaceId: string) {
   const application = await createApplication(workspaceId, {
     companyName: "Acme",
@@ -111,6 +127,75 @@ Skills
     application,
     version: saved.version!,
     parse: parsed.parse
+  };
+}
+
+function buildLegacyStoredAnalysis(
+  analysis: Prisma.JsonValue,
+  options?: {
+    removeLevelApplicability?: boolean;
+    summaryOverrides?: Record<string, unknown>;
+  }
+) {
+  const cloned = JSON.parse(JSON.stringify(analysis)) as Record<string, unknown>;
+  const requirements = Array.isArray(cloned.requirements)
+    ? cloned.requirements.map((requirement) => {
+        if (!options?.removeLevelApplicability || typeof requirement !== "object" || !requirement) {
+          return requirement;
+        }
+
+        const { levelApplicability, ...rest } = requirement as Record<string, unknown>;
+        void levelApplicability;
+        return rest;
+      })
+    : cloned.requirements;
+  const summary = {
+    ...(cloned.summary as Record<string, unknown>),
+    ...(options?.summaryOverrides ?? {})
+  };
+
+  delete summary.qualificationExtractionCount;
+  delete summary.responsibilityExtractionCount;
+  delete summary.downstreamReadiness;
+
+  return {
+    ...cloned,
+    classifierVersion: "m3.3.0",
+    requirements,
+    summary
+  };
+}
+
+function buildLegacyStoredParseResult(result: Prisma.JsonValue) {
+  const cloned = JSON.parse(JSON.stringify(result)) as Record<string, unknown>;
+  const sections = Array.isArray(cloned.sections)
+    ? cloned.sections.map((section) => {
+        if (typeof section !== "object" || section === null || Array.isArray(section)) {
+          return section;
+        }
+
+        const {
+          canonicalHeading,
+          parentSectionId,
+          hierarchyDepth,
+          levelApplicability,
+          listOrientation,
+          ...rest
+        } = section as Record<string, unknown>;
+        void canonicalHeading;
+        void parentSectionId;
+        void hierarchyDepth;
+        void levelApplicability;
+        void listOrientation;
+
+        return rest;
+      })
+    : cloned.sections;
+
+  return {
+    ...cloned,
+    parserVersion: "m3.2.0",
+    sections
   };
 }
 
@@ -278,6 +363,286 @@ describe("requirement analysis service", () => {
     expect(confirmedRecord.confirmedAt).not.toBeNull();
     expect(revised?.predecessor?.id).toBe(draft.analysis!.id);
     expect(revisedRecord.predecessorId).toBe(draft.analysis!.id);
-    expect(revisedRecord.status).toBe("NEEDS_REVIEW");
+    expect(revisedRecord.status).toBe("DRAFT");
+  });
+
+  it("creates a new immutable analysis for a newer parse while preserving prior analysis rows and applicability-rich atomic items", async () => {
+    const workspace = await createWorkspace();
+    const application = await createApplication(workspace.id, {
+      companyName: "Fieldguide",
+      role: "Software Engineer (All Levels)",
+      appliedAtLocal: "2026-07-15T10:00",
+      status: ApplicationStatus.APPLIED,
+      jobUrl: "https://www.fieldguide.io/careers/software-engineer-all-levels"
+    });
+    const saved = await saveJobDescriptionForApplication(
+      workspace.id,
+      application.id,
+      buildInput(loadFieldguideFixture())
+    );
+    const olderParse = await parseStoredJobDescriptionVersion(
+      workspace.id,
+      saved.version!.id,
+      prisma,
+      {
+        parserVersionOverride: "m3.2.1"
+      }
+    );
+    const olderDraft = await ensureRequirementAnalysisDraft(workspace.id, saved.version!.id, prisma);
+    const olderAnalysisSnapshot = await prisma.jobRequirementAnalysis.findUniqueOrThrow({
+      where: { id: olderDraft.analysis!.id }
+    });
+
+    const currentParse = await parseStoredJobDescriptionVersion(workspace.id, saved.version!.id, prisma);
+    const currentDraft = await ensureRequirementAnalysisDraft(workspace.id, saved.version!.id, prisma);
+    const currentRecord = await getJobRequirementAnalysisById(
+      workspace.id,
+      currentDraft.analysis!.id,
+      prisma
+    );
+    const currentAnalysis = parseStoredJobRequirementAnalysis(
+      currentRecord!.analysis as Prisma.JsonValue
+    );
+    const olderAnalysisAfter = await prisma.jobRequirementAnalysis.findUniqueOrThrow({
+      where: { id: olderDraft.analysis!.id }
+    });
+
+    expect(currentParse.parse.id).not.toBe(olderParse.parse.id);
+    expect(currentDraft.analysis!.id).not.toBe(olderDraft.analysis!.id);
+    expect(currentDraft.analysis!.jobDescriptionParseId).toBe(currentParse.parse.id);
+    expect(olderAnalysisAfter.jobDescriptionParseId).toBe(olderParse.parse.id);
+    expect(olderAnalysisAfter.analysis).toEqual(olderAnalysisSnapshot.analysis);
+    expect(
+      currentAnalysis.requirements.some(
+        (item) =>
+          item.originalText.includes("TypeScript, React, Node.js, Python, and GraphQL") &&
+          item.technologies.includes("TypeScript") &&
+          item.technologies.includes("GraphQL") &&
+          item.levelApplicability === "ALL_LEVELS"
+      )
+    ).toBe(true);
+    expect(
+      currentAnalysis.requirements.some(
+        (item) =>
+          item.originalText.includes("Take increasing ownership") &&
+          item.levelApplicability === "CONDITIONAL_HIGHER_LEVEL"
+      )
+    ).toBe(true);
+    expect(
+      currentAnalysis.requirements.some(
+        (item) =>
+          item.originalText.includes("Lead complex projects or systems") &&
+          item.levelApplicability === "SENIOR_ONLY"
+      )
+    ).toBe(true);
+    expect(
+      currentAnalysis.requirements.some(
+        (item) =>
+          item.originalText.includes("Drive company-level technical initiatives") &&
+          item.levelApplicability === "STAFF_ONLY"
+      )
+    ).toBe(true);
+    expect(
+      currentAnalysis.requirements.some(
+        (item) =>
+          item.originalText.includes("remote candidates anywhere in the US") &&
+          item.category === "CONTEXTUAL"
+      )
+    ).toBe(true);
+  });
+
+  it("loads a legacy stored analysis by deriving missing summary fields conservatively without mutating the source object", async () => {
+    const workspace = await createWorkspace();
+    const { version, parse } = await createParsedVersion(workspace.id);
+    const draft = await ensureRequirementAnalysisDraft(workspace.id, version.id, prisma);
+    const legacySource = buildLegacyStoredAnalysis(draft.analysis!.analysis as Prisma.JsonValue, {
+      removeLevelApplicability: true
+    });
+    const sourceSnapshot = JSON.stringify(legacySource);
+
+    const normalized = parseStoredJobRequirementAnalysis(legacySource as Prisma.JsonValue);
+
+    expect(normalized.summary.qualificationExtractionCount).toBe(
+      normalized.requirements.filter((item) => !item.userAdded).length
+    );
+    expect(normalized.summary.responsibilityExtractionCount).toBe(
+      normalized.responsibilities.length
+    );
+    expect(normalized.summary.downstreamReadiness).toBe("NEEDS_REVIEW");
+    expect(normalized.reviewStatus).toBe(draft.analysis!.status);
+    expect(normalized.requirements.every((item) => item.levelApplicability === "ALL_LEVELS")).toBe(
+      true
+    );
+    expect(JSON.stringify(legacySource)).toBe(sourceSnapshot);
+    expect(normalized.summary.requiredCount).toBe(
+      (legacySource.summary as Record<string, unknown>).requiredCount
+    );
+  });
+
+  it("keeps current-format analyses strict and rejects invalid explicit compatibility fields", async () => {
+    const workspace = await createWorkspace();
+    const { version } = await createParsedVersion(workspace.id);
+    const draft = await ensureRequirementAnalysisDraft(workspace.id, version.id, prisma);
+    const current = draft.analysis!.analysis as Prisma.JsonValue;
+
+    expect(parseStoredJobRequirementAnalysis(current)).toMatchObject({
+      id: draft.analysis!.id
+    });
+
+    const invalidCount = buildLegacyStoredAnalysis(current, {
+      removeLevelApplicability: true
+    }) as Record<string, unknown>;
+    (invalidCount.summary as Record<string, unknown>).qualificationExtractionCount = "two";
+    expect(() => parseStoredJobRequirementAnalysis(invalidCount as Prisma.JsonValue)).toThrow();
+
+    const invalidReadiness = buildLegacyStoredAnalysis(current, {
+      removeLevelApplicability: true
+    }) as Record<string, unknown>;
+    (invalidReadiness.summary as Record<string, unknown>).downstreamReadiness = "READY_NOW";
+    expect(() => parseStoredJobRequirementAnalysis(invalidReadiness as Prisma.JsonValue)).toThrow();
+  });
+
+  it("creates a draft from a legacy stored parse result by deriving missing section metadata without mutating the stored row", async () => {
+    const workspace = await createWorkspace();
+    const application = await createApplication(workspace.id, {
+      companyName: "Fieldguide",
+      role: "Software Engineer (All Levels)",
+      appliedAtLocal: "2026-07-15T10:00",
+      status: ApplicationStatus.APPLIED,
+      jobUrl: "https://www.fieldguide.io/careers/software-engineer-all-levels"
+    });
+    const saved = await saveJobDescriptionForApplication(
+      workspace.id,
+      application.id,
+      buildInput(loadFieldguideFixture())
+    );
+    const parsed = await parseStoredJobDescriptionVersion(workspace.id, saved.version!.id, prisma);
+    const legacyResult = buildLegacyStoredParseResult(parsed.parse.result as Prisma.JsonValue);
+    const sourceSnapshot = JSON.stringify(legacyResult);
+
+    await prisma.jobDescriptionParse.update({
+      where: { id: parsed.parse.id },
+      data: {
+        parserVersion: "m3.2.0",
+        result: legacyResult as Prisma.InputJsonValue
+      }
+    });
+
+    const draft = await ensureRequirementAnalysisDraft(workspace.id, saved.version!.id, prisma);
+    const storedParse = await prisma.jobDescriptionParse.findUniqueOrThrow({
+      where: { id: parsed.parse.id }
+    });
+    const normalizedDraft = parseStoredJobRequirementAnalysis(
+      draft.analysis!.analysis as Prisma.JsonValue
+    );
+
+    expect(draft.created).toBe(true);
+    expect(normalizedDraft.requirements.length).toBeGreaterThan(0);
+    expect(
+      normalizedDraft.requirements.some(
+        (item) =>
+          item.originalText.includes("Lead complex projects or systems") &&
+          item.levelApplicability === "SENIOR_ONLY"
+      )
+    ).toBe(true);
+    expect(
+      normalizedDraft.requirements.some(
+        (item) =>
+          item.originalText.includes("Drive company-level technical initiatives") &&
+          item.levelApplicability === "STAFF_ONLY"
+      )
+    ).toBe(true);
+    expect(JSON.stringify(legacyResult)).toBe(sourceSnapshot);
+    expect(storedParse.result).toEqual(legacyResult);
+  });
+
+  it("normalizes a persisted legacy row through context loading without writing back to the database", async () => {
+    const workspace = await createWorkspace();
+    const { version, parse } = await createParsedVersion(workspace.id);
+    const draft = await ensureRequirementAnalysisDraft(workspace.id, version.id, prisma);
+    const legacyAnalysis = buildLegacyStoredAnalysis(draft.analysis!.analysis as Prisma.JsonValue, {
+      removeLevelApplicability: true
+    });
+
+    const legacyRow = await prisma.jobRequirementAnalysis.create({
+      data: {
+        id: randomUUID(),
+        workspaceId: workspace.id,
+        jobDescriptionVersionId: version.id,
+        jobDescriptionParseId: parse.id,
+        contractVersion: "1.0.0",
+        classifierVersion: "m3.3.0",
+        sourceChecksum: version.checksum,
+        parserVersion: "m3.2.0",
+        status: "CONFIRMED",
+        analysis: legacyAnalysis as Prisma.InputJsonValue,
+        diagnostics: (legacyAnalysis as Record<string, unknown>).diagnostics as Prisma.InputJsonValue,
+        createdByWorkflow: "test.legacy.analysis",
+        confirmedAt: new Date("2026-07-17T12:00:00.000Z")
+      }
+    });
+
+    const before = await prisma.jobRequirementAnalysis.findUniqueOrThrow({
+      where: { id: legacyRow.id }
+    });
+    const context = await getJobRequirementAnalysisContext(workspace.id, version.id, prisma);
+    const after = await prisma.jobRequirementAnalysis.findUniqueOrThrow({
+      where: { id: legacyRow.id }
+    });
+
+    expect(context?.latestConfirmedContract?.summary.downstreamReadiness).toBe("NEEDS_REVIEW");
+    expect(context?.latestConfirmedContract?.summary.qualificationExtractionCount).toBe(
+      context?.latestConfirmedContract?.requirements.filter((item) => !item.userAdded).length
+    );
+    expect(context?.latestConfirmedContract?.summary.responsibilityExtractionCount).toBe(
+      context?.latestConfirmedContract?.responsibilities.length
+    );
+    expect(before.analysis).toEqual(after.analysis);
+    expect(before.status).toBe(after.status);
+  });
+
+  it("loads an otherwise valid empty legacy analysis conservatively", () => {
+    const emptyLegacy = {
+      id: "analysis-empty",
+      workspaceId: "workspace-1",
+      jobDescriptionVersionId: "job-description-1",
+      parseId: "parse-1",
+      contractVersion: "1.0.0",
+      classifierVersion: "m3.3.0",
+      createdAt: "2026-07-16T12:00:00.000Z",
+      reviewStatus: "CONFIRMED",
+      sourceChecksum: "checksum-1",
+      parserVersion: "m3.2.0",
+      requirements: [],
+      responsibilities: [],
+      summary: {
+        requiredCount: 0,
+        preferredCount: 0,
+        contextualCount: 0,
+        noiseCount: 0,
+        includedResponsibilitiesCount: 0,
+        excludedResponsibilitiesCount: 0,
+        technologiesCount: 0,
+        experienceRequirementsCount: 0,
+        educationRequirementsCount: 0,
+        certificationRequirementsCount: 0,
+        leadershipRequirementsCount: 0,
+        domainRequirementsCount: 0,
+        userOverridesCount: 0,
+        userAddedRequirementsCount: 0,
+        unresolvedReviewItemsCount: 0,
+        lowConfidenceCount: 0,
+        excludedRequirementsCount: 0
+      },
+      lowConfidenceAcknowledged: false,
+      diagnostics: []
+    } satisfies Record<string, unknown>;
+
+    const normalized = parseStoredJobRequirementAnalysis(emptyLegacy as Prisma.JsonValue);
+
+    expect(normalized.reviewStatus).toBe("CONFIRMED");
+    expect(normalized.summary.qualificationExtractionCount).toBe(0);
+    expect(normalized.summary.responsibilityExtractionCount).toBe(0);
+    expect(normalized.summary.downstreamReadiness).toBe("NEEDS_REVIEW");
   });
 });

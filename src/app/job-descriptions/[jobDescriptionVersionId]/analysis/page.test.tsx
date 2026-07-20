@@ -34,7 +34,7 @@ vi.mock("@/lib/job-descriptions/parse-service", () => ({
       ],
       result: {
         contractVersion: "1.0.0",
-        parserVersion: "m3.2.0",
+        parserVersion: "m3.2.1",
         parsedAt: "2026-07-16T12:00:00.000Z",
         jobDescriptionVersionId: "job-description-1",
         opportunityId: "opportunity-1",
@@ -46,7 +46,12 @@ vi.mock("@/lib/job-descriptions/parse-service", () => ({
           {
             id: "section-1-overview",
             heading: "Responsibilities",
+            canonicalHeading: "What You'll Do",
             type: "RESPONSIBILITIES",
+            parentSectionId: null,
+            hierarchyDepth: 0,
+            levelApplicability: "ALL_LEVELS",
+            listOrientation: "LIST",
             startLine: 1,
             endLine: 3,
             text: "- Build systems",
@@ -73,6 +78,8 @@ vi.mock("@/lib/job-descriptions/parse-service", () => ({
           },
           seniority: null,
           employmentType: null,
+          requisitionId: null,
+          postedText: null,
           workArrangement: {
             value: "REMOTE",
             confidence: "HIGH",
@@ -82,6 +89,8 @@ vi.mock("@/lib/job-descriptions/parse-service", () => ({
             agreementWithOpportunity: "NO_OPPORTUNITY_VALUE"
           },
           location: null,
+          secondaryLocation: null,
+          department: null,
           travelRequirement: null,
           clearanceRequirement: null,
           visaWorkAuthorization: null
@@ -118,6 +127,7 @@ vi.mock("@/lib/job-descriptions/parse-service", () => ({
             sourceSectionId: "section-2-req",
             sourceLocation: { startLine: 5, endLine: 5 },
             explicitLabel: "REQUIRED",
+            levelApplicability: "ALL_LEVELS",
             experienceRequirementId: "experience-1",
             degreeRequirement: null,
             certificationRequirement: null,
@@ -191,10 +201,12 @@ describe("JobDescriptionAnalysisPage", () => {
 
     expect(screen.getByRole("heading", { name: "Senior Engineer" })).toBeVisible();
     expect(screen.getByText("SUCCESS WITH WARNINGS")).toBeVisible();
-    expect(screen.getByText("m3.2.0")).toBeVisible();
+    expect(screen.getByText("m3.2.1")).toBeVisible();
     expect(screen.getByText("Build systems")).toBeVisible();
     expect(screen.getByText("5+ years of TypeScript")).toBeVisible();
     expect(screen.getByText("TypeScript")).toBeVisible();
+    expect(screen.getByText(/What You'll Do • RESPONSIBILITIES/)).toBeVisible();
+    expect(screen.getByText(/Applicability ALL LEVELS/)).toBeVisible();
     expect(screen.getByText("$150,000 - $180,000 base salary")).toBeVisible();
     expect(screen.getAllByText("MATCH")).toHaveLength(2);
     expect(

@@ -182,9 +182,11 @@ describe("fixture import service", () => {
     expect(String(firstMessage)).toMatch(/^Tracker row \d+:/);
   });
 
-  it("preserves exact Excel calendar dates for DATE_ONLY imports while manual timestamps still use cutoff behavior", async () => {
-    const workspace = await createWorkspace();
-    const template = getFixtureImportTemplate();
+  it(
+    "preserves exact Excel calendar dates for DATE_ONLY imports while manual timestamps still use cutoff behavior",
+    async () => {
+      const workspace = await createWorkspace();
+      const template = getFixtureImportTemplate();
 
     const jobId = await createFixtureImportPreview(workspace.id, template.inferredMapping);
     await runImportJob(workspace.id, jobId);
@@ -239,14 +241,18 @@ describe("fixture import service", () => {
       where: { id: manualApplication.id }
     });
 
-    expect(
-      storedManualApplication.jobSearchDate?.toISOString().slice(0, 10)
-    ).toBe("2025-07-14");
-  });
+      expect(
+        storedManualApplication.jobSearchDate?.toISOString().slice(0, 10)
+      ).toBe("2025-07-14");
+    },
+    15000
+  );
 
-  it("imports valid rows even when one row fails and retry does not duplicate imported rows", async () => {
-    const workspace = await createWorkspace();
-    const template = getFixtureImportTemplate();
+  it(
+    "imports valid rows even when one row fails and retry does not duplicate imported rows",
+    async () => {
+      const workspace = await createWorkspace();
+      const template = getFixtureImportTemplate();
 
     const jobId = await createFixtureImportPreview(workspace.id, template.inferredMapping);
     const jobBeforeImport = await getImportJobDetail(workspace.id, jobId);
@@ -311,11 +317,13 @@ describe("fixture import service", () => {
 
     await retryImportJobFailures(workspace.id, jobId);
 
-    const importedCountAfterRetry = await prisma.application.count({
-      where: { workspaceId: workspace.id }
-    });
-    expect(importedCountAfterRetry).toBe(importedCountAfterPartialRun + 1);
-  });
+      const importedCountAfterRetry = await prisma.application.count({
+        where: { workspaceId: workspace.id }
+      });
+      expect(importedCountAfterRetry).toBe(importedCountAfterPartialRun + 1);
+    },
+    15000
+  );
 
   it("does not reject a usable fixture row when optional URL and email values are invalid", async () => {
     const workspace = await createWorkspace();

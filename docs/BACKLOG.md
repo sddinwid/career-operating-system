@@ -13,6 +13,7 @@ This backlog is organized by outcome-based milestones rather than the original p
 - Dependency: `M3.2`
 - Personal workflow benefit: lets Scott correct parsed requirements once and reuse the authoritative result later
 - Acceptance summary: versioned deterministic requirement classification, review workflow, immutable confirmation, and revision lineage
+- July 18, 2026 corrective note: atomic competency decomposition, level-aware applicability, contextual extraction, and downstream-readiness gating were hardened against the real Fieldguide posting without creating a new milestone
 
 ### `M3.2 - Deterministic Job Description Parser`
 - Status: `verified complete`
@@ -21,6 +22,9 @@ This backlog is organized by outcome-based milestones rather than the original p
 - Dependency: `M3.1`
 - Personal workflow benefit: reduces repetitive requirement extraction from each posting
 - Acceptance summary: produce parsed company, title, sections, responsibilities, qualifications, technologies, compensation, and parser-version metadata with immutable reviewable output
+- July 18, 2026 corrective note: parser version `m3.2.2` adds atomic line preservation, wrapped-line heuristics, canonical competency hierarchy, company-values recognition, and merged-item diagnostics for downstream safety
+- July 19, 2026 corrective note: parser version `m3.2.4` adds deterministic scraped metadata-block recognition, company/title/location ranking, conditional remote-plus-hybrid normalization, department extraction, `K`-range compensation parsing, Workday wrapper-noise filtering, requisition and posted metadata extraction, and improved education-equivalency parsing for real pasted postings such as Fieldguide and Marathon Health
+- July 20, 2026 corrective note: parser version `m3.2.5` and classifier version `m3.3.3` decompose Marathon-style compound education or experience and tooling or certification statements into atomic reviewed items, preserve equivalency modifiers, exclude compensation leakage from requirements, and promote conservative contextual role-summary extraction without creating a new milestone
 
 ### `M2.2 - Career Knowledge Validation and Read-Only Inspection`
 - Status: `deferred`
@@ -105,17 +109,29 @@ This backlog is organized by outcome-based milestones rather than the original p
 - Acceptance summary: render structured resumes into downloadable DOCX artifacts linked to source versions
 
 ### `M7.2 - Render Validation and PDF Output`
-- Status: `planned`
+- Status: `verified complete`
 - Priority: `P2`
 - Milestone: `Milestone 7`
 - Dependency: `M7.1`
 - Personal workflow benefit: makes artifacts usable for employer submission without manual conversion work
-- Acceptance summary: fixture-based render checks and PDF conversion or rendering
+- Acceptance summary: direct deterministic PDF rendering, shared artifact validation, PDF browser verification, and immutable version reuse
 
 ### `M7.3 - Immutable Document Versioning and Attachment`
 - Status: `planned`
 - Priority: `P2`
 - Milestone: `Milestone 7`
+
+## Deferred shell workspaces
+
+- Calendar workspace
+- Companies workspace
+- Contacts workspace
+- Interviews workspace
+- Career Profile workspace
+- Analytics workspace
+- Settings workspace
+
+These remain intentionally deferred after the July 19, 2026 navigation/discovery correction. They should not be backfilled with empty placeholder pages just to satisfy shell completeness.
 - Dependency: `M7.2`
 - Personal workflow benefit: tracks exactly which artifact version was downloaded or submitted
 - Acceptance summary: persisted document metadata, immutable version records, and application linkage

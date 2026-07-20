@@ -1,6 +1,6 @@
 # Project Status
 
-Date: July 17, 2026
+Date: July 20, 2026
 
 ## Current Milestone
 
@@ -8,11 +8,11 @@ Current milestone: `Milestone 7 - Document Rendering and Artifact Versioning`
 
 Prompt 04D is not automatically next.
 
-The active implementation slice is `M7.2 - Render Validation and PDF Output`.
+The active implementation slice is `M7.3 - Immutable Document Versioning and Attachment`.
 
 ## Last Completed Implementation
 
-Last completed implementation: `M7.1 - DOCX Template and Renderer`.
+Last completed implementation: `M7.2 - Render Validation and PDF Output`.
 
 Repository evidence:
 - `src/lib/job-descriptions/service.ts`
@@ -50,8 +50,15 @@ Repository evidence:
   - Evidence: `src/lib/job-descriptions/service.ts`, `src/lib/job-descriptions/schemas.ts`, `src/app/applications/[applicationId]/job-description/page.tsx`, `src/app/job-descriptions/[jobDescriptionVersionId]/page.tsx`, `tests/e2e/job-descriptions.spec.ts`
 - Deterministic job-description parsing with immutable parse runs, parser-version idempotency, diagnostics, and read-only analysis
   - Evidence: `src/lib/job-descriptions/parser-contract.ts`, `src/lib/job-descriptions/section-aliases.ts`, `src/lib/job-descriptions/technology-dictionary.ts`, `src/lib/job-descriptions/parser.ts`, `src/lib/job-descriptions/parse-service.ts`, `src/app/job-descriptions/[jobDescriptionVersionId]/analysis/page.tsx`, `src/lib/job-descriptions/parser.test.ts`, `src/lib/job-descriptions/parse-service.test.ts`, `tests/e2e/job-descriptions.spec.ts`
+  - Verified corrective update on July 18, 2026: nested competency headings, preferred-experience sections, and level-specific expectation blocks now parse into structured requirements instead of collapsing into unrecognized headings
+  - Verified corrective update on July 18, 2026: the real Fieldguide Software Engineer (All Levels) fixture now parses into five separate responsibilities, atomic competency and preferred items, canonical `Core Competencies` hierarchy, contextual `Our Values`, and persisted applicability metadata
+  - Verified corrective update on July 19, 2026: Workday-style Marathon Health postings now ignore wrapper chrome, preserve requisition and posted metadata, extract labeled responsibilities and preferred technologies, and keep education-equivalency details structured instead of collapsing them into malformed fields
+  - Verified corrective update on July 20, 2026: parser version `m3.2.5` now decomposes compound Marathon-style education, experience, methodology, tooling, and certification text into atomic requirement records, preserves shared equivalency modifiers, extracts conservative contextual role-summary items, and excludes compensation boilerplate from candidate requirements
 - Requirement classification, review, immutable confirmation, and revision workflow
   - Evidence: `src/lib/job-descriptions/requirement-analysis-contract.ts`, `src/lib/job-descriptions/requirement-classifier.ts`, `src/lib/job-descriptions/requirement-analysis-service.ts`, `src/lib/job-descriptions/requirement-analysis-actions.ts`, `src/app/job-descriptions/[jobDescriptionVersionId]/requirements/page.tsx`, `src/lib/job-descriptions/requirement-classifier.test.ts`, `src/lib/job-descriptions/requirement-analysis-service.test.ts`, `tests/e2e/job-descriptions.spec.ts`
+  - Verified corrective update on July 18, 2026: downstream readiness now blocks evidence retrieval when extraction coverage is insufficient, and the review UI surfaces the linked parser diagnostics directly
+  - Verified corrective update on July 18, 2026: legacy `m3.3.0` analysis JSON without the newer coverage-summary fields now loads through a read-time compatibility adapter that derives missing counts, defaults downstream readiness to `NEEDS_REVIEW`, and does not rewrite persisted rows
+  - Verified corrective update on July 20, 2026: classifier version `m3.3.3` preserves level-specific requirements as non-universal contextual guidance, keeps technologies attached to the correct atomic item, suppresses compensation leakage diagnostics after semantic decomposition, and renders applicability plus section hierarchy plus equivalency metadata in the review UI without duplicate item text
 - Evidence retrieval contract, immutable retrieval runs, idempotent reuse, and read-only evidence inspection
   - Evidence: `src/lib/evidence-retrieval/contract.ts`, `src/lib/evidence-retrieval/engine.ts`, `src/lib/evidence-retrieval/service.ts`, `src/lib/evidence-retrieval/actions.ts`, `src/app/job-descriptions/[jobDescriptionVersionId]/evidence/page.tsx`, `src/lib/evidence-retrieval/engine.test.ts`, `src/lib/evidence-retrieval/service.test.ts`, `tests/e2e/job-descriptions.spec.ts`
 - Evidence scoring contract, immutable scoring runs, idempotent reuse, and read-only score inspection
@@ -87,7 +94,6 @@ Repository evidence:
 
 ## Foundation-Only Models
 
-- `Document` and `DocumentVersion`
 - `AiRun`
 - `AuditEvent`
 
@@ -95,7 +101,7 @@ Evidence:
 - `prisma/schema.prisma`
 - `prisma/migrations/20260716003224_prompt01_database_foundation/migration.sql`
 
-These models exist in schema only. No upload/download/rendering services, UI, or tests currently exercise them.
+These models exist in schema only. No deterministic generation workflows currently exercise them end to end.
 
 ## Implemented Career Knowledge Foundation
 
@@ -128,10 +134,15 @@ These models exist in schema only. No upload/download/rendering services, UI, or
 
 ## Known Failures
 
-- Navigation items for `Calendar`, `Companies`, `Contacts`, `Interviews`, `Documents`, `Career Profile`, `Analytics`, and `Settings` still point to placeholder `#` links.
-  - Evidence: `src/lib/navigation.ts`
 - The home page is still a foundation/health landing page, not a real Today workflow.
   - Evidence: `src/app/page.tsx`
+
+## July 19, 2026 corrective navigation update
+
+- `/jobs` now exists and lists saved opportunities, including unlinked jobs
+- `/jobs/[jobOpportunityId]` now aggregates current workflow state and immutable version history
+- `/documents` now provides a rendered-artifact index
+- placeholder sidebar links were replaced with implemented links, disabled deferred items, and a separate diagnostics section
 
 ## Known Technical Debt
 
@@ -186,7 +197,7 @@ See `docs/DECISIONS.md`.
 
 ## Current Active Priority
 
-The active product priority is now `M7.2 - Render Validation and PDF Output`.
+The active product priority is now `M7.3 - Immutable Document Versioning and Attachment`.
 
 ## Revised Progress Overview
 
@@ -197,7 +208,7 @@ The active product priority is now `M7.2 - Render Validation and PDF Output`.
 - `Milestone 4 - Evidence Retrieval and Scoring`: `M4.1` complete, `M4.2` complete, `M4.3` complete
 - `Milestone 5 - Resume Composition Engine`: `M5.1` complete, `M5.2` complete, `M5.3` complete
 - `Milestone 6 - Resume Studio and Review`: `M6.1` complete, `M6.2` complete
-- `Milestone 7 - Rendering and Packaging`: `M7.1` complete, `M7.2` next
+- `Milestone 7 - Rendering and Packaging`: `M7.1` complete, `M7.2` complete, `M7.3` next
 - `Milestones 9-12 - Remaining tracker ergonomics, analytics, generic ingestion, and commercialization`: deferred later
 ## Current Milestone
 
@@ -208,10 +219,11 @@ The active product priority is now `M7.2 - Render Validation and PDF Output`.
 - M6.1 - Complete
 - M6.2 - Complete
 - M7.1 - Complete
-- M7.2 - Next
+- M7.2 - Complete
+- M7.3 - Next
 ## Resume Workflow
 
-M7.1 adds deterministic DOCX rendering, immutable `DocumentVersion` creation, active-approval render reuse, local artifact storage, and document download routes on top of the `M6.2` rendering gate. The required verification suite now passes on the current repository state.
+M7.2 adds direct deterministic PDF rendering, shared artifact validation, immutable `DocumentVersion` reuse by format, PDF browser verification, and shared download handling on top of the existing `M6.2` rendering gate. The required verification suite now passes on the current repository state.
 
 ## Migration Health
 

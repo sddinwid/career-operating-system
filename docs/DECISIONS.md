@@ -118,6 +118,29 @@ The career knowledge import and retrieval foundation is complete enough to suppo
 Consequence:
 - only minimal Career Knowledge readiness visibility is added where later workflows need confirmation
 - implementation priority moves to `M3.1` and `M3.2` so the end-to-end document-generation pipeline gains its second deterministic input
+
+## D021 - Deferred shell items stay visibly deferred
+
+Top-level workspaces that do not yet exist should not link to diagnostics, placeholders, or fake pages.
+
+Consequence:
+- the shell may show disabled `Coming later` items
+- product navigation links must only point to implemented workspaces
+
+## D022 - Job discovery is opportunity-first
+
+Saved jobs are rediscovered from `JobOpportunity`, not from `Application`, because job-description intake can exist without an application record.
+
+Consequence:
+- `/jobs` and `/jobs/[jobOpportunityId]` aggregate workflow state around the opportunity
+- unlinked opportunities remain visible instead of being hidden by application-only navigation
+
+## D023 - Visited-link contrast is an explicit stylesheet concern
+
+Visited links must remain readable inside button-like navigation treatments.
+
+Consequence:
+- global visited-link color inheritance is now specified instead of relying on browser defaults
 - a larger inspection workspace can return later without blocking source preservation and parsing
 
 ## D021 - Job descriptions use a dedicated immutable version model
@@ -147,6 +170,9 @@ Consequence:
 - parser version and contract version can advance without rewriting history
 - failed parse diagnostics survive as first-class records
 - same version plus same parser version reuses the existing successful parse instead of creating duplicates
+- atomic list-item preservation, hierarchical competency sections, and applicability metadata can evolve through new parser versions without rewriting older parse rows
+- source-specific cleanup such as Workday wrapper-noise filtering, metadata-block extraction, education-equivalency parsing, and compound qualification decomposition belongs in the parser layer so downstream review and evidence workflows consume deterministic structured output instead of reinterpreting raw source text
+- classifier-level safeguards such as compensation-line exclusion, contextual-role classification, and downstream-readiness gating belong in the requirement-analysis layer so old parse rows remain immutable while new reviewed analyses stay conservative
 
 ## D024 - Requirement review uses a dedicated immutable analysis model
 
@@ -156,6 +182,7 @@ Consequence:
 - parser output remains unchanged and inspectable
 - drafts, confirmed analyses, and revised successors remain historically distinct
 - user overrides live in the review layer, not the parser layer
+- downstream safety remains a deterministic readiness gate derived from persisted diagnostics rather than a manual toggle
 
 ## D025 - Evidence retrieval uses a dedicated immutable run model
 
@@ -231,3 +258,14 @@ Reasoning:
 - local ignored storage keeps artifacts local-first and private to the workspace environment
 - relative storage keys avoid leaking absolute filesystem paths into persisted metadata or URLs
 - strict `getApprovedResumeForRendering(...)` dependency preserves exact approval, audit, and content lineage
+
+## M7.2 PDF Rendering Decision
+
+M7.2 renders PDF directly from the exact approved deterministic resume model using `pdf-lib`, embeds a Unicode-capable font, and validates the finished artifact with `pdfjs-dist` before persistence.
+
+Reasoning:
+
+- direct PDF generation preserves the same approval-gated contract without relying on DOCX conversion, browser screenshots, LibreOffice, or Word automation
+- extracted-text validation proves the artifact remains searchable and ATS-friendly rather than rasterized
+- metadata inspection prevents persisted PDFs from leaking internal revision notes or provenance-only fields
+- format-specific reuse still belongs inside the existing immutable `DocumentVersion` lineage, so the requested format is part of the render-input checksum

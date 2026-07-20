@@ -98,6 +98,7 @@ Milestones `M3.1` and `M3.2` add local, non-AI job-description capture, immutabl
 - Store immutable parser runs with parser version, contract version, diagnostics, and structured output
 - Reuse the existing successful parse when the same job-description version is parsed again with the same parser version
 - Inspect parsed role metadata, sections, responsibilities, qualifications, technologies, compensation, experience, education, certifications, and benefits at `/job-descriptions/[jobDescriptionVersionId]/analysis`
+- Production-hardening correction on July 20, 2026: parser version `m3.2.5` keeps list-oriented sections atomic, recognizes hierarchical competency sections such as `Core Competencies > Technical Craft`, preserves level applicability, filters Workday wrapper noise, captures requisition and posted metadata, decomposes compound education or experience and tooling or certification statements into reviewable atomic items, excludes compensation boilerplate from requirements, and preserves equivalency modifiers for pasted postings such as Fieldguide and Marathon Health
 
 See [docs/JOB_DESCRIPTION_INTAKE.md](docs/JOB_DESCRIPTION_INTAKE.md) and [docs/JOB_DESCRIPTION_PARSER.md](docs/JOB_DESCRIPTION_PARSER.md) for workflow, versioning, and parser details.
 
@@ -110,8 +111,21 @@ Milestone `M3.3` adds a reviewed requirement layer on top of immutable parser ou
 - Responsibilities stay separate from requirements
 - Review supports kind changes, exclusions, review notes, corrected display text, and user-added requirements
 - Confirmed analyses are read-only and changes require a revised successor analysis
+- Production-hardening correction on July 20, 2026: classifier version `m3.3.3` keeps senior and staff expectations level-specific, preserves atomic preferred items and technology association, shows applicability and section hierarchy in the review UI, surfaces education, certification, and equivalency metadata, excludes compensation leakage from reviewed requirements, and keeps evidence retrieval blocked until extraction coverage is adequate
 
 See [docs/REQUIREMENT_CLASSIFICATION.md](docs/REQUIREMENT_CLASSIFICATION.md).
+
+## Navigation and Discovery
+
+The repository now includes a corrective navigation and discovery slice for already-implemented workflows:
+
+- `/jobs` lists saved opportunities, including jobs without linked applications
+- `/jobs/[jobOpportunityId]` aggregates the existing immutable workflow pages
+- `/documents` indexes rendered immutable artifacts
+- sidebar navigation links only point to implemented workspaces or visible deferred entries
+- System Health remains secondary diagnostics instead of a product workspace shortcut
+
+See [docs/NAVIGATION_AND_DISCOVERY.md](docs/NAVIGATION_AND_DISCOVERY.md).
 
 ## Evidence retrieval
 
@@ -223,17 +237,18 @@ See [docs/STRUCTURED_RESUME_CONTRACT.md](docs/STRUCTURED_RESUME_CONTRACT.md).
 
 The resume workflow now supports deterministic comparison between immutable resume sources and a separate immutable rendering-approval history. Rendering itself is still out of scope. Future renderers must consume the active approval gate instead of choosing the latest resume content directly.
 
-## M7.1 DOCX Rendering
+## M7.2 PDF Rendering And Validation
 
-The resume workflow now supports deterministic DOCX rendering from the active rendering approval gate.
+The resume workflow now supports deterministic PDF rendering from the active rendering approval gate with shared immutable artifact validation for both PDF and DOCX.
 
-- DOCX artifacts are stored as immutable `DocumentVersion` rows linked back to approval, audit, composition, and optional revision lineage
-- Resume pages and application detail pages can render, inspect, and download the latest immutable DOCX
-- Render reuse is keyed from the exact approved rendering inputs, so the same approved source reuses the existing immutable document version
+- PDF artifacts are rendered directly from the approved deterministic resume model without DOCX conversion, browser screenshots, LibreOffice, or Word automation
+- PDF artifacts are stored as immutable `DocumentVersion` rows linked back to approval, audit, composition, and optional revision lineage
+- Resume pages and application detail pages can render, inspect, and download the latest immutable PDF while still exposing the shared DOCX renderer
+- Render reuse is keyed from the exact approved rendering inputs plus format, so the same approved PDF source reuses the existing immutable document version
 - Rendering is blocked unless one active `ResumeRenderingApproval` exists for the exact application and job-description lineage
+- Artifact validation now rejects invalid outputs before persistence and records either DOCX ZIP validation or PDF text and metadata validation on the saved version
 - Artifact detail lives at `/documents/[documentVersionId]`
-- Downloads stream from `/api/documents/[documentVersionId]/download` with a DOCX MIME type and a sanitized suggested filename
+- Downloads stream from `/api/documents/[documentVersionId]/download` with the stored MIME type and a sanitized suggested filename
 - Artifacts are written under the local ignored storage root from `LOCAL_DATA_DIR`, not into the repository
-- PDF output, attachment workflows, and broader document navigation remain later milestones
 
-See [docs/DOCX_RENDERING.md](docs/DOCX_RENDERING.md).
+See [docs/PDF_RENDERING.md](docs/PDF_RENDERING.md) and [docs/DOCX_RENDERING.md](docs/DOCX_RENDERING.md).

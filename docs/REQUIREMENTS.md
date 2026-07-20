@@ -1,5 +1,16 @@
 # Requirements
 
+## Corrective Navigation and Discovery Requirements
+
+- Implement truthful top-level navigation for currently usable workspaces only
+- Expose `/jobs` so saved opportunities without linked applications remain discoverable
+- Expose `/jobs/[jobOpportunityId]` as a read-only workflow aggregator
+- Expose `/documents` as an initial rendered-artifact index
+- Keep System Health secondary diagnostics rather than a primary product destination
+- Preserve deterministic current-version selection semantics for job descriptions and downstream immutable records
+- Keep deferred workspaces visible only as honest disabled items or hide them
+- Maintain readable visited-link, focus, and button contrast behavior
+
 ## Product goal
 
 Eliminate Scott's repetitive career-management work in a local-first application.
@@ -62,12 +73,20 @@ Career Knowledge Base
 - Persist original job-description text and its normalized record.
 - Parse normalized saved job descriptions deterministically with no AI calls.
 - Parse company, title, location, compensation, responsibilities, required skills, preferred skills, domain, and seniority.
+- Treat Workday-style wrapper chrome, metadata chips, duplicate company footers, and reserved `About the Job` headings as non-content unless they are deterministically mapped into structured metadata.
+- Preserve atomic list items for responsibilities, competency lines, and preferred qualifications unless deterministic wrapped-line signals prove continuation.
+- Decompose compound qualification paragraphs into independently reviewable degree, experience, methodology, tooling, and certification items when the source expresses distinct candidate expectations, while preserving shared provenance and equivalency modifiers.
+- Recognize hierarchical competency and conditional-expectation sections, including canonical heading, parent section, hierarchy depth, list orientation, and applicability.
+- Persist requisition id, posted text, and education-equivalency language when those fields are explicitly present in the source text.
 - Track parser version and separate source text from derived structure.
 - Preserve immutable parse diagnostics and support read-only inspection before corrections or downstream generation.
 - Support review and correction before downstream generation uses parsed output.
 - Store reviewed authoritative requirements separately from parser output.
+- Preserve level applicability and contextual role-location guidance through reviewed requirement persistence and UI display.
+- Exclude compensation ranges, offer-variation disclaimers, and similar compensation boilerplate from reviewed requirement sets while preserving them in parse metadata.
 - Support categories, requirement kinds, exclusions, review notes, and user-added requirements.
 - Require explicit confirmation before downstream evidence retrieval consumes the reviewed set.
+- Keep downstream evidence retrieval blocked when merged-item or extraction-coverage diagnostics indicate the reviewed set is not yet downstream-safe.
 - Require downstream evidence scoring to remain deterministic, explainable, read-only, and free of a single overall match percentage until requirement aggregation is separately designed.
 
 ### Evidence retrieval and scoring
@@ -182,4 +201,15 @@ DOCX rendering must remain deterministic and approval-gated.
 - rendered artifacts must persist as immutable `Document` and `DocumentVersion` records
 - downloads must stream with a DOCX MIME type and sanitized filename behavior
 - file integrity must be checked through persisted size and checksum metadata
-- rendered output must remain ATS-friendly DOCX rather than PDF or image-based output
+- rendered output must remain ATS-friendly and text selectable
+
+## M7.2 Requirements
+
+PDF rendering must remain deterministic, approval-gated, and direct.
+
+- PDF rendering must consume the same active approved resume source as DOCX rendering
+- PDF output must render directly from the exact approved deterministic resume model rather than converting DOCX output
+- rendered PDFs must remain searchable, selectable, Unicode-capable, and ATS-friendly
+- rasterized pages, browser screenshots, LibreOffice, Microsoft Word automation, and external executables are not allowed
+- artifact validation must reject invalid PDFs before any `DocumentVersion` is persisted
+- identical approved PDF inputs must reuse the existing successful immutable version without changing application workflow state

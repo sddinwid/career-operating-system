@@ -1,6 +1,501 @@
 import { promises as fs } from "node:fs";
-import JSZip from "jszip";
+import path from "node:path";
+import { pathToFileURL } from "node:url";
+import { PrismaClient } from "@prisma/client";
 import { expect, test, type Page } from "@playwright/test";
+import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
+
+const prisma = new PrismaClient();
+const FIELDGUIDE_COMPANY_NAME = "Fieldguide";
+const FIELDGUIDE_ROLE_NAME = "Software Engineer (All Levels)";
+const FIELDGUIDE_SOURCE_URL = "https://www.fieldguide.io/careers/software-engineer-all-levels";
+type FieldguideStandaloneVersion = Awaited<ReturnType<typeof getFieldguideStandaloneVersion>>;
+
+function delay(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function interactiveDocxArtifacts(page: Page) {
+  return page.locator("a, button").filter({ hasText: /docx/i });
+}
+
+async function cleanupFieldguideStandaloneFixture() {
+  const matchingVersions = await prisma.jobDescriptionVersion.findMany({
+    where: {
+      workspaceId: "local-workspace",
+      sourceUrl: FIELDGUIDE_SOURCE_URL,
+      opportunity: {
+        title: FIELDGUIDE_ROLE_NAME,
+        company: {
+          name: FIELDGUIDE_COMPANY_NAME
+        }
+      }
+    },
+    select: {
+      id: true,
+      opportunityId: true
+    },
+    orderBy: [{ createdAt: "asc" }, { id: "asc" }]
+  });
+
+  const jobDescriptionVersionIds = Array.from(new Set(matchingVersions.map((version) => version.id)));
+  const opportunityIds = Array.from(new Set(matchingVersions.map((version) => version.opportunityId)));
+
+  if (jobDescriptionVersionIds.length === 0 && opportunityIds.length === 0) {
+    return;
+  }
+
+  const applicationIds = (
+    await prisma.application.findMany({
+      where: {
+        workspaceId: "local-workspace",
+        opportunityId: {
+          in: opportunityIds
+        }
+      },
+      select: {
+        id: true
+      }
+    })
+  ).map((application) => application.id);
+
+  await prisma.$transaction(async (transaction) => {
+    if (applicationIds.length > 0) {
+      await transaction.activity.deleteMany({
+        where: {
+          applicationId: {
+            in: applicationIds
+          }
+        }
+      });
+    }
+
+    const scopedDocumentWhere = {
+      OR: [
+        {
+          workspaceId: "local-workspace",
+          applicationId: {
+            in: applicationIds
+          }
+        },
+        {
+          workspaceId: "local-workspace",
+          jobDescriptionVersionId: {
+            in: jobDescriptionVersionIds
+          }
+        }
+      ]
+    };
+
+    await transaction.documentVersion.deleteMany({ where: scopedDocumentWhere });
+    await transaction.document.deleteMany({ where: scopedDocumentWhere });
+    await transaction.resumeRenderingApproval.deleteMany({ where: scopedDocumentWhere });
+    await transaction.resumeAuditRun.deleteMany({ where: scopedDocumentWhere });
+    await transaction.resumeRevisionVersion.deleteMany({ where: scopedDocumentWhere });
+    await transaction.resumeCompositionVersion.deleteMany({ where: scopedDocumentWhere });
+    await transaction.structuredResumeVersion.deleteMany({ where: scopedDocumentWhere });
+    await transaction.matchReportRun.deleteMany({ where: scopedDocumentWhere });
+    await transaction.evidenceScoringRun.deleteMany({ where: scopedDocumentWhere });
+    await transaction.evidenceRetrievalRun.deleteMany({ where: scopedDocumentWhere });
+    await transaction.jobRequirementAnalysis.deleteMany({
+      where: {
+        workspaceId: "local-workspace",
+        jobDescriptionVersionId: {
+          in: jobDescriptionVersionIds
+        }
+      }
+    });
+    await transaction.jobDescriptionParse.deleteMany({
+      where: {
+        workspaceId: "local-workspace",
+        jobDescriptionVersionId: {
+          in: jobDescriptionVersionIds
+        }
+      }
+    });
+
+    if (applicationIds.length > 0) {
+      await transaction.applicationStatusHistory.deleteMany({
+        where: {
+          applicationId: {
+            in: applicationIds
+          }
+        }
+      });
+      await transaction.application.deleteMany({
+        where: {
+          id: {
+            in: applicationIds
+          }
+        }
+      });
+    }
+
+    await transaction.jobDescriptionVersion.deleteMany({
+      where: {
+        id: {
+          in: jobDescriptionVersionIds
+        }
+      }
+    });
+    await transaction.jobOpportunity.deleteMany({
+      where: {
+        id: {
+          in: opportunityIds
+        }
+      }
+    });
+  });
+}
+
+async function getFieldguideStandaloneVersion() {
+  return prisma.jobDescriptionVersion.findFirst({
+    where: {
+      workspaceId: "local-workspace",
+      sourceUrl: FIELDGUIDE_SOURCE_URL,
+      opportunity: {
+        title: FIELDGUIDE_ROLE_NAME,
+        company: {
+          name: FIELDGUIDE_COMPANY_NAME
+        }
+      }
+    },
+    include: {
+      parses: {
+        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+        select: {
+          id: true,
+          parserVersion: true,
+          status: true
+        }
+      },
+      requirementAnalyses: {
+        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+        select: {
+          id: true,
+          classifierVersion: true,
+          status: true,
+          jobDescriptionParseId: true
+        }
+      }
+    }
+  });
+}
+
+async function waitForFieldguideStandaloneVersion(
+  predicate: (version: FieldguideStandaloneVersion | null) => boolean,
+  failureMessage: string,
+  timeoutMs = 5_000
+) {
+  const startedAt = Date.now();
+
+  while (Date.now() - startedAt < timeoutMs) {
+    const version = await getFieldguideStandaloneVersion();
+    if (predicate(version)) {
+      return version;
+    }
+
+    await delay(100);
+  }
+
+  throw new Error(failureMessage);
+}
+
+test.afterAll(async () => {
+  await prisma.$disconnect();
+});
+
+test("parses and reviews the Fieldguide fixture as atomic, level-aware requirements before enabling evidence retrieval", async ({
+  page
+}) => {
+  test.setTimeout(65_000);
+  await cleanupFieldguideStandaloneFixture();
+  const fieldguideDescription = await fs.readFile(
+    path.join(process.cwd(), "fixtures", "fieldguide-software-engineer-all-levels.txt"),
+    "utf8"
+  );
+
+  await page.goto("/jobs/new");
+  await expect(page.getByRole("heading", { name: "Capture a new job description" })).toBeVisible();
+
+  await page.getByRole("textbox", { name: "Company" }).fill("Fieldguide");
+  await page.getByRole("textbox", { name: "Role" }).fill("Software Engineer (All Levels)");
+  await page
+    .getByRole("textbox", { name: "Job URL" })
+    .fill("https://www.fieldguide.io/careers/software-engineer-all-levels");
+  await page.getByRole("textbox", { name: "Opportunity source" }).fill("LinkedIn");
+  await page
+    .getByRole("textbox", { name: "Source URL" })
+    .fill("https://www.fieldguide.io/careers/software-engineer-all-levels");
+  await page
+    .getByRole("textbox", { name: "Source title" })
+    .fill("Fieldguide Software Engineer (All Levels)");
+  await page.getByRole("textbox", { name: "Publication date" }).fill("2026-07-18");
+  await page.getByRole("textbox", { name: "Job description text" }).fill(fieldguideDescription);
+  await page.getByRole("button", { name: "Save job description" }).click();
+
+  await expect(
+    page.getByText("Job description saved successfully.")
+  ).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Software Engineer (All Levels)" })).toBeVisible();
+  const savedVersion = await waitForFieldguideStandaloneVersion(
+    (version) => version !== null,
+    "Expected the standalone Fieldguide job description version to be created."
+  );
+  expect(savedVersion?.parses).toHaveLength(0);
+  expect(savedVersion?.requirementAnalyses).toHaveLength(0);
+
+  await expect(page.getByRole("button", { name: "Parse Job Description" })).toBeVisible();
+  await page.getByRole("button", { name: "Parse Job Description" }).click();
+
+  await expect(page.getByText("Job description parsed successfully.")).toBeVisible();
+  await expect(page.getByText("m3.2.5")).toBeVisible();
+  const parsedVersion = await waitForFieldguideStandaloneVersion(
+    (version) => version?.parses.length === 1,
+    "Expected the standalone Fieldguide job description to have exactly one parse."
+  );
+  expect(parsedVersion?.parses).toHaveLength(1);
+  expect(parsedVersion?.parses[0]?.parserVersion).toBe("m3.2.5");
+
+  const parseId = parsedVersion?.parses[0]?.id;
+  expect(parseId).toBeTruthy();
+
+  await expect(page.getByRole("button", { name: "Reparse with Current Parser" })).toBeVisible();
+  await page.getByRole("button", { name: "Reparse with Current Parser" }).click();
+  await expect(
+    page.getByText(
+      "The current parser version already had a successful result, so the existing parse was reused."
+    )
+  ).toBeVisible();
+
+  const reusedParseVersion = await waitForFieldguideStandaloneVersion(
+    (version) => version?.parses.length === 1 && version.parses[0]?.id === parseId,
+    "Expected the standalone Fieldguide job description to reuse the existing parse."
+  );
+  expect(reusedParseVersion?.parses).toHaveLength(1);
+  expect(reusedParseVersion?.parses[0]?.id).toBe(parseId);
+
+  await Promise.all([
+    page.waitForURL(/\/job-descriptions\/[^/]+\/analysis$/),
+    page.getByRole("link", { name: "View Parsed Job Description" }).click()
+  ]);
+
+  await expect(page.getByText(/Core Competencies .* CORE COMPETENCIES/)).toBeVisible();
+  await expect(page.getByText(/Technical Craft .* TECHNICAL CRAFT/)).toBeVisible();
+  await expect(page.getByText(/Depth 1 .* Applicability ALL LEVELS/).first()).toBeVisible();
+  await expect(page.getByText("Applicability: CONDITIONAL HIGHER LEVEL")).toBeVisible();
+  await expect(page.getByText("TypeScript, React, Node.js, Python, and GraphQL")).toBeVisible();
+
+  await Promise.all([
+    page.waitForURL(/\/job-descriptions\/[^/]+\/requirements(?:\?|$)/),
+    page.getByRole("link", { name: "Review Requirements" }).click()
+  ]);
+  await expect(page.getByText("Requirement review")).toBeVisible();
+
+  const firstAnalysisVersion = await waitForFieldguideStandaloneVersion(
+    (version) => version?.requirementAnalyses.length === 1,
+    "Expected the standalone Fieldguide job description to have exactly one requirement analysis."
+  );
+  expect(firstAnalysisVersion?.requirementAnalyses).toHaveLength(1);
+  expect(firstAnalysisVersion?.requirementAnalyses[0]?.classifierVersion).toBe("m3.3.3");
+  expect(firstAnalysisVersion?.requirementAnalyses[0]?.jobDescriptionParseId).toBe(parseId);
+
+  const analysisId = firstAnalysisVersion?.requirementAnalyses[0]?.id;
+  expect(analysisId).toBeTruthy();
+
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await expect(page.getByText("Requirement review")).toBeVisible();
+
+  const reusedAnalysisVersion = await waitForFieldguideStandaloneVersion(
+    (version) => version?.requirementAnalyses.length === 1 && version.requirementAnalyses[0]?.id === analysisId,
+    "Expected the standalone Fieldguide job description to reuse the existing requirement analysis."
+  );
+  expect(reusedAnalysisVersion?.requirementAnalyses).toHaveLength(1);
+  expect(reusedAnalysisVersion?.requirementAnalyses[0]?.id).toBe(analysisId);
+
+  const requiredSection = page
+    .locator("section")
+    .filter({ has: page.getByRole("heading", { name: "Required" }) });
+  const preferredSection = page
+    .locator("section")
+    .filter({ has: page.getByRole("heading", { name: "Preferred" }) });
+  const contextualSection = page
+    .locator("section")
+    .filter({ has: page.getByRole("heading", { name: "Contextual" }) });
+  const responsibilitiesSection = page
+    .locator("section")
+    .filter({ has: page.getByRole("heading", { name: "Responsibilities" }) });
+
+  await expect(
+    responsibilitiesSection.getByText(
+      "Design, build, and deliver high-quality features that drive customer and business impact"
+    )
+  ).toBeVisible();
+  await expect(
+    responsibilitiesSection.getByText(
+      "Collaborate cross-functionally with product and design to turn complex problems into elegant, user-focused solutions"
+    )
+  ).toBeVisible();
+  await expect(
+    responsibilitiesSection.getByText(
+      "Balance iteration speed with long-term maintainability and system health"
+    )
+  ).toBeVisible();
+  await expect(
+    responsibilitiesSection.getByText(
+      "Continuously improve our tech stack, developer workflows, and reliability practices"
+    )
+  ).toBeVisible();
+  await expect(
+    responsibilitiesSection.getByText(
+      "Contribute to a supportive, growth-oriented engineering culture based on trust, learning, and excellence"
+    )
+  ).toBeVisible();
+
+  await expect(
+    requiredSection.getByText(
+      "Strong software engineering fundamentals and experience shipping production code"
+    )
+  ).toBeVisible();
+  await expect(
+    requiredSection.getByText(
+      "Familiarity with modern web technologies such as TypeScript, React, Node.js, Python, and GraphQL"
+    )
+  ).toBeVisible();
+  await expect(requiredSection.getByText(/Technologies: .*TypeScript.*Node\.js.*React.*GraphQL/)).toBeVisible();
+  await expect(
+    requiredSection.getByText("Writing maintainable, well-tested, and observable code")
+  ).toBeVisible();
+  await expect(
+    requiredSection.getByText("Sound judgment around tradeoffs, reliability, and performance")
+  ).toBeVisible();
+  await expect(
+    requiredSection.getByText(
+      "Ability to scope, prioritize, and deliver work that moves business outcomes"
+    )
+  ).toBeVisible();
+  await expect(
+    requiredSection.getByText(
+      "Clear and proactive communication around progress, risks, and decisions"
+    )
+  ).toBeVisible();
+  await expect(
+    requiredSection.getByText(
+      "Ownership mindset - following work through from ideation to production and iteration"
+    )
+  ).toBeVisible();
+  await expect(
+    requiredSection.getByText(
+      "Empathy for teammates and customers; contributes positively to team culture"
+    )
+  ).toBeVisible();
+  await expect(
+    requiredSection.getByText("Open to feedback and committed to continuous improvement")
+  ).toBeVisible();
+  await expect(
+    requiredSection.getByText(
+      "Works effectively across disciplines and functions to achieve shared goals"
+    )
+  ).toBeVisible();
+  await expect(
+    requiredSection.getByText(
+      "Mentors and supports peers; contributes to hiring and onboarding processes"
+    )
+  ).toBeVisible();
+  await expect(
+    requiredSection.getByText(
+      "Curious and self-driven in learning new skills, technologies, and domains"
+    )
+  ).toBeVisible();
+
+  await expect(
+    preferredSection.getByText(
+      "Experience or familiarity with audit, assurance, or risk management domains"
+    )
+  ).toBeVisible();
+  await expect(
+    preferredSection.getByText(
+      "Shaping a new tech stack, product, or engineering org from the ground up"
+    )
+  ).toBeVisible();
+  await expect(
+    preferredSection.getByText(
+      "Working with infrastructure or data layers such as AWS, Postgres, and Hasura"
+    )
+  ).toBeVisible();
+  await expect(preferredSection.getByText(/Technologies: .*AWS.*PostgreSQL.*Hasura/)).toBeVisible();
+  await expect(
+    preferredSection.getByText(
+      "Architecting systems for document-heavy workflows, including ingestion, processing, and retrieval"
+    )
+  ).toBeVisible();
+  await expect(
+    preferredSection.getByText(
+      "Integrating or building ML-powered systems for document understanding or search"
+    )
+  ).toBeVisible();
+  await expect(preferredSection.getByText("Technologies: Machine Learning")).toBeVisible();
+  await expect(
+    preferredSection.getByText("Implementing DevOps and CI/CD best practices")
+  ).toBeVisible();
+  await expect(preferredSection.getByText("Technologies: CI/CD")).toBeVisible();
+  await expect(
+    preferredSection.getByText(
+      "Applying information security and compliance principles (SOC 2, FedRAMP, etc.)"
+    )
+  ).toBeVisible();
+  await expect(preferredSection.getByText("Technologies: SOC 2, FedRAMP")).toBeVisible();
+
+  await expect(
+    contextualSection.getByText("This role is open to remote candidates anywhere in the US")
+  ).toBeVisible();
+  await expect(
+    contextualSection.getByText("Bay Area-based employees will work in a hybrid setting")
+  ).toBeVisible();
+  await expect(
+    contextualSection.getByText(
+      "The final level will be determined during the interview process based on scope and demonstrated experience"
+    )
+  ).toBeVisible();
+  await expect(
+    contextualSection.getByText(
+      "Lead complex projects or systems, setting technical direction and ensuring long-term health"
+    )
+  ).toBeVisible();
+  await expect(
+    contextualSection.getByText(
+      "Drive company-level technical initiatives and influence cross-team architecture"
+    )
+  ).toBeVisible();
+  await expect(
+    contextualSection.getByText(
+      /Take increasing ownership - from building features to shaping architecture and mentoring others/
+    )
+  ).toBeVisible();
+  await expect(contextualSection.getByText("Applicability: Conditional Higher Level")).toBeVisible();
+  await expect(contextualSection.getByText("Applicability: Senior").first()).toBeVisible();
+  await expect(contextualSection.getByText("Applicability: Staff").first()).toBeVisible();
+  await expect(contextualSection.getByText("Section: Core Competencies > Culture & Growth").first()).toBeVisible();
+  await expect(contextualSection.getByText("Fearless - Inspire and break down seemingly impossible walls")).toBeVisible();
+
+  await expect(page.getByText(/0 errors, [0-9]+ warnings, [0-9]+ info/).first()).toBeVisible();
+  await expect(page.getByText("READY", { exact: true }).first()).toBeVisible();
+  await expect(page.getByRole("button", { name: "Retrieve Career Evidence" })).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Confirm Requirement Analysis" }).click();
+  await expect(page.getByText("Requirement analysis confirmed.")).toBeVisible();
+  await expect(
+    page.getByText(
+      "This analysis is read-only. Create a revised analysis to make additional changes while preserving this confirmed version."
+    )
+  ).toBeVisible();
+  await expect(page.getByRole("button", { name: "Retrieve Career Evidence" })).toBeVisible();
+
+  const confirmedAnalysisVersion = await getFieldguideStandaloneVersion();
+  expect(confirmedAnalysisVersion?.requirementAnalyses).toHaveLength(1);
+  expect(confirmedAnalysisVersion?.requirementAnalyses[0]?.id).toBe(analysisId);
+  expect(confirmedAnalysisVersion?.requirementAnalyses[0]?.status).toBe("CONFIRMED");
+});
 
 test("captures, versions, and reuses job descriptions without changing application workflow state", async ({
   page
@@ -39,6 +534,7 @@ Preferred Qualifications
 - Experience mentoring engineers`;
 
   await page.goto("/applications");
+  await page.getByLabel("Applications view").selectOption("system:all-active");
   await page.getByRole("searchbox", { name: "Search applications" }).fill(companyName);
 
   const grid = page.getByTestId("applications-grid");
@@ -71,7 +567,10 @@ Preferred Qualifications
     page.getByText("No job description has been saved for this application yet.")
   ).toBeVisible();
 
-  await page.getByRole("link", { name: "Add Job Description" }).click();
+  await Promise.all([
+    page.waitForURL(/\/applications\/[^/]+\/job-description$/, { timeout: 15_000 }),
+    page.getByRole("link", { name: "Add Job Description" }).click()
+  ]);
   await expect(
     page.getByRole("heading", { name: "Add job description" })
   ).toBeVisible();
@@ -113,7 +612,7 @@ Preferred Qualifications
 
   await expect(page.getByText("Job description parsed successfully.")).toBeVisible();
   await expect(page.getByText("SUCCESS", { exact: true })).toBeVisible();
-  await expect(page.getByText("m3.2.0")).toBeVisible();
+  await expect(page.getByText("m3.2.5")).toBeVisible();
   await expect(
     page.getByRole("link", { name: "View Parsed Job Description" })
   ).toBeVisible();
@@ -125,7 +624,7 @@ Preferred Qualifications
   await expect(page.getByText("$150,000 - $180,000 base salary")).toBeVisible();
   await expect(page.getByText("Experience mentoring engineers")).toBeVisible();
   await expect(page.getByText("TypeScript")).toBeVisible();
-  await expect(page.getByText("5 years with TypeScript")).toBeVisible();
+  await expect(page.getByText("5+ years with TypeScript")).toBeVisible();
   await expect(page.getByText(/\d+ errors, \d+ warnings, \d+ info/)).toBeVisible();
 
   await page.getByRole("link", { name: "Review Requirements" }).click();
@@ -136,7 +635,7 @@ Preferred Qualifications
   await expect(page.getByRole("heading", { name: "Noise" })).toBeVisible();
   const contextualCard = page
     .locator("section")
-    .filter({ has: page.getByRole("heading", { name: "Contextual" }) })
+    .filter({ has: page.getByRole("heading", { name: "Required" }) })
     .locator("article")
     .filter({ hasText: "PostgreSQL and observability in production systems" })
     .first();
@@ -176,7 +675,12 @@ Preferred Qualifications
   await expect(page.getByText("User-added requirement saved.")).toBeVisible();
   await expect(page.getByText("Experience coaching engineering teams").first()).toBeVisible();
 
-  await page.getByLabel(/I acknowledge the remaining low-confidence items/i).check();
+  const lowConfidenceAcknowledgement = page.getByLabel(
+    /I acknowledge the remaining low-confidence items/i
+  );
+  if ((await lowConfidenceAcknowledgement.count()) > 0) {
+    await lowConfidenceAcknowledgement.check();
+  }
   await page.getByRole("button", { name: "Confirm Requirement Analysis" }).click();
   await expect(page.getByText("Requirement analysis confirmed.")).toBeVisible();
   await expect(
@@ -189,7 +693,12 @@ Preferred Qualifications
   await page.getByRole("button", { name: "Retrieve Career Evidence" }).click();
   await expect(page.getByText("Career evidence retrieval completed successfully.")).toBeVisible();
   await expect(page.getByRole("link", { name: "View Candidate Evidence" })).toBeVisible();
-  await page.getByRole("link", { name: "View Candidate Evidence" }).click();
+  await Promise.all([
+    page.waitForURL(/\/job-descriptions\/[^/]+\/evidence\?runId=[^&]+(?:&.*)?$/, {
+      timeout: 15_000
+    }),
+    page.getByRole("link", { name: "View Candidate Evidence" }).click()
+  ]);
   await expect(page.getByRole("heading", { name: "Gap Summary" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Required" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Preferred" })).toBeVisible();
@@ -201,7 +710,12 @@ Preferred Qualifications
   await page.getByRole("button", { name: "Score Retrieved Evidence" }).click();
   await expect(page.getByText("Evidence scoring completed successfully.")).toBeVisible();
   await expect(page.getByRole("link", { name: "View Evidence Scores" })).toBeVisible();
-  await page.getByRole("link", { name: "View Evidence Scores" }).click();
+  await Promise.all([
+    page.waitForURL(/\/job-descriptions\/[^/]+\/evidence\/scores\?runId=[^&]+(?:&.*)?$/, {
+      timeout: 15_000
+    }),
+    page.getByRole("link", { name: "View Evidence Scores" }).click()
+  ]);
   await expect(page.getByRole("heading", { name: "Required" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Preferred" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Restricted Only" })).toBeVisible();
@@ -216,7 +730,12 @@ Preferred Qualifications
   await page.getByRole("button", { name: "Generate Match Report" }).click();
   await expect(page.getByText("Match report generated successfully.")).toBeVisible();
   await expect(page.getByRole("link", { name: "View Match Report" })).toBeVisible();
-  await page.getByRole("link", { name: "View Match Report" }).click();
+  await Promise.all([
+    page.waitForURL(/\/job-descriptions\/[^/]+\/match-report\?runId=[^&]+(?:&.*)?$/, {
+      timeout: 15_000
+    }),
+    page.getByRole("link", { name: "View Match Report" }).click()
+  ]);
   await expect(page.getByText(/STRONG ALIGNMENT|GOOD ALIGNMENT|PARTIAL ALIGNMENT|WEAK ALIGNMENT|INSUFFICIENT EVIDENCE/).first()).toBeVisible();
   await expect(page.getByText(/PRIORITIZE|APPLY|CONSIDER|LOW PRIORITY|DO NOT RECOMMEND YET/).first()).toBeVisible();
   await expect(page.getByText(/READY|READY WITH LIMITATIONS|NEEDS REVIEW|NOT READY/).first()).toBeVisible();
@@ -232,7 +751,12 @@ Preferred Qualifications
   await page.getByRole("button", { name: "Create Structured Resume Plan" }).click();
   await expect(page.getByText("Structured resume plan created successfully.")).toBeVisible();
   await expect(page.getByRole("link", { name: "View Structured Resume Plan" })).toBeVisible();
-  await page.getByRole("link", { name: "View Structured Resume Plan" }).click();
+  await Promise.all([
+    page.waitForURL(/\/job-descriptions\/[^/]+\/resume-plan\?versionId=[^&]+(?:&.*)?$/, {
+      timeout: 15_000
+    }),
+    page.getByRole("link", { name: "View Structured Resume Plan" }).click()
+  ]);
   await expect(
     page.getByText(
       /GENERAL BACKEND|PYTHON BACKEND|NODE TYPESCRIPT BACKEND|MICROSOFT DOTNET|JAVA KOTLIN|AI AGENTIC|FULL STACK|TECHNICAL LEADERSHIP|OTHER/
@@ -247,33 +771,57 @@ Preferred Qualifications
   await expect(page.getByRole("heading", { name: "Claims to Avoid" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Page Budget" })).toBeVisible();
   await expect(page.getByText(/Structured resume plan/i).first()).toBeVisible();
-  await expect(page.getByText(/docx/i)).toHaveCount(0);
+  await expect(interactiveDocxArtifacts(page)).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Compose Targeted Resume" })).toBeVisible();
-  await page.getByRole("button", { name: "Compose Targeted Resume" }).click();
-  await expect(page.getByText("Targeted resume composed successfully.")).toBeVisible();
-  await expect(page.getByText("Targeted resume preview")).toBeVisible();
+  await Promise.all([
+    page.waitForURL(/\/job-descriptions\/[^/]+\/resume\?versionId=.*success=composition-(created|reused)/, {
+      timeout: 15_000
+    }),
+    page.getByRole("button", { name: "Compose Targeted Resume" }).click()
+  ]);
+  await expect(page.getByText("Targeted resume composed successfully.")).toBeVisible({
+    timeout: 15_000
+  });
+  await expect(page.getByText("Targeted resume preview")).toBeVisible({ timeout: 15_000 });
   await expect(page.getByRole("button", { name: "Run Resume Audit" })).toBeVisible();
   await expect(page.getByText(/\u2014/)).toHaveCount(0);
   await page.getByRole("button", { name: "Run Resume Audit" }).click();
   await expect(page.getByText("Resume audit completed successfully.")).toBeVisible();
   await expect(page.getByText(/READY FOR RENDERING|READY WITH WARNINGS|NEEDS REVIEW|BLOCKED/).first()).toBeVisible();
-  await expect(page.getByRole("link", { name: "View Resume Audit" })).toBeVisible();
-  await page.getByRole("link", { name: "View Resume Audit" }).click();
+  const viewResumeAuditLink = page.getByRole("link", { name: "View Resume Audit" });
+  await expect(viewResumeAuditLink).toHaveCount(1);
+  await expect(viewResumeAuditLink).toBeVisible();
+  await expect(viewResumeAuditLink).toHaveAttribute(
+    "href",
+    /\/job-descriptions\/[^/]+\/resume\/audit\?runId=[^&]+/
+  );
+  await Promise.all([
+    page.waitForURL(/\/job-descriptions\/[^/]+\/resume\/audit\?runId=[^&]+(?:&success=[^&]+)?$/, {
+      timeout: 15_000
+    }),
+    viewResumeAuditLink.click()
+  ]);
   await expect(page.getByText("Resume audit report")).toBeVisible();
   await expect(page.getByText("Page budget")).toBeVisible();
   await expect(page.getByText("Statement Findings")).toBeVisible();
   await expect(page.getByRole("link", { name: "Resume Composition" })).toBeVisible();
-  await expect(page.getByText(/docx/i)).toHaveCount(0);
-  await expect(page.getByText(/pdf/i)).toHaveCount(0);
+  await expect(interactiveDocxArtifacts(page)).toHaveCount(0);
   await approveForRendering(page, { required: true });
   await expect(page.getByRole("link", { name: "Open Resume Studio" })).toBeVisible();
-  await page.getByRole("link", { name: "Open Resume Studio" }).click();
+  await Promise.all([
+    page.waitForURL(
+      /\/job-descriptions\/[^/]+\/resume\/studio\?revisionId=[^&]+(?:&.*)?$/,
+      { timeout: 15_000 }
+    ),
+    page.getByRole("link", { name: "Open Resume Studio" }).click()
+  ]);
   await expect(page.getByText("Resume Studio")).toBeVisible();
 
   const summarySection = page
     .locator("section")
     .filter({ has: page.getByRole("heading", { name: "Professional Summary" }) });
   const summaryTextarea = summarySection.getByRole("textbox", { name: "Revised" });
+  await expect(summaryTextarea).toBeVisible({ timeout: 15_000 });
   await summaryTextarea.fill(
     "Platform engineer focused on TypeScript, PostgreSQL, and reliable backend platform delivery."
   );
@@ -305,7 +853,15 @@ Preferred Qualifications
   await page
     .getByRole("textbox", { name: "Revision note" })
     .fill("Shortened the summary and trimmed optional content for a tighter employer-facing pass.");
+  const saveDraftResponse = page.waitForResponse((response) => {
+    return (
+      response.request().method() === "PATCH" &&
+      response.url().includes("/api/resume-studio/") &&
+      response.status() === 200
+    );
+  });
   await page.getByRole("button", { name: "Save Draft" }).click();
+  await saveDraftResponse;
   await expect(page.getByText("Draft saved.")).toBeVisible();
   await expect(page.getByRole("heading", { name: "Review Notes" })).toBeVisible();
   await page.reload();
@@ -328,22 +884,32 @@ Preferred Qualifications
   await expect(page.getByText("Approval History")).toBeVisible();
   await page.getByRole("link", { name: "Back to Revision" }).click();
   await expect(page.getByRole("link", { name: "Create New Revision" }).first()).toBeVisible();
-  await page.getByRole("link", { name: "Create New Revision" }).first().click();
+  await Promise.all([
+    page.waitForURL(
+      /\/job-descriptions\/[^/]+\/resume\/studio\?revisionId=[^&]+(?:&.*)?$/,
+      { timeout: 15_000 }
+    ),
+    page.getByRole("link", { name: "Create New Revision" }).first().click()
+  ]);
   await expect(page.getByText("Resume Studio")).toBeVisible();
   await expect(page.getByText("Predecessor revision")).toBeVisible();
-  await expect(page.getByText(/docx/i)).toHaveCount(0);
-  await expect(page.getByText(/pdf/i)).toHaveCount(0);
+  await expect(interactiveDocxArtifacts(page)).toHaveCount(0);
   await page.getByRole("link", { name: "Back to Resume Preview" }).click();
   await page.getByRole("link", { name: "Open application" }).click();
   await expect(page.getByText("Match report summary")).toBeVisible();
   await expect(page.getByText("Structured Resume Plan Generated")).toBeVisible();
   await expect(page.getByText("Resume Audit Complete")).toBeVisible();
-  if ((await page.getByRole("button", { name: /Render Resume DOCX/ }).count()) === 0) {
-    await page.getByRole("link", { name: "View Resume Audit" }).click();
+  if ((await page.getByRole("button", { name: /Render Resume PDF/ }).count()) === 0) {
+    await Promise.all([
+      page.waitForURL(/\/job-descriptions\/[^/]+\/resume\/audit\?runId=[^&]+(?:&success=[^&]+)?$/, {
+        timeout: 15_000
+      }),
+      page.getByRole("link", { name: "View Resume Audit" }).click()
+    ]);
     await approveForRendering(page, { required: true });
     await page.getByRole("link", { name: "Open application" }).click();
   }
-  await expect(page.getByText(/Resume DOCX Rendering Ready|Immutable Resume DOCX Ready/)).toBeVisible();
+  await expect(page.getByText(/Resume PDF Rendering Ready|Immutable Resume PDF Ready/)).toBeVisible();
   await expect(page.getByText(/Active Approval|No Active Approval/).first()).toBeVisible();
   await expect(page.getByRole("link", { name: "View Comparison" })).toBeVisible();
   await expect(page.getByText(/Resume Generation Ready|Match Report Generated|Match Report Has Critical Gaps|Resume Generation Ready With Limitations/).first()).toBeVisible();
@@ -355,14 +921,14 @@ Preferred Qualifications
       response.url().includes(`/applications/${applicationId}`) &&
       response.status() === 303
   );
-  await page.getByRole("button", { name: "Render Resume DOCX" }).click();
+  await page.getByRole("button", { name: "Render Resume PDF" }).click();
   const renderResponse = await renderRequest;
   expect(renderResponse.ok()).toBeFalsy();
   expect(renderResponse.status()).toBe(303);
-  await expect(page.getByText("Approved resume rendered to an immutable DOCX successfully.")).toBeVisible();
-  await expect(page.getByRole("link", { name: "View Resume DOCX" })).toBeVisible();
+  await expect(page.getByText("Approved resume rendered to an immutable PDF successfully.")).toBeVisible();
+  await expect(page.getByRole("link", { name: "View Resume PDF" })).toBeVisible();
 
-  const renderedDocumentLink = page.getByRole("link", { name: "View Resume DOCX" });
+  const renderedDocumentLink = page.getByRole("link", { name: "View Resume PDF" });
   const renderedDocumentHref = await renderedDocumentLink.getAttribute("href");
   expect(renderedDocumentHref).toMatch(/^\/documents\/[^/]+$/);
   expect(renderedDocumentHref?.split("/").pop()).toBeTruthy();
@@ -371,8 +937,9 @@ Preferred Qualifications
   await expect(page.getByRole("heading", { name: `${companyName} ${roleName} Resume` })).toBeVisible();
   await expect(page.getByText(/Version 1/i).first()).toBeVisible();
   await expect(page.getByText(/Filename/i)).toBeVisible();
-  await expect(page.getByText(/Renderer version: m7\.1\.0/i)).toBeVisible();
-  await expect(page.getByText(/Template version: resume-docx-v1/i)).toBeVisible();
+  await expect(page.getByText(/Format: PDF/i)).toBeVisible();
+  await expect(page.getByText(/Renderer version: m7\.2\.0/i)).toBeVisible();
+  await expect(page.getByText(/Template version: resume-pdf-v1/i)).toBeVisible();
   await expect(page.getByText(/Approval/i).first()).toBeVisible();
   await expect(page.getByText(/Audit/i).first()).toBeVisible();
   const sizeText = await page
@@ -382,46 +949,67 @@ Preferred Qualifications
     .textContent();
   expect(Number.parseInt(sizeText?.replace(/\D+/g, "") ?? "0", 10)).toBeGreaterThan(0);
   await expect(page.getByText(/Preview [0-9a-f]{12}/i)).toBeVisible();
-  await expect(page.getByRole("link", { name: /PDF/i })).toHaveCount(0);
-  await expect(page.getByRole("link", { name: /PDF/i })).toHaveCount(0);
   await expect(page.getByText("1 immutable version stored for this logical document.")).toBeVisible();
+  await expect(page.getByText(/Extracted text items:/i)).toBeVisible();
+  await expect(page.getByText(/Image operators: 0/i)).toBeVisible();
 
   const downloadPromise = page.waitForEvent("download");
-  await page.getByRole("link", { name: "Download DOCX" }).click();
+  await page.getByRole("link", { name: "Download PDF" }).click();
   const download = await downloadPromise;
   const suggestedFilename = download.suggestedFilename();
   expect(suggestedFilename).toContain("Fixture_Candidate");
-  expect(suggestedFilename.endsWith(".docx")).toBe(true);
+  expect(suggestedFilename.endsWith(".pdf")).toBe(true);
   const downloadPath = test.info().outputPath(suggestedFilename);
   await download.saveAs(downloadPath);
   const downloadedFile = await fs.readFile(downloadPath);
   expect(downloadedFile.byteLength).toBeGreaterThan(0);
 
-  const zip = await JSZip.loadAsync(downloadedFile);
-  expect(zip.file("[Content_Types].xml")).toBeTruthy();
-  expect(zip.file("word/document.xml")).toBeTruthy();
-  const documentXml = await zip.file("word/document.xml")?.async("string");
-  if (!documentXml) {
-    throw new Error("Expected word/document.xml to be present in the rendered DOCX.");
+  const loadingTask = getDocument({
+    data: new Uint8Array(downloadedFile),
+    standardFontDataUrl: `${pathToFileURL(
+      path.resolve(process.cwd(), "node_modules/pdfjs-dist/standard_fonts")
+    ).href}/`
+  });
+  const pdf = await loadingTask.promise;
+  const extractedPages: string[] = [];
+  for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
+    const pdfPage = await pdf.getPage(pageNumber);
+    const textContent = await pdfPage.getTextContent();
+    extractedPages.push(
+      textContent.items
+        .map((item) => ("str" in item ? item.str : ""))
+        .join(" ")
+        .replace(/\s+/g, " ")
+        .trim()
+    );
   }
-  expect(documentXml).toContain(candidateName);
-  expect(documentXml).toContain("Professional Summary");
-  expect(documentXml).toContain("Core Skills");
-  expect(documentXml).toContain("Professional Experience");
+  const extractedText = extractedPages.join("\n");
+  const metadata = await pdf.getMetadata();
+  const metadataInfo = metadata.info as Record<string, unknown>;
+  await loadingTask.destroy();
+
+  expect(extractedText).toContain(candidateName);
+  expect(extractedText).toContain("Professional Summary");
+  expect(extractedText).toContain("Core Skills");
+  expect(extractedText).toContain("Professional Experience");
   expect(
-    documentXml.includes(approvedRoleBullet) || documentXml.includes(approvedAccomplishmentBullet)
+    extractedText.includes(approvedRoleBullet) || extractedText.includes(approvedAccomplishmentBullet)
   ).toBe(true);
-  if (documentXml.includes("Selected Projects")) {
-    expect(documentXml).toContain(approvedProject);
+  if (extractedText.includes("Selected Projects")) {
+    expect(extractedText).toContain(approvedProject);
   }
-  expect(documentXml).not.toContain("Shortened the summary and trimmed optional content for a tighter employer-facing pass.");
-  expect(documentXml).not.toContain("I acknowledge the remaining non-blocking warnings.");
-  expect(documentXml).not.toContain("exp_fixture");
-  expect(documentXml).not.toContain("project_fixture");
-  expect(documentXml).not.toContain("candidate_fixture");
-  expect(documentXml).not.toContain("sourceEvidenceIds");
-  expect(documentXml).not.toContain("resumeRevisionVersionId");
-  expect(documentXml).not.toMatch(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i);
+  expect(extractedText).not.toContain("Shortened the summary and trimmed optional content for a tighter employer-facing pass.");
+  expect(extractedText).not.toContain("I acknowledge the remaining non-blocking warnings.");
+  expect(extractedText).not.toContain("exp_fixture");
+  expect(extractedText).not.toContain("project_fixture");
+  expect(extractedText).not.toContain("candidate_fixture");
+  expect(extractedText).not.toContain("sourceEvidenceIds");
+  expect(extractedText).not.toContain("resumeRevisionVersionId");
+  expect(extractedText).not.toMatch(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i);
+  expect(metadataInfo.Title).toBe(`${companyName} ${roleName} Resume`);
+  expect(metadataInfo.Producer).toBe("Career Operating System");
+  expect(JSON.stringify(metadataInfo)).not.toContain("resumeRevisionVersionId");
+  expect(JSON.stringify(metadataInfo)).not.toContain("sourceEvidenceIds");
 
   await page.getByRole("link", { name: "Open application" }).click();
   await expect(statusCard).toContainText(initialStatusText.trim());
@@ -432,15 +1020,15 @@ Preferred Qualifications
       response.url().includes(`/applications/${applicationId}`) &&
       response.status() === 303
   );
-  await page.getByRole("button", { name: "Render Resume DOCX Again" }).click();
+  await page.getByRole("button", { name: "Render Resume PDF Again" }).click();
   const rerenderResponse = await rerenderRequest;
   expect(rerenderResponse.status()).toBe(303);
   await expect(
     page.getByText(
-      "The active approved resume already had a matching immutable DOCX, so the existing document version was reused."
+      "The active approved resume already had a matching immutable PDF, so the existing document version was reused."
     )
   ).toBeVisible();
-  await page.getByRole("link", { name: "View Resume DOCX" }).click();
+  await page.getByRole("link", { name: "View Resume PDF" }).click();
   await expect(page.getByText("1 immutable version stored for this logical document.")).toBeVisible();
   const reusedDocumentHref = page.url();
   expect(reusedDocumentHref.endsWith(renderedDocumentHref ?? "")).toBe(true);
@@ -509,8 +1097,15 @@ Preferred Qualifications
   await expect(page.getByText("Improve observability and deployment safety")).toBeVisible();
   await expect(page.getByText("Experience mentoring engineers")).toHaveCount(0);
 
-  await page.getByRole("link", { name: "Open application" }).click();
-  await page.getByRole("link", { name: "Replace Job Description" }).click();
+  await Promise.all([
+    page.waitForURL(/\/applications\/[^/]+$/, { timeout: 15_000 }),
+    page.getByRole("link", { name: "Open application" }).click()
+  ]);
+  await Promise.all([
+    page.waitForURL(/\/applications\/[^/]+\/job-description$/, { timeout: 15_000 }),
+    page.getByRole("link", { name: "Replace Job Description" }).click()
+  ]);
+  await expect(page.getByRole("heading", { name: "Replace job description" })).toBeVisible();
   await page.getByRole("textbox", { name: "Job description text" }).fill(secondDescription);
   await page.getByRole("button", { name: "Save job description" }).click();
 
@@ -522,6 +1117,7 @@ Preferred Qualifications
   await expect(page.getByText("2 versions")).toBeVisible();
 
   await page.goto("/applications");
+  await page.getByLabel("Applications view").selectOption("system:all-active");
   await page.getByRole("searchbox", { name: "Search applications" }).fill(companyName);
   await expect(
     grid.locator('.ag-cell[col-id="company"]').filter({ hasText: companyName })
@@ -532,10 +1128,54 @@ Preferred Qualifications
     .locator('.ag-cell[col-id="status"]')
     .filter({ hasText: initialStatusValue });
   await expect(statusCell).toHaveCount(1);
-  await statusCell.dblclick();
+  const statusRowIndex = await page.evaluate((companyNameValue) => {
+    const api = window.__careerOsApplicationsGrid?.api;
+    if (!api) {
+      throw new Error("Grid API is unavailable.");
+    }
+
+    let rowIndex: number | null = null;
+    api.forEachNodeAfterFilterAndSort((node) => {
+      if (rowIndex !== null) {
+        return;
+      }
+
+      if (node.data?.company === companyNameValue && typeof node.rowIndex === "number") {
+        rowIndex = node.rowIndex;
+      }
+    });
+
+    return rowIndex;
+  }, companyName);
+  expect(statusRowIndex).not.toBeNull();
+  await page.evaluate((rowIndex) => {
+    const api = window.__careerOsApplicationsGrid?.api;
+    if (!api || rowIndex == null) {
+      throw new Error("Grid API is unavailable.");
+    }
+
+    api.ensureIndexVisible(rowIndex);
+    api.startEditingCell({
+      rowIndex,
+      colKey: "status"
+    });
+  }, statusRowIndex);
   const statusEditor = page.getByRole("combobox", { name: "Status editor" });
   await expect(statusEditor).toBeVisible();
+  const statusSaveResponse = page.waitForResponse((response) => {
+    if (
+      response.request().method() !== "POST" ||
+      !response.url().includes("/api/applications/") ||
+      !response.url().includes("/grid-field")
+    ) {
+      return false;
+    }
+
+    const payload = response.request().postDataJSON() as { field?: string } | null;
+    return payload?.field === "status";
+  });
   await statusEditor.selectOption(nextStatusValue);
+  await statusSaveResponse;
 
   await expect(
     page.getByRole("status").filter({ hasText: "Application updated." }).first()
@@ -599,9 +1239,16 @@ async function approveForRendering(
   }
 
   await expect(approvalButton).toBeEnabled();
+  const approvalRequest = page.waitForResponse(
+    (response) =>
+      response.request().method() === "POST" &&
+      response.url().includes("/api/resume-rendering-approvals"),
+    { timeout: 15_000 }
+  );
   await approvalButton.click();
+  await approvalRequest;
   await expect(
     page.getByText(/Rendering approval is now active|existing record was reused/i)
-  ).toBeVisible();
+  ).toBeVisible({ timeout: 15_000 });
   return true;
 }

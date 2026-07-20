@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 export const JOB_DESCRIPTION_PARSE_CONTRACT_VERSION = "1.0.0";
-export const JOB_DESCRIPTION_PARSER_VERSION = "m3.2.0";
+export const JOB_DESCRIPTION_PARSER_VERSION = "m3.2.5";
 const semanticVersionSchema = z.string().regex(/^[A-Za-z0-9.-]+$/);
 
 export const confidenceLevelSchema = z.enum(["HIGH", "MEDIUM", "LOW"]);
@@ -18,6 +18,13 @@ export const sectionTypeSchema = z.enum([
   "REQUIRED_QUALIFICATIONS",
   "PREFERRED_QUALIFICATIONS",
   "SKILLS",
+  "CORE_COMPETENCIES",
+  "TECHNICAL_CRAFT",
+  "IMPACT_EXECUTION",
+  "COLLABORATION_INFLUENCE",
+  "CULTURE_GROWTH",
+  "HIGHER_LEVEL_RESPONSIBILITIES",
+  "COMPANY_VALUES",
   "COMPENSATION",
   "BENEFITS",
   "LOCATION",
@@ -72,10 +79,30 @@ export const extractedNumericFieldSchema = z.object({
 });
 export type ExtractedNumericField = z.infer<typeof extractedNumericFieldSchema>;
 
+export const levelApplicabilitySchema = z.enum([
+  "ALL_LEVELS",
+  "SENIOR_ONLY",
+  "STAFF_ONLY",
+  "MID_LEVEL",
+  "CONDITIONAL_HIGHER_LEVEL",
+  "UNSPECIFIED"
+]);
+export type LevelApplicability = z.infer<typeof levelApplicabilitySchema>;
+
+export const detectedSectionListOrientationSchema = z.enum(["LIST", "PARAGRAPH"]);
+export type DetectedSectionListOrientation = z.infer<
+  typeof detectedSectionListOrientationSchema
+>;
+
 export const detectedSectionSchema = z.object({
   id: z.string().min(1),
   heading: z.string().min(1),
+  canonicalHeading: z.string().min(1),
   type: sectionTypeSchema,
+  parentSectionId: z.string().min(1).nullable(),
+  hierarchyDepth: z.number().int().nonnegative(),
+  levelApplicability: levelApplicabilitySchema,
+  listOrientation: detectedSectionListOrientationSchema,
   startLine: z.number().int().positive(),
   endLine: z.number().int().positive(),
   text: z.string(),
@@ -124,10 +151,21 @@ export const qualificationRequirementSchema = z.object({
   normalizedText: z.string().min(1),
   sourceSectionId: z.string().min(1),
   sourceLocation: sourceLocationSchema,
+  sourceGroupId: z
+    .string()
+    .min(1)
+    .nullish()
+    .transform((value) => value ?? null),
   explicitLabel: requirementLabelSchema,
+  levelApplicability: levelApplicabilitySchema,
   experienceRequirementId: z.string().min(1).nullable(),
   degreeRequirement: z.string().min(1).nullable(),
   certificationRequirement: z.string().min(1).nullable(),
+  equivalencyText: z
+    .string()
+    .min(1)
+    .nullish()
+    .transform((value) => value ?? null),
   technologyReferences: z.array(z.string().min(1)),
   domainReferences: z.array(z.string().min(1)),
   leadershipReferences: z.array(z.string().min(1)),
@@ -190,6 +228,10 @@ export const roleMetadataSchema = z.object({
   employmentType: extractedScalarFieldSchema.nullable(),
   workArrangement: extractedScalarFieldSchema.nullable(),
   location: extractedScalarFieldSchema.nullable(),
+  secondaryLocation: extractedScalarFieldSchema.nullable(),
+  department: extractedScalarFieldSchema.nullable(),
+  requisitionId: extractedScalarFieldSchema.nullable(),
+  postedText: extractedScalarFieldSchema.nullable(),
   travelRequirement: extractedScalarFieldSchema.nullable(),
   clearanceRequirement: extractedScalarFieldSchema.nullable(),
   visaWorkAuthorization: extractedScalarFieldSchema.nullable()

@@ -5,10 +5,10 @@ test("loads the application shell", async ({ page }) => {
 
   await expect(
     page.getByRole("heading", {
-      name: "A local-first shell for your job-search operating system"
+      name: "Browse active workflows across applications, jobs, and rendered documents"
     })
   ).toBeVisible();
 
-  await expect(page.getByRole("link", { name: "Today" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "Settings" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Open applications" }).first()).toBeVisible();
+  await expect(page.getByRole("link", { name: "New application" }).first()).toBeVisible();
 });

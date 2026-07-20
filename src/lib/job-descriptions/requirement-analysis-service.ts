@@ -18,6 +18,7 @@ import {
 } from "@/lib/job-descriptions/requirement-analysis-contract";
 import { buildInitialRequirementAnalysisDraft, recomputeRequirementAnalysis } from "@/lib/job-descriptions/requirement-classifier";
 import { parsedJobDescriptionContractSchema } from "@/lib/job-descriptions/parser-contract";
+import { resolveSectionHeading } from "@/lib/job-descriptions/section-aliases";
 
 type TransactionClient = Prisma.TransactionClient;
 
@@ -35,8 +36,171 @@ export type JobRequirementAnalysisDetail = NonNullable<
   Awaited<ReturnType<typeof getJobRequirementAnalysisById>>
 >;
 
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function hasOwn(value: Record<string, unknown>, key: string) {
+  return Object.prototype.hasOwnProperty.call(value, key);
+}
+
+export function normalizeStoredJobRequirementAnalysis(value: Prisma.JsonValue) {
+  const topLevel = z.record(z.unknown()).parse(value);
+  const requirements = Array.isArray(topLevel.requirements)
+    ? topLevel.requirements.map((requirement) => {
+        if (!isPlainObject(requirement) || hasOwn(requirement, "levelApplicability")) {
+          return requirement;
+        }
+
+        return {
+          ...requirement,
+          // Older analyses predate applicability tracking, so preserve their prior
+          // semantics by treating missing values as all-level rather than inventing
+          // narrower scope.
+          levelApplicability: "ALL_LEVELS"
+        };
+      })
+    : topLevel.requirements;
+  const responsibilities = Array.isArray(topLevel.responsibilities)
+    ? topLevel.responsibilities
+    : topLevel.responsibilities;
+  const summary = isPlainObject(topLevel.summary) ? topLevel.summary : topLevel.summary;
+
+  if (!isPlainObject(summary)) {
+    return {
+      ...topLevel,
+      requirements
+    };
+  }
+
+  const normalizedSummary = {
+    ...summary
+  };
+
+  if (!hasOwn(normalizedSummary, "qualificationExtractionCount")) {
+    normalizedSummary.qualificationExtractionCount = Array.isArray(requirements)
+      ? requirements.filter(
+          (requirement) =>
+            isPlainObject(requirement) && requirement.userAdded !== true
+        ).length
+      : 0;
+  }
+
+  if (!hasOwn(normalizedSummary, "responsibilityExtractionCount")) {
+    // Responsibility extraction count tracks all source-derived responsibility
+    // records, regardless of later review exclusions.
+    normalizedSummary.responsibilityExtractionCount = Array.isArray(responsibilities)
+      ? responsibilities.length
+      : 0;
+  }
+
+  if (!hasOwn(normalizedSummary, "downstreamReadiness")) {
+    normalizedSummary.downstreamReadiness = "NEEDS_REVIEW";
+  }
+
+  return {
+    ...topLevel,
+    requirements,
+    summary: normalizedSummary
+  };
+}
+
+export function parseStoredJobRequirementAnalysis(value: Prisma.JsonValue) {
+  return jobRequirementAnalysisContractSchema.parse(
+    normalizeStoredJobRequirementAnalysis(value)
+  );
+}
+
 function parseStoredAnalysis(value: Prisma.JsonValue) {
-  return jobRequirementAnalysisContractSchema.parse(value);
+  return parseStoredJobRequirementAnalysis(value);
+}
+
+function inferLegacySectionListOrientation(section: Record<string, unknown>) {
+  const text = typeof section.text === "string" ? section.text : "";
+
+  return /^\s*([-*•]|\d+\.)\s+/m.test(text) ? "LIST" : "PARAGRAPH";
+}
+
+function normalizeStoredParseResult(value: Prisma.JsonValue) {
+  const topLevel = z.record(z.unknown()).parse(value);
+  const rawSections = Array.isArray(topLevel.sections) ? topLevel.sections : topLevel.sections;
+
+  if (!Array.isArray(rawSections)) {
+    return topLevel;
+  }
+
+  const normalizedSections = rawSections.map((section) => {
+    if (!isPlainObject(section)) {
+      return section;
+    }
+
+    const heading = typeof section.heading === "string" ? section.heading : "";
+    const headingMatch = heading ? resolveSectionHeading(heading) : null;
+
+    return {
+      ...section,
+      canonicalHeading:
+        typeof section.canonicalHeading === "string" && section.canonicalHeading.length > 0
+          ? section.canonicalHeading
+          : ((headingMatch?.canonicalHeading ?? heading) || "Other"),
+      hierarchyDepth:
+        typeof section.hierarchyDepth === "number"
+          ? section.hierarchyDepth
+          : (headingMatch?.hierarchyDepth ?? 0),
+      levelApplicability:
+        typeof section.levelApplicability === "string"
+          ? section.levelApplicability
+          : (headingMatch?.levelApplicability ?? "UNSPECIFIED"),
+      listOrientation:
+        typeof section.listOrientation === "string"
+          ? section.listOrientation
+          : (headingMatch?.listOrientation ?? inferLegacySectionListOrientation(section)),
+      __legacyParentType:
+        !hasOwn(section, "parentSectionId") && headingMatch?.parentType
+          ? headingMatch.parentType
+          : null
+    };
+  });
+
+  const idsByType = new Map<string, string[]>();
+  for (const section of normalizedSections) {
+    if (!isPlainObject(section)) {
+      continue;
+    }
+
+    if (typeof section.type !== "string" || typeof section.id !== "string") {
+      continue;
+    }
+
+    const existing = idsByType.get(section.type) ?? [];
+    existing.push(section.id);
+    idsByType.set(section.type, existing);
+  }
+
+  const hydratedSections = normalizedSections.map((section) => {
+    if (!isPlainObject(section)) {
+      return section;
+    }
+
+    const parentType = typeof section.__legacyParentType === "string" ? section.__legacyParentType : null;
+    const parentIds = parentType ? idsByType.get(parentType) ?? [] : [];
+    const parentSectionId =
+      hasOwn(section, "parentSectionId") && (typeof section.parentSectionId === "string" || section.parentSectionId === null)
+        ? section.parentSectionId
+        : (parentIds[0] ?? null);
+
+    const { __legacyParentType, ...rest } = section;
+
+    return {
+      ...rest,
+      parentSectionId
+    };
+  });
+
+  return {
+    ...topLevel,
+    sections: hydratedSections
+  };
 }
 
 function parseStoredParseResult(value: Prisma.JsonValue | null) {
@@ -44,7 +208,7 @@ function parseStoredParseResult(value: Prisma.JsonValue | null) {
     throw new Error("The linked parser result is missing.");
   }
 
-  return parsedJobDescriptionContractSchema.parse(value);
+  return parsedJobDescriptionContractSchema.parse(normalizeStoredParseResult(value));
 }
 
 function toDbStatus(status: JobRequirementAnalysisContract["reviewStatus"]) {
@@ -233,7 +397,7 @@ export async function ensureRequirementAnalysisDraft(
     }
 
     const analysisId = randomUUID();
-    const parsed = parsedJobDescriptionContractSchema.parse(parse.result);
+    const parsed = parseStoredParseResult(parse.result);
     const draft = buildInitialRequirementAnalysisDraft({
       analysisId,
       workspaceId,
@@ -548,13 +712,16 @@ export async function addUserRequirementToAnalysis(
       category: input.category,
       kinds: input.kinds,
       explicitSourceLabel: null,
+      levelApplicability: "ALL_LEVELS",
       sourceSectionId: null,
+      sourceGroupId: null,
       sourceSectionType: null,
       sourceLocation: null,
       technologies: input.technologies?.filter(Boolean) ?? [],
       experienceText: input.experienceText?.trim() || null,
       degreeRequirement: null,
       certificationRequirement: null,
+      equivalencyText: null,
       domainReferences: [],
       leadershipReferences: [],
       confidence: "HIGH",

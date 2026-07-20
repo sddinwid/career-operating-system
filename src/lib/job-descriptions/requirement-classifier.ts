@@ -1,6 +1,7 @@
 import {
   JOB_REQUIREMENT_ANALYSIS_CONTRACT_VERSION,
   JOB_REQUIREMENT_CLASSIFIER_VERSION,
+  type DownstreamReadiness,
   jobRequirementAnalysisContractSchema,
   type AnalysisDiagnostic,
   type AnalyzedRequirement,
@@ -30,6 +31,10 @@ const requiredPattern =
   /\b(must|required|requirement|minimum|at least|minimum of|need to|needs to|authorized to work|clearance required)\b/i;
 const preferredPattern =
   /\b(preferred|nice to have|bonus|plus|ideally|familiarity with .* plus)\b/i;
+const compensationPattern =
+  /^(?:pay range|salary range|salary|compensation)\s*:?\s*\$?\d/i;
+const compensationDisclaimerPattern =
+  /^(?:the actual offer may vary|actual compensation may vary|compensation may vary|pay may vary|offer may vary)/i;
 const workAuthorizationPattern =
   /\b(authorized to work|work authorization|visa sponsorship|sponsorship)\b/i;
 const clearancePattern = /\b(clearance|public trust|secret|top secret)\b/i;
@@ -39,12 +44,26 @@ const communicationPattern = /\b(communication|communicate|present|writing|writt
 const collaborationPattern =
   /\b(collaborat|cross-functional|stakeholder|partner|team|mentor)\b/i;
 const architecturePattern =
-  /\b(architecture|distributed systems|microservices|api|rest|graphql|platform)\b/i;
+  /\b(architecture|distributed systems|microservices|api|rest|graphql|platform|maintainable|well-tested|observable|tradeoffs|reliability|performance|scalability)\b/i;
 const cloudPattern = /\b(aws|azure|gcp|cloud|lambda|sqs|cloudwatch)\b/i;
-const dataPattern = /\b(data|database|postgres|postgresql|mysql|sql|etl|warehouse|analytics)\b/i;
+const dataPattern = /\b(data|database|postgres|postgresql|mysql|sql|etl|warehouse|analytics|document-heavy|ingestion|retrieval|search)\b/i;
 const aiMlPattern = /\b(ai|ml|machine learning|llm|rag|openai|langchain)\b/i;
-const securityPattern = /\b(security|secure|oauth|authentication|authorization|cissp)\b/i;
-const domainPattern = /\b(fintech|healthcare|payments|saas|ecommerce|gov|government)\b/i;
+const securityPattern = /\b(security|secure|oauth|authentication|authorization|cissp|soc 2|fedramp)\b/i;
+const domainPattern = /\b(fintech|healthcare|payments|saas|ecommerce|gov|government|audit|assurance|risk management|compliance)\b/i;
+const responsibilityPattern =
+  /\b(scope|prioritize|deliver|ownership|own|build|ship|iterate|improve|balance|shape)\b/i;
+const contextualSectionTypes = new Set([
+  "ABOUT_ROLE",
+  "LOCATION",
+  "COMPANY_VALUES"
+]);
+const requiredSectionTypes = new Set([
+  "REQUIRED_QUALIFICATIONS",
+  "TECHNICAL_CRAFT",
+  "IMPACT_EXECUTION",
+  "COLLABORATION_INFLUENCE",
+  "CULTURE_GROWTH"
+]);
 
 function slugify(value: string) {
   return value
@@ -135,6 +154,9 @@ function buildKindsFromText(args: {
   if (securityPattern.test(args.text)) {
     kinds.add("SECURITY");
   }
+  if (responsibilityPattern.test(args.text)) {
+    kinds.add("RESPONSIBILITY");
+  }
 
   if (kinds.size === 0) {
     kinds.add("OTHER");
@@ -157,11 +179,38 @@ function classifyRequirement(
   if (
     section?.type === "BENEFITS" ||
     section?.type === "EQUAL_OPPORTUNITY" ||
-    section?.type === "APPLICATION_INSTRUCTIONS"
+    section?.type === "APPLICATION_INSTRUCTIONS" ||
+    compensationPattern.test(text) ||
+    compensationDisclaimerPattern.test(text)
   ) {
     category = "NOISE";
     confidence = "HIGH";
     classificationRule = "requirements.classify.section.noise";
+  } else if (
+    section?.type === "CULTURE_GROWTH" &&
+    /\bfieldguide'?s values\b|\bFearless\b|\bFast\b|\bLovable\b|\bOwners\b|\bWin-win\b|\bInclusive\b/i.test(
+      text
+    )
+  ) {
+    category = "CONTEXTUAL";
+    confidence = "HIGH";
+    classificationRule = "requirements.classify.section.cultureValues.contextual";
+  } else if (section?.type === "COMPANY_VALUES") {
+    category = "CONTEXTUAL";
+    confidence = "HIGH";
+    classificationRule = "requirements.classify.section.values.contextual";
+  } else if (contextualSectionTypes.has(section?.type ?? "")) {
+    category = "CONTEXTUAL";
+    confidence = "HIGH";
+    classificationRule = "requirements.classify.section.contextual";
+  } else if (
+    requirement.levelApplicability !== "ALL_LEVELS" &&
+    section &&
+    requiredSectionTypes.has(section.type)
+  ) {
+    category = "CONTEXTUAL";
+    confidence = "HIGH";
+    classificationRule = "requirements.classify.levelSpecific.contextual";
   } else if (
     requirement.explicitLabel === "REQUIRED" ||
     requirement.explicitLabel === "MINIMUM"
@@ -185,7 +234,7 @@ function classifyRequirement(
     category = "PREFERRED";
     confidence = "MEDIUM";
     classificationRule = "requirements.classify.lexical.preferred";
-  } else if (section?.type === "REQUIRED_QUALIFICATIONS") {
+  } else if (requiredSectionTypes.has(section?.type ?? "")) {
     category = "REQUIRED";
     confidence = "HIGH";
     classificationRule = "requirements.classify.section.required";
@@ -256,7 +305,8 @@ function actionLooksLeadership(text: string) {
 
 function buildSummary(
   requirements: AnalyzedRequirement[],
-  responsibilities: AnalyzedResponsibility[]
+  responsibilities: AnalyzedResponsibility[],
+  downstreamReadiness: DownstreamReadiness
 ) {
   const includedRequirements = requirements.filter((item) => !item.excluded);
   const includedResponsibilities = responsibilities.filter((item) => !item.excluded);
@@ -305,8 +355,28 @@ function buildSummary(
     lowConfidenceCount:
       requirements.filter((item) => item.confidence === "LOW" && !item.excluded).length +
       responsibilities.filter((item) => item.confidence === "LOW" && !item.excluded).length,
-    excludedRequirementsCount: requirements.filter((item) => item.excluded).length
+    excludedRequirementsCount: requirements.filter((item) => item.excluded).length,
+    qualificationExtractionCount: includedRequirements.length,
+    responsibilityExtractionCount: includedResponsibilities.length,
+    downstreamReadiness
   };
+}
+
+function countMeaningfulSectionLines(text: string) {
+  return text
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean).length;
+}
+
+function countEligibleRequirementLines(text: string) {
+  return text
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .filter(
+      (line) => !compensationPattern.test(line) && !compensationDisclaimerPattern.test(line)
+    ).length;
 }
 
 function buildDiagnostics(
@@ -395,7 +465,25 @@ function buildDiagnostics(
     });
   }
 
-  const summary = buildSummary(requirements, responsibilities);
+  const qualificationLineCount = parsed.sections
+    .filter(
+      (item) =>
+        requiredSectionTypes.has(item.type) || item.type === "PREFERRED_QUALIFICATIONS"
+    )
+    .reduce((total, section) => total + countEligibleRequirementLines(section.text), 0);
+  if (qualificationLineCount >= 3 && requirements.length === 0) {
+    addDiagnostic(diagnostics, {
+      code: "QUALIFICATION_EXTRACTION_EMPTY",
+      severity: "ERROR",
+      message:
+        "The parser detected qualification content, but no reviewable requirements were extracted for downstream automation.",
+      rule: "requirements.diagnostics.qualificationCoverage",
+      location: null,
+      relatedItemIds: []
+    });
+  }
+
+  const summary = buildSummary(requirements, responsibilities, "NEEDS_REVIEW");
   if (summary.requiredCount === 0) {
     addDiagnostic(diagnostics, {
       code: "NO_REQUIRED_REQUIREMENTS_DETECTED",
@@ -435,7 +523,169 @@ function buildDiagnostics(
     });
   }
 
+  if (
+    parsed.sections.some(
+      (item) => item.type === "OTHER" && /Core Competencies|Our Values/i.test(item.heading)
+    )
+  ) {
+    addDiagnostic(diagnostics, {
+      code: "KNOWN_SECTION_UNRECOGNIZED",
+      severity: "ERROR",
+      message:
+        "A known job-description section heading was still treated as unrecognized.",
+      rule: "requirements.diagnostics.knownSectionUnrecognized",
+      location: null,
+      relatedItemIds: []
+    });
+  }
+
+  const responsibilitySections = parsed.sections.filter((item) => item.type === "RESPONSIBILITIES");
+  for (const section of responsibilitySections) {
+    const sourceLineCount = countMeaningfulSectionLines(section.text);
+    const extractedCount = responsibilities.filter(
+      (item) => item.parserProvenance.sourceSectionId === section.id
+    ).length;
+    if (sourceLineCount >= 3 && extractedCount < sourceLineCount) {
+      addDiagnostic(diagnostics, {
+        code: "RESPONSIBILITY_ITEMS_MERGED",
+        severity: "ERROR",
+        message:
+          "The responsibilities section still contains merged source lines instead of atomic responsibility records.",
+        rule: "requirements.diagnostics.responsibilityItemsMerged",
+        location: null,
+        relatedItemIds: []
+      });
+      addDiagnostic(diagnostics, {
+        code: "RESPONSIBILITY_EXTRACTION_COVERAGE_LOW",
+        severity: "ERROR",
+        message:
+          "The parser detected a responsibilities section with multiple lines, but too few responsibilities were extracted for downstream automation.",
+        rule: "requirements.diagnostics.responsibilityCoverage",
+        location: null,
+        relatedItemIds: []
+      });
+    }
+  }
+
+  const qualificationSections = parsed.sections.filter((item) =>
+    requiredSectionTypes.has(item.type) || item.type === "PREFERRED_QUALIFICATIONS"
+  );
+  const mergedPreferred = qualificationSections.some((section) => {
+    const sourceLineCount = countEligibleRequirementLines(section.text);
+    const extractedCount = requirements.filter((item) => item.sourceSectionId === section.id).length;
+    return sourceLineCount >= 2 && extractedCount < sourceLineCount;
+  });
+
+  if (mergedPreferred) {
+    addDiagnostic(diagnostics, {
+      code: "ATOMIC_EXTRACTION_COVERAGE_LOW",
+      severity: "ERROR",
+      message:
+        "At least one recognized list-oriented section still produced fewer atomic items than the source lines indicate.",
+      rule: "requirements.diagnostics.atomicCoverage",
+      location: null,
+      relatedItemIds: []
+    });
+  }
+
+  const preferredSection = parsed.sections.find((item) => item.type === "PREFERRED_QUALIFICATIONS");
+  if (preferredSection) {
+    const sourceLineCount = countEligibleRequirementLines(preferredSection.text);
+    const extractedCount = requirements.filter(
+      (item) => item.sourceSectionId === preferredSection.id
+    ).length;
+    if (sourceLineCount >= 2 && extractedCount < sourceLineCount) {
+      addDiagnostic(diagnostics, {
+        code: "PREFERRED_ITEMS_MERGED",
+        severity: "ERROR",
+        message:
+          "Preferred experience lines are still merged and need atomic decomposition before downstream use.",
+        rule: "requirements.diagnostics.preferredItemsMerged",
+        location: null,
+        relatedItemIds: []
+      });
+    }
+  }
+
+  const requiredSections = parsed.sections.filter((item) => requiredSectionTypes.has(item.type));
+  if (
+    requiredSections.some((section) => {
+      const sourceLineCount = countEligibleRequirementLines(section.text);
+      const extractedCount = requirements.filter((item) => item.sourceSectionId === section.id).length;
+      return sourceLineCount >= 2 && extractedCount < sourceLineCount;
+    })
+  ) {
+    addDiagnostic(diagnostics, {
+      code: "QUALIFICATION_ITEMS_MERGED",
+      severity: "ERROR",
+      message:
+        "One or more core qualification sections still contain merged multi-line items instead of atomic requirements.",
+      rule: "requirements.diagnostics.qualificationItemsMerged",
+      location: null,
+      relatedItemIds: []
+    });
+  }
+
+  if (
+    requirements.some(
+      (item) =>
+        item.parserStatementId !== null &&
+        /senior|staff/i.test(item.originalText) &&
+        item.levelApplicability === "ALL_LEVELS"
+    )
+  ) {
+    addDiagnostic(diagnostics, {
+      code: "LEVEL_APPLICABILITY_MISSING",
+      severity: "ERROR",
+      message:
+        "At least one level-specific item lost its level applicability during parsing or classification.",
+      rule: "requirements.diagnostics.levelApplicabilityMissing",
+      location: null,
+      relatedItemIds: []
+    });
+  }
+
+  const contextualCoverageCount = requirements.filter(
+    (item) => item.category === "CONTEXTUAL" && !item.excluded
+  ).length;
+  if (
+    parsed.sections.some((item) => item.type === "ABOUT_ROLE" || item.type === "COMPANY_VALUES") &&
+    contextualCoverageCount === 0
+  ) {
+    addDiagnostic(diagnostics, {
+      code: "CONTEXTUAL_SECTION_UNDER_EXTRACTED",
+      severity: "WARNING",
+      message:
+        "Contextual role or values sections were present, but little or no contextual review content was extracted.",
+      rule: "requirements.diagnostics.contextualUnderExtracted",
+      location: null,
+      relatedItemIds: []
+    });
+  }
+
   return diagnostics;
+}
+
+function deriveDownstreamReadiness(args: {
+  diagnostics: AnalysisDiagnostic[];
+  lowConfidenceAcknowledged: boolean;
+  summary: ReturnType<typeof buildSummary>;
+}): DownstreamReadiness {
+  if (
+    args.diagnostics.some(
+      (item) =>
+        item.severity === "ERROR" ||
+        item.code === "NO_REQUIRED_REQUIREMENTS_DETECTED"
+    )
+  ) {
+    return "BLOCKED";
+  }
+
+  if (args.summary.lowConfidenceCount > 0 && !args.lowConfidenceAcknowledged) {
+    return "NEEDS_REVIEW";
+  }
+
+  return "READY";
 }
 
 function deriveReviewStatus(args: {
@@ -471,8 +721,21 @@ export function recomputeRequirementAnalysis(
   options?: { confirmed?: boolean }
 ) {
   const diagnostics = buildDiagnostics(parsed, analysis.requirements, analysis.responsibilities);
-
-  const summary = buildSummary(analysis.requirements, analysis.responsibilities);
+  const provisionalSummary = buildSummary(
+    analysis.requirements,
+    analysis.responsibilities,
+    "NEEDS_REVIEW"
+  );
+  const downstreamReadiness = deriveDownstreamReadiness({
+    diagnostics,
+    lowConfidenceAcknowledged: analysis.lowConfidenceAcknowledged,
+    summary: provisionalSummary
+  });
+  const summary = buildSummary(
+    analysis.requirements,
+    analysis.responsibilities,
+    downstreamReadiness
+  );
   const reviewStatus = deriveReviewStatus({
     diagnostics,
     lowConfidenceAcknowledged: analysis.lowConfidenceAcknowledged,
@@ -501,6 +764,8 @@ export function buildInitialRequirementAnalysisDraft(
       category: classified.category,
       kinds: classified.kinds,
       explicitSourceLabel: requirement.explicitLabel,
+      levelApplicability: requirement.levelApplicability,
+      sourceGroupId: requirement.sourceGroupId,
       sourceSectionId: requirement.sourceSectionId,
       sourceSectionType:
         args.parsed.sections.find((item) => item.id === requirement.sourceSectionId)?.type ?? null,
@@ -509,6 +774,7 @@ export function buildInitialRequirementAnalysisDraft(
       experienceText: classified.experience?.originalText ?? null,
       degreeRequirement: requirement.degreeRequirement,
       certificationRequirement: requirement.certificationRequirement,
+      equivalencyText: requirement.equivalencyText,
       domainReferences: requirement.domainReferences,
       leadershipReferences: requirement.leadershipReferences,
       confidence: classified.confidence,
@@ -571,7 +837,7 @@ export function buildInitialRequirementAnalysisDraft(
     parserVersion: args.parsed.parserVersion,
     requirements,
     responsibilities,
-    summary: buildSummary(requirements, responsibilities),
+    summary: buildSummary(requirements, responsibilities, "NEEDS_REVIEW"),
     lowConfidenceAcknowledged: false,
     diagnostics: []
   });

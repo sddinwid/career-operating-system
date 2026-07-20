@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { afterAll, describe, expect, it } from "vitest";
 import { ApplicationStatus, JobDescriptionSourceType, Prisma, PrismaClient } from "@prisma/client";
@@ -9,6 +11,10 @@ import {
   getLatestSuccessfulJobDescriptionParseForVersion,
   parseStoredJobDescriptionVersion
 } from "@/lib/job-descriptions/parse-service";
+import {
+  JOB_DESCRIPTION_PARSER_VERSION,
+  parsedJobDescriptionContractSchema
+} from "@/lib/job-descriptions/parser-contract";
 import { saveJobDescriptionForApplication } from "@/lib/job-descriptions/service";
 
 const prisma = new PrismaClient();
@@ -74,6 +80,13 @@ function buildInput(descriptionText: string) {
     sourceTitle: "Senior Platform Engineer",
     publishedAt: "2026-07-15"
   } as const;
+}
+
+function loadFieldguideFixture() {
+  return readFileSync(
+    path.join(process.cwd(), "fixtures", "fieldguide-software-engineer-all-levels.txt"),
+    "utf8"
+  );
 }
 
 describe("job description parse service", () => {
@@ -161,7 +174,7 @@ $150,000 - $180,000 base salary`)
     expect(latest?.id).toBe(parsed.parse.id);
     expect(latestSuccessful?.id).toBe(parsed.parse.id);
     expect(analysis?.latestSuccessfulParse?.id).toBe(parsed.parse.id);
-    expect(analysis?.latestParseStatusCounts).toEqual({ errors: 0, warnings: 0, info: 0 });
+    expect(analysis?.latestParseStatusCounts).toEqual({ errors: 0, warnings: 0, info: 1 });
     expect(afterVersion.originalText).toBe(beforeVersion.originalText);
     expect(afterVersion.normalizedText).toBe(beforeVersion.normalizedText);
     expect(afterVersion.checksum).toBe(beforeVersion.checksum);
@@ -194,11 +207,13 @@ Requirements
 - TypeScript`)
     );
 
-    const first = await parseStoredJobDescriptionVersion(workspace.id, saved.version!.id, prisma);
-    const reused = await parseStoredJobDescriptionVersion(workspace.id, saved.version!.id, prisma);
-    const newer = await parseStoredJobDescriptionVersion(workspace.id, saved.version!.id, prisma, {
+    const first = await parseStoredJobDescriptionVersion(workspace.id, saved.version!.id, prisma, {
       parserVersionOverride: "m3.2.1"
     });
+    const reused = await parseStoredJobDescriptionVersion(workspace.id, saved.version!.id, prisma, {
+      parserVersionOverride: "m3.2.1"
+    });
+    const newer = await parseStoredJobDescriptionVersion(workspace.id, saved.version!.id, prisma);
 
     const parseCount = await prisma.jobDescriptionParse.count({
       where: {
@@ -211,7 +226,7 @@ Requirements
     expect(reused.parse.id).toBe(first.parse.id);
     expect(newer.duplicate).toBe(false);
     expect(newer.parse.id).not.toBe(first.parse.id);
-    expect(newer.parse.parserVersion).toBe("m3.2.1");
+    expect(newer.parse.parserVersion).toBe(JOB_DESCRIPTION_PARSER_VERSION);
     expect(parseCount).toBe(2);
   });
 
@@ -241,7 +256,7 @@ Requirements
       data: {
         workspaceId: workspace.id,
         jobDescriptionVersionId: saved.version!.id,
-        parserVersion: "m3.2.2",
+        parserVersion: "m3.2.4",
         contractVersion: "1.0.1",
         sourceChecksum: saved.version!.checksum,
         status: "FAILED",
@@ -279,6 +294,58 @@ Requirements
     expect(latestSuccessful?.id).toBe(successful.parse.id);
   });
 
+  it("preserves section hierarchy and applicability through parse-result persistence for competency-based postings", async () => {
+    const workspace = await createWorkspace();
+    const application = await createApplication(workspace.id, {
+      companyName: "Fieldguide",
+      role: "Software Engineer (All Levels)",
+      appliedAtLocal: "2026-07-14T10:00",
+      status: ApplicationStatus.APPLIED,
+      jobUrl: "https://www.fieldguide.io/careers/software-engineer-all-levels"
+    });
+    const saved = await saveJobDescriptionForApplication(
+      workspace.id,
+      application.id,
+      buildInput(loadFieldguideFixture())
+    );
+
+    const parsed = await parseStoredJobDescriptionVersion(workspace.id, saved.version!.id, prisma);
+    const persisted = await getJobDescriptionParseById(workspace.id, parsed.parse.id, prisma);
+    const storedResult = parsedJobDescriptionContractSchema.parse(
+      persisted?.result as Prisma.JsonValue
+    );
+    const technicalCraftSection = storedResult.sections.find(
+      (section) => section.type === "TECHNICAL_CRAFT"
+    );
+    const seniorSection = storedResult.sections.find(
+      (section) => section.canonicalHeading === "At the Senior level, you may"
+    );
+    const staffSection = storedResult.sections.find(
+      (section) => section.canonicalHeading === "At the Staff level, you may"
+    );
+
+    expect(storedResult.sections.find((section) => section.type === "CORE_COMPETENCIES"))
+      .toBeTruthy();
+    expect(technicalCraftSection?.parentSectionId).toBeTruthy();
+    expect(technicalCraftSection?.hierarchyDepth).toBe(1);
+    expect(technicalCraftSection?.levelApplicability).toBe("ALL_LEVELS");
+    expect(technicalCraftSection?.listOrientation).toBe("LIST");
+    expect(seniorSection?.levelApplicability).toBe("SENIOR_ONLY");
+    expect(staffSection?.levelApplicability).toBe("STAFF_ONLY");
+    expect(
+      storedResult.qualifications.some(
+        (item) =>
+          item.originalText.includes("Take increasing ownership") &&
+          item.levelApplicability === "CONDITIONAL_HIGHER_LEVEL"
+      )
+    ).toBe(true);
+    expect(
+      storedResult.qualifications.some((item) =>
+        item.originalText.includes("remote candidates anywhere in the US")
+      )
+    ).toBe(true);
+  });
+
   it("enforces workspace ownership and rolls back on simulated failure after create", async () => {
     const workspace = await createWorkspace();
     const otherWorkspace = await createWorkspace();
@@ -307,7 +374,7 @@ Requirements
 
     await expect(
       parseStoredJobDescriptionVersion(workspace.id, saved.version!.id, prisma, {
-        parserVersionOverride: "m3.2.3",
+        parserVersionOverride: "m3.2.4",
         simulateFailureAfterCreate: true
       })
     ).rejects.toThrow(/simulated failure/i);

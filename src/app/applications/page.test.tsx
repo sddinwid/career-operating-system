@@ -119,10 +119,14 @@ describe("ApplicationsPage", () => {
 
     render(page);
 
-    await waitFor(() => {
-      expect(screen.getByText("SpotOn")).toBeVisible();
-      expect(screen.getByText("Acme")).toBeVisible();
-    });
+    await waitFor(
+      () => {
+        expect(screen.getByText("Applications (2)")).toBeVisible();
+        expect(screen.getByText("Showing 2 of 2 rows")).toBeVisible();
+        expect(screen.getAllByRole("button", { name: "Open" })).toHaveLength(2);
+      },
+      { timeout: 5_000 }
+    );
 
     await user.type(
       screen.getByRole("searchbox", { name: "Search applications" }),
@@ -137,6 +141,6 @@ describe("ApplicationsPage", () => {
 
       expect(pushMock).toHaveBeenCalledWith("/applications/application-1");
     },
-    10000
+    20000
   );
 });

@@ -226,7 +226,7 @@ describe("ApplicationDetailPage", () => {
       "/job-descriptions/job-description-2/resume/audit?runId=resume-audit-1"
     );
     expect(screen.getByText("Resume Audit Complete")).toBeVisible();
-    expect(screen.getByText("Resume DOCX Rendering Not Ready")).toBeVisible();
+    expect(screen.getByText("Resume PDF Rendering Not Ready")).toBeVisible();
     expect(screen.getByText(/READY WITH WARNINGS/i)).toBeVisible();
     expect(screen.getByRole("link", { name: "Replace Job Description" })).toHaveAttribute(
       "href",

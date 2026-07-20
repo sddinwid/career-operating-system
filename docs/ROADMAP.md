@@ -103,7 +103,7 @@ Deterministic rules and verified evidence remain authoritative for:
 - Scope: Scott-specific career knowledge contract, versioned import, provenance, and later optional inspection
 
 ### Milestone 3 - Job Description Intelligence
-- Status: in progress
+- Status: complete with July 18, 2026 production-hardening correction
 - Scope: intake, persistence, parsing, review, correction, opportunity/application linkage
 
 ### Milestone 4 - Evidence Retrieval and Scoring
@@ -119,7 +119,7 @@ Deterministic rules and verified evidence remain authoritative for:
 - Scope: revision editing, provenance visibility, local validation, comparison, rendering approval, and immutable revision history
 
 ### Milestone 7 - Document Rendering and Artifact Versioning
-- Status: `M7.1` complete, `M7.2` next
+- Status: `M7.1` complete, `M7.2` complete
 - Scope: DOCX, PDF, render validation, storage metadata, immutable `DocumentVersion` linkage
 
 ### Milestone 8 - Application Package Generation
@@ -161,7 +161,6 @@ Deferred support slice:
 - `M2.2 - Career Knowledge Validation and Read-Only Inspection` remains intentionally deferred as a larger standalone workspace while the deterministic generation pipeline is being completed end to end
 
 Later sequence:
-- `M7.2 - Render Validation and PDF Output`
 - `M7.3 - Immutable Document Versioning and Attachment`
 - `M8.1 - Application Package Generation`
 - `M9.x` tracker ergonomics and exports
@@ -201,9 +200,11 @@ The roadmap rebaseline is successful when:
 Commercial viability remains intact because deterministic, provenance-aware generation is a stronger long-term architecture than prompt-only generation. Multi-user requirements are deferred, not abandoned, until the Scott-specific workflow proves useful end to end.
 ## Immediate Next Step
 
-Start `M7.2 - Render Validation and PDF Output`.
+Start `M7.3 - Immutable Document Versioning and Attachment`.
+
+The July 19, 2026 navigation/discovery correction is explicitly not a new roadmap milestone. It makes existing `M1` through `M7.2` workflows discoverable without changing milestone order.
 ## Resume Workflow Progress
 
 - M6.2 introduced comparison and approval and now serves as the rendering gate for M7.1.
 - M7.1 is complete.
-- M7.2 is the next rendering slice.
+- M7.2 adds direct deterministic PDF rendering plus shared artifact validation and is complete.

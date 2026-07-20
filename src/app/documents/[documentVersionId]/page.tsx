@@ -1,10 +1,24 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getDefaultWorkspace } from "@/lib/workspace";
 import { getDocumentVersionById } from "@/lib/document-rendering/service";
+import { getDefaultWorkspace } from "@/lib/workspace";
 
 type DocumentDetailPageProps = {
   params: Promise<{ documentVersionId: string }>;
+};
+
+type DocumentValidationSummary = {
+  requiredEntries?: string[];
+  missingEntries?: string[];
+  entries?: string[];
+  documentXmlLength?: number;
+  pageCount?: number;
+  totalTextItemCount?: number;
+  totalImageOperatorCount?: number;
+  extractedTextLength?: number;
+  missingSnippets?: string[];
+  forbiddenMetadataLeaks?: string[];
+  metadata?: Record<string, string | null>;
 };
 
 export default async function DocumentDetailPage({ params }: DocumentDetailPageProps) {
@@ -18,15 +32,11 @@ export default async function DocumentDetailPage({ params }: DocumentDetailPageP
 
   const validationSummary =
     version.validationSummary && typeof version.validationSummary === "object"
-      ? (version.validationSummary as {
-          requiredEntries?: string[];
-          missingEntries?: string[];
-          entries?: string[];
-          documentXmlLength?: number;
-        })
+      ? (version.validationSummary as DocumentValidationSummary)
       : null;
   const checksumPreview = version.checksum.slice(0, 12);
   const renderChecksumPreview = version.renderInputChecksum.slice(0, 12);
+  const formatLabel = version.format === "PDF" ? "PDF" : "DOCX";
 
   return (
     <div className="space-y-8">
@@ -40,7 +50,7 @@ export default async function DocumentDetailPage({ params }: DocumentDetailPageP
               {version.document.title}
             </h1>
             <p className="mt-3 text-base text-stone-600">
-              Version {version.versionNumber} • {version.renderStatus.replace(/_/g, " ")}
+              Version {version.versionNumber} | {version.renderStatus.replace(/_/g, " ")} | {formatLabel}
             </p>
           </div>
           <div className="flex flex-wrap gap-3">
@@ -62,7 +72,7 @@ export default async function DocumentDetailPage({ params }: DocumentDetailPageP
               className="rounded-full bg-stone-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-stone-800"
               href={`/api/documents/${version.id}/download`}
             >
-              Download DOCX
+              Download {formatLabel}
             </a>
           </div>
         </div>
@@ -135,35 +145,53 @@ export default async function DocumentDetailPage({ params }: DocumentDetailPageP
       <section className="rounded-3xl border border-stone-300 bg-white p-8 shadow-sm">
         <h2 className="text-2xl font-semibold text-stone-900">Validation</h2>
         <div className="mt-6 space-y-4 text-sm text-stone-700">
+          <p>Format: {formatLabel}</p>
           <p>Renderer version: {version.rendererVersion}</p>
           <p>Template version: {version.templateVersion}</p>
           <p>Contract version: {version.renderContractVersion}</p>
           <p>Configuration version: {version.configurationVersion}</p>
           <p>Render checksum: {version.renderInputChecksum}</p>
           <p>Render checksum preview: {renderChecksumPreview}</p>
-          <p>
-            Required ZIP entries: {validationSummary?.requiredEntries?.join(", ") ?? "Not recorded"}
-          </p>
-          <p>
-            Missing ZIP entries: {validationSummary?.missingEntries?.join(", ") || "None"}
-          </p>
-          <p>
-            `word/document.xml` length: {validationSummary?.documentXmlLength ?? 0}
-          </p>
+          {version.format === "DOCX" ? (
+            <>
+              <p>
+                Required ZIP entries: {validationSummary?.requiredEntries?.join(", ") ?? "Not recorded"}
+              </p>
+              <p>
+                Missing ZIP entries: {validationSummary?.missingEntries?.join(", ") || "None"}
+              </p>
+              <p>`word/document.xml` length: {validationSummary?.documentXmlLength ?? 0}</p>
+            </>
+          ) : (
+            <>
+              <p>PDF pages: {validationSummary?.pageCount ?? 0}</p>
+              <p>Extracted text items: {validationSummary?.totalTextItemCount ?? 0}</p>
+              <p>Image operators: {validationSummary?.totalImageOperatorCount ?? 0}</p>
+              <p>Extracted text length: {validationSummary?.extractedTextLength ?? 0}</p>
+              <p>
+                Missing expected snippets: {validationSummary?.missingSnippets?.join(", ") || "None"}
+              </p>
+              <p>
+                Forbidden metadata leaks: {validationSummary?.forbiddenMetadataLeaks?.join(", ") || "None"}
+              </p>
+              <p>PDF title metadata: {validationSummary?.metadata?.title ?? "Not recorded"}</p>
+            </>
+          )}
         </div>
       </section>
 
       <section className="rounded-3xl border border-stone-300 bg-white p-8 shadow-sm">
         <h2 className="text-2xl font-semibold text-stone-900">Version History</h2>
         <p className="mt-2 text-sm text-stone-600">
-          {version.document.versions.length} immutable version{version.document.versions.length === 1 ? "" : "s"} stored for this logical document.
+          {version.document.versions.length} immutable version
+          {version.document.versions.length === 1 ? "" : "s"} stored for this logical document.
         </p>
         <div className="mt-6 space-y-4">
           {version.document.versions.map((entry) => (
             <article key={entry.id} className="rounded-2xl border border-stone-200 bg-stone-50 p-4">
               <p className="text-sm font-semibold text-stone-900">Version {entry.versionNumber}</p>
               <p className="mt-1 text-sm text-stone-600">
-                {entry.renderStatus.replace(/_/g, " ")} • {entry.sizeBytes} bytes
+                {entry.renderStatus.replace(/_/g, " ")} | {entry.format} | {entry.sizeBytes} bytes
               </p>
             </article>
           ))}

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { DocumentFormat } from "@prisma/client";
 import { runResumeAuditAction } from "@/lib/resume-audit/actions";
 import { renderApprovedResumeDocumentAction } from "@/lib/document-rendering/actions";
 import { getLatestRenderedResumeDocumentVersion } from "@/lib/document-rendering/service";
@@ -35,8 +36,11 @@ function SuccessBanner({ success }: { success?: string }) {
     "audit-created": "Resume audit completed successfully.",
     "audit-reused":
       "The current audit contract, engine, and configuration already had a successful result for this exact composed resume, so the existing audit was reused.",
-    "document-rendered": "Approved resume rendered to an immutable DOCX successfully.",
-    "document-reused":
+    "pdf-document-rendered": "Approved resume rendered to an immutable PDF successfully.",
+    "pdf-document-reused":
+      "The active approved resume already had a matching immutable PDF, so the existing document version was reused.",
+    "docx-document-rendered": "Approved resume rendered to an immutable DOCX successfully.",
+    "docx-document-reused":
       "The active approved resume already had a matching immutable DOCX, so the existing document version was reused."
   };
 
@@ -114,9 +118,15 @@ export default async function ResumePage({ params, searchParams }: ResumePagePro
     jobDescriptionVersionId,
     applicationId: version.applicationId
   });
-  const latestDocumentVersion = await getLatestRenderedResumeDocumentVersion(workspace.id, {
+  const latestPdfDocumentVersion = await getLatestRenderedResumeDocumentVersion(workspace.id, {
     jobDescriptionVersionId,
-    applicationId: version.applicationId
+    applicationId: version.applicationId,
+    format: DocumentFormat.PDF
+  });
+  const latestDocxDocumentVersion = await getLatestRenderedResumeDocumentVersion(workspace.id, {
+    jobDescriptionVersionId,
+    applicationId: version.applicationId,
+    format: DocumentFormat.DOCX
   });
   const approvalHistory = await listResumeRenderingApprovalHistory(workspace.id, {
     jobDescriptionVersionId,
@@ -245,7 +255,7 @@ export default async function ResumePage({ params, searchParams }: ResumePagePro
             </p>
             <p className="mt-1 text-sm text-stone-600">
               {latestAuditSummary
-                ? `${latestAuditSummary.errorCount ?? 0} errors • ${latestAuditSummary.warningCount ?? 0} warnings`
+                ? `${latestAuditSummary.errorCount ?? 0} errors - ${latestAuditSummary.warningCount ?? 0} warnings`
                 : "Run the deterministic audit before rendering."}
             </p>
           </article>
@@ -258,11 +268,11 @@ export default async function ResumePage({ params, searchParams }: ResumePagePro
         <p className="mt-4 text-sm text-stone-600">
           Active rendering approval: {activeApproval ? activeApproval.sourceType.replace(/_/g, " ") : "None"}
         </p>
-        {latestDocumentVersion ? (
+        {latestPdfDocumentVersion ? (
           <div className="mt-4 rounded-2xl border border-stone-200 bg-stone-50 px-4 py-4 text-sm text-stone-700">
-            Latest immutable DOCX version {latestDocumentVersion.versionNumber} is ready.
+            Latest immutable PDF version {latestPdfDocumentVersion.versionNumber} is ready.
             {" "}
-            <Link className="font-semibold text-stone-900 underline" href={`/documents/${latestDocumentVersion.id}`}>
+            <Link className="font-semibold text-stone-900 underline" href={`/documents/${latestPdfDocumentVersion.id}`}>
               View document version
             </Link>
             {" "}
@@ -270,9 +280,9 @@ export default async function ResumePage({ params, searchParams }: ResumePagePro
             {" "}
             <a
               className="font-semibold text-stone-900 underline"
-              href={`/api/documents/${latestDocumentVersion.id}/download`}
+              href={`/api/documents/${latestPdfDocumentVersion.id}/download`}
             >
-              download the DOCX
+              download the PDF
             </a>
             .
           </div>
@@ -303,42 +313,77 @@ export default async function ResumePage({ params, searchParams }: ResumePagePro
           <div>
             <h2 className="text-2xl font-semibold text-stone-900">Rendering Output</h2>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-stone-600">
-              Render a DOCX only from the active approved resume source after the deterministic audit gate passes.
+              Render an immutable PDF or DOCX only from the active approved resume source after the deterministic audit gate passes.
             </p>
           </div>
           <div className="flex flex-wrap gap-3">
-            {latestDocumentVersion ? (
+            {latestPdfDocumentVersion ? (
               <>
                 <Link
                   className="rounded-full border border-stone-300 px-5 py-3 text-sm font-semibold text-stone-700 transition hover:border-stone-950 hover:text-stone-950"
-                  href={`/documents/${latestDocumentVersion.id}`}
+                  href={`/documents/${latestPdfDocumentVersion.id}`}
                 >
-                  View Document Version
+                  View PDF Version
                 </Link>
                 <a
                   className="rounded-full border border-stone-300 px-5 py-3 text-sm font-semibold text-stone-700 transition hover:border-stone-950 hover:text-stone-950"
-                  href={`/api/documents/${latestDocumentVersion.id}/download`}
+                  href={`/api/documents/${latestPdfDocumentVersion.id}/download`}
+                >
+                  Download PDF
+                </a>
+              </>
+            ) : null}
+            {latestDocxDocumentVersion ? (
+              <>
+                <Link
+                  className="rounded-full border border-stone-300 px-5 py-3 text-sm font-semibold text-stone-700 transition hover:border-stone-950 hover:text-stone-950"
+                  href={`/documents/${latestDocxDocumentVersion.id}`}
+                >
+                  View DOCX Version
+                </Link>
+                <a
+                  className="rounded-full border border-stone-300 px-5 py-3 text-sm font-semibold text-stone-700 transition hover:border-stone-950 hover:text-stone-950"
+                  href={`/api/documents/${latestDocxDocumentVersion.id}/download`}
                 >
                   Download DOCX
                 </a>
               </>
             ) : null}
             {activeApproval ? (
-              <form
-                action={renderApprovedResumeDocumentAction.bind(
-                  null,
-                  jobDescriptionVersionId,
-                  version.applicationId,
-                  `/job-descriptions/${jobDescriptionVersionId}/resume`
-                )}
-              >
-                <button
-                  className="rounded-full bg-stone-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-stone-800"
-                  type="submit"
+              <>
+                <form
+                  action={renderApprovedResumeDocumentAction.bind(
+                    null,
+                    jobDescriptionVersionId,
+                    DocumentFormat.PDF,
+                    version.applicationId,
+                    `/job-descriptions/${jobDescriptionVersionId}/resume`
+                  )}
                 >
-                  {latestDocumentVersion ? "Render Approved DOCX Again" : "Render Approved DOCX"}
-                </button>
-              </form>
+                  <button
+                    className="rounded-full bg-stone-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-stone-800"
+                    type="submit"
+                  >
+                    {latestPdfDocumentVersion ? "Render Approved PDF Again" : "Render Approved PDF"}
+                  </button>
+                </form>
+                <form
+                  action={renderApprovedResumeDocumentAction.bind(
+                    null,
+                    jobDescriptionVersionId,
+                    DocumentFormat.DOCX,
+                    version.applicationId,
+                    `/job-descriptions/${jobDescriptionVersionId}/resume`
+                  )}
+                >
+                  <button
+                    className="rounded-full border border-stone-300 px-5 py-3 text-sm font-semibold text-stone-700 transition hover:border-stone-950 hover:text-stone-950"
+                    type="submit"
+                  >
+                    {latestDocxDocumentVersion ? "Render Approved DOCX Again" : "Render Approved DOCX"}
+                  </button>
+                </form>
+              </>
             ) : null}
           </div>
         </div>

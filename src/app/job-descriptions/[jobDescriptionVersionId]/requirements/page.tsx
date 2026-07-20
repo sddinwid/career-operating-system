@@ -5,13 +5,17 @@ import { getEvidenceScoringContext } from "@/lib/evidence-scoring/service";
 import { retrieveCareerEvidenceAction } from "@/lib/evidence-retrieval/actions";
 import { getEvidenceRetrievalContext } from "@/lib/evidence-retrieval/service";
 import {
-  jobRequirementAnalysisContractSchema,
   requirementCategorySchema,
   requirementKindSchema,
   type AnalyzedRequirement,
   type AnalyzedResponsibility,
   type JobRequirementAnalysisContract
 } from "@/lib/job-descriptions/requirement-analysis-contract";
+import {
+  parsedJobDescriptionContractSchema,
+  type DetectedSection,
+  type ParserDiagnostic
+} from "@/lib/job-descriptions/parser-contract";
 import {
   addUserRequirementAction,
   applyRequirementBulkAction,
@@ -24,7 +28,8 @@ import {
 import {
   ensureRequirementAnalysisDraft,
   getJobRequirementAnalysisById,
-  getJobRequirementAnalysisContext
+  getJobRequirementAnalysisContext,
+  parseStoredJobRequirementAnalysis
 } from "@/lib/job-descriptions/requirement-analysis-service";
 import { getDefaultWorkspace } from "@/lib/workspace";
 
@@ -109,6 +114,32 @@ function SummaryCard({
       {detail ? <p className="mt-1 text-sm text-stone-600">{detail}</p> : null}
     </article>
   );
+}
+
+function formatApplicability(value: string) {
+  return value
+    .replace(/_ONLY$/g, "")
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function buildSectionPath(
+  sectionId: string | null,
+  sectionLookup: Map<string, DetectedSection>
+) {
+  if (!sectionId) {
+    return "Manual review";
+  }
+
+  const path: string[] = [];
+  let current = sectionLookup.get(sectionId) ?? null;
+
+  while (current) {
+    path.unshift(current.canonicalHeading);
+    current = current.parentSectionId ? (sectionLookup.get(current.parentSectionId) ?? null) : null;
+  }
+
+  return path.join(" > ") || "Manual review";
 }
 
 function KindChecklist({
@@ -215,30 +246,51 @@ function RequirementReviewCard({
   jobDescriptionVersionId,
   analysisId,
   requirement,
-  editable
+  editable,
+  sectionLookup
 }: {
   jobDescriptionVersionId: string;
   analysisId: string;
   requirement: AnalyzedRequirement;
   editable: boolean;
+  sectionLookup: Map<string, DetectedSection>;
 }) {
+  const displayText = requirement.correctedDisplayText ?? requirement.originalText;
+  const showOriginalText = displayText !== requirement.originalText;
+
   return (
     <article className="rounded-2xl border border-stone-200 bg-stone-50 p-5">
       <ItemHeader
         badge={requirement.userAdded ? "User Added" : requirement.confidence}
-        title={requirement.correctedDisplayText ?? requirement.originalText}
+        title={displayText}
       />
-      <p className="mt-3 text-sm text-stone-700">{requirement.originalText}</p>
+      {showOriginalText ? (
+        <p className="mt-3 text-sm text-stone-700">{requirement.originalText}</p>
+      ) : null}
       <div className="mt-3 flex flex-wrap gap-2 text-xs text-stone-600">
         <span>Category: {requirement.category}</span>
+        <span>Applicability: {formatApplicability(requirement.levelApplicability)}</span>
         <span>Rule: {requirement.classificationRule}</span>
-        <span>Section: {requirement.sourceSectionType ?? "Manual review"}</span>
+        <span>Section: {buildSectionPath(requirement.sourceSectionId, sectionLookup)}</span>
         <span>Statement: {requirement.parserStatementId ?? "User-added"}</span>
       </div>
       <div className="mt-2 flex flex-wrap gap-2 text-xs text-stone-600">
         <span>Technologies: {requirement.technologies.join(", ") || "None"}</span>
         <span>Experience: {requirement.experienceText ?? "None"}</span>
       </div>
+      {requirement.degreeRequirement || requirement.certificationRequirement || requirement.equivalencyText ? (
+        <div className="mt-2 flex flex-wrap gap-2 text-xs text-stone-600">
+          {requirement.degreeRequirement ? (
+            <span>Education: {requirement.degreeRequirement}</span>
+          ) : null}
+          {requirement.certificationRequirement ? (
+            <span>Certification: {requirement.certificationRequirement}</span>
+          ) : null}
+          {requirement.equivalencyText ? (
+            <span>Equivalency: {requirement.equivalencyText}</span>
+          ) : null}
+        </div>
+      ) : null}
 
       {editable ? (
         <div className="mt-5 space-y-4">
@@ -338,12 +390,14 @@ function ResponsibilityReviewCard({
   jobDescriptionVersionId,
   analysisId,
   responsibility,
-  editable
+  editable,
+  sectionLookup
 }: {
   jobDescriptionVersionId: string;
   analysisId: string;
   responsibility: AnalyzedResponsibility;
   editable: boolean;
+  sectionLookup: Map<string, DetectedSection>;
 }) {
   return (
     <article className="rounded-2xl border border-stone-200 bg-stone-50 p-5">
@@ -351,7 +405,9 @@ function ResponsibilityReviewCard({
       <div className="mt-3 flex flex-wrap gap-2 text-xs text-stone-600">
         <span>Relevance: {responsibility.relevance}</span>
         <span>Rule: {responsibility.classificationRule}</span>
-        <span>Section: {responsibility.parserProvenance.sourceSectionId ?? "Unknown"}</span>
+        <span>
+          Section: {buildSectionPath(responsibility.parserProvenance.sourceSectionId, sectionLookup)}
+        </span>
       </div>
       <div className="mt-2 flex flex-wrap gap-2 text-xs text-stone-600">
         <span>Technologies: {responsibility.technologies.join(", ") || "None"}</span>
@@ -593,12 +649,18 @@ export default async function RequirementReviewPage({
     );
   }
 
-  const analysis = jobRequirementAnalysisContractSchema.parse(selectedAnalysisRecord.analysis);
+  const analysis = parseStoredJobRequirementAnalysis(selectedAnalysisRecord.analysis);
+  const parsed = parsedJobDescriptionContractSchema.parse(
+    selectedAnalysisRecord.jobDescriptionParse.result
+  );
+  const sectionLookup = new Map(parsed.sections.map((section) => [section.id, section]));
+  const parseDiagnostics = (selectedAnalysisRecord.jobDescriptionParse.diagnostics ??
+    []) as ParserDiagnostic[];
   const editable =
     analysis.reviewStatus !== "CONFIRMED" && analysis.reviewStatus !== "SUPERSEDED";
   const canRetrieveEvidence =
     analysis.reviewStatus === "CONFIRMED" &&
-    retrievalContext?.latestConfirmedRequirementAnalysis?.id === analysis.id &&
+    retrievalContext?.downstreamReadyRequirementAnalysis?.id === analysis.id &&
     Boolean(retrievalContext.latestCareerProfileVersion);
 
   const requiredRequirements = analysis.requirements.filter(
@@ -617,6 +679,9 @@ export default async function RequirementReviewPage({
     (item) => item.relevance === "NOISE" && !item.excluded
   );
   const needsReviewRequirements = analysis.requirements.filter(
+    (item) => !item.excluded && (item.confidence === "LOW" || item.confirmationState !== "CONFIRMED")
+  );
+  const needsReviewResponsibilities = analysis.responsibilities.filter(
     (item) => !item.excluded && (item.confidence === "LOW" || item.confirmationState !== "CONFIRMED")
   );
   const includedResponsibilities = analysis.responsibilities.filter((item) => !item.excluded);
@@ -726,15 +791,65 @@ export default async function RequirementReviewPage({
 
         <div className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           <SummaryCard label="Review status" value={analysis.reviewStatus.replace(/_/g, " ")} />
+          <SummaryCard
+            label="Downstream readiness"
+            value={analysis.summary.downstreamReadiness.replace(/_/g, " ")}
+            detail="Controls evidence retrieval and later automation."
+          />
           <SummaryCard label="Analysis version" value={selectedAnalysisRecord.classifierVersion} detail={`Contract ${analysis.contractVersion}`} />
           <SummaryCard label="Parser version" value={analysis.parserVersion} detail={`Parse ${analysis.parseId}`} />
           <SummaryCard label="Required" value={analysis.summary.requiredCount} />
           <SummaryCard label="Preferred" value={analysis.summary.preferredCount} />
           <SummaryCard label="Contextual" value={analysis.summary.contextualCount} />
           <SummaryCard label="Responsibilities" value={analysis.summary.includedResponsibilitiesCount} />
+          <SummaryCard
+            label="Extracted requirements"
+            value={analysis.summary.qualificationExtractionCount}
+            detail={`${analysis.summary.responsibilityExtractionCount} responsibilities detected`}
+          />
           <SummaryCard label="Needs review" value={analysis.summary.unresolvedReviewItemsCount} detail={`${analysis.summary.lowConfidenceCount} low confidence`} />
         </div>
       </section>
+
+      {analysis.summary.downstreamReadiness !== "READY" ? (
+        <section className="rounded-3xl border border-amber-300 bg-amber-50 p-8 shadow-sm">
+          <h2 className="text-2xl font-semibold text-amber-950">Downstream automation is paused</h2>
+          <p className="mt-3 max-w-3xl text-sm leading-6 text-amber-900">
+            Evidence retrieval, scoring, and later resume automation stay paused until this requirement set has enough extraction coverage for deterministic downstream use.
+          </p>
+        </section>
+      ) : null}
+
+      {parseDiagnostics.length > 0 ? (
+        <section className="rounded-3xl border border-stone-300 bg-white p-8 shadow-sm">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <h2 className="text-2xl font-semibold text-stone-900">Parser diagnostics</h2>
+              <p className="mt-2 text-sm text-stone-600">
+                These messages come from the immutable parser output linked to this analysis.
+              </p>
+            </div>
+            <p className="text-sm font-medium text-stone-600">
+              {parseDiagnostics.filter((item) => item.severity === "ERROR").length} errors,{" "}
+              {parseDiagnostics.filter((item) => item.severity === "WARNING").length} warnings,{" "}
+              {parseDiagnostics.filter((item) => item.severity === "INFO").length} info
+            </p>
+          </div>
+          <div className="mt-6 space-y-3">
+            {parseDiagnostics.map((diagnostic) => (
+              <article
+                key={`${diagnostic.code}-${diagnostic.message}`}
+                className="rounded-2xl border border-stone-200 bg-stone-50 p-4"
+              >
+                <p className="text-sm font-semibold text-stone-900">
+                  {diagnostic.severity} • {diagnostic.code}
+                </p>
+                <p className="mt-2 text-sm text-stone-700">{diagnostic.message}</p>
+              </article>
+            ))}
+          </div>
+        </section>
+      ) : null}
 
       {editable ? (
         <section className="rounded-3xl border border-stone-300 bg-white p-8 shadow-sm">
@@ -772,19 +887,20 @@ export default async function RequirementReviewPage({
       <DiagnosticList diagnostics={analysis.diagnostics} />
 
       <GroupSection
-        description="Low-confidence or still-unconfirmed items should be reviewed before you confirm the authoritative requirement set."
+        description="Unresolved review work is summarized here once, while the editable records stay in their category sections below."
         emptyMessage="No items currently need review."
         title="Needs Review"
       >
-        {needsReviewRequirements.map((item) => (
-          <RequirementReviewCard
-            key={item.id}
-            analysisId={analysis.id}
-            editable={editable}
-            jobDescriptionVersionId={jobDescriptionVersionId}
-            requirement={item}
-          />
-        ))}
+        <SummaryCard
+          label="Requirements needing review"
+          value={needsReviewRequirements.length}
+          detail={`${analysis.summary.lowConfidenceCount} low-confidence requirements or responsibilities`}
+        />
+        <SummaryCard
+          label="Responsibilities needing review"
+          value={needsReviewResponsibilities.length}
+          detail="Review the category sections below to confirm or correct these records."
+        />
       </GroupSection>
 
       <GroupSection
@@ -799,6 +915,7 @@ export default async function RequirementReviewPage({
             editable={editable}
             jobDescriptionVersionId={jobDescriptionVersionId}
             requirement={item}
+            sectionLookup={sectionLookup}
           />
         ))}
       </GroupSection>
@@ -815,6 +932,7 @@ export default async function RequirementReviewPage({
             editable={editable}
             jobDescriptionVersionId={jobDescriptionVersionId}
             requirement={item}
+            sectionLookup={sectionLookup}
           />
         ))}
       </GroupSection>
@@ -831,6 +949,7 @@ export default async function RequirementReviewPage({
             editable={editable}
             jobDescriptionVersionId={jobDescriptionVersionId}
             requirement={item}
+            sectionLookup={sectionLookup}
           />
         ))}
       </GroupSection>
@@ -847,6 +966,7 @@ export default async function RequirementReviewPage({
             editable={editable}
             jobDescriptionVersionId={jobDescriptionVersionId}
             responsibility={item}
+            sectionLookup={sectionLookup}
           />
         ))}
       </GroupSection>
@@ -863,6 +983,7 @@ export default async function RequirementReviewPage({
             editable={editable}
             jobDescriptionVersionId={jobDescriptionVersionId}
             requirement={item}
+            sectionLookup={sectionLookup}
           />
         ))}
         {noiseResponsibilities.map((item) => (
@@ -872,6 +993,7 @@ export default async function RequirementReviewPage({
             editable={editable}
             jobDescriptionVersionId={jobDescriptionVersionId}
             responsibility={item}
+            sectionLookup={sectionLookup}
           />
         ))}
       </GroupSection>

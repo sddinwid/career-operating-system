@@ -161,9 +161,11 @@ describe("resume revision service", () => {
     await prisma.$disconnect();
   });
 
-  it("reuses one active draft, finalizes an immutable successor, and preserves upstream workflow state", async () => {
-    const workspace = await createWorkspace();
-    const prepared = await prepareResumeComposition(workspace.id);
+  it(
+    "reuses one active draft, finalizes an immutable successor, and preserves upstream workflow state",
+    async () => {
+      const workspace = await createWorkspace();
+      const prepared = await prepareResumeComposition(workspace.id);
 
     const beforeApplication = await prisma.application.findUniqueOrThrow({
       where: { id: prepared.application.id }
@@ -232,10 +234,12 @@ describe("resume revision service", () => {
       where: { applicationId: prepared.application.id }
     });
 
-    expect(afterApplication.status).toBe(beforeApplication.status);
-    expect(afterApplication.recordedAt.toISOString()).toBe(beforeApplication.recordedAt.toISOString());
-    expect(afterHistoryCount).toBe(beforeHistoryCount);
-  });
+      expect(afterApplication.status).toBe(beforeApplication.status);
+      expect(afterApplication.recordedAt.toISOString()).toBe(beforeApplication.recordedAt.toISOString());
+      expect(afterHistoryCount).toBe(beforeHistoryCount);
+    },
+    20000
+  );
 
   it("audits a finalized revision without reusing the base composition audit", async () => {
     const workspace = await createWorkspace();

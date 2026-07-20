@@ -100,7 +100,7 @@ export default async function EvidenceRetrievalPage({
 
   if (!selectedRunId) {
     const ready = Boolean(
-      context.latestCareerProfileVersion && context.latestConfirmedRequirementAnalysis
+      context.latestCareerProfileVersion && context.downstreamReadyRequirementAnalysis
     );
 
     return (
@@ -114,6 +114,13 @@ export default async function EvidenceRetrievalPage({
             Evidence retrieval is read-only and runs only when a confirmed requirement analysis and
             an active career profile version are available.
           </p>
+          {context.latestConfirmedRequirementAnalysis &&
+          context.requirementAnalysisDownstreamReadiness !== "READY" ? (
+            <p className="mt-3 max-w-3xl text-sm leading-6 text-amber-800">
+              The current confirmed requirement analysis is not ready for downstream automation yet.
+              Return to requirement review to address extraction coverage before retrieving evidence.
+            </p>
+          ) : null}
           <div className="mt-6 flex flex-wrap gap-3">
             <Link
               className="rounded-full border border-stone-300 px-5 py-3 text-sm font-semibold text-stone-700 transition hover:border-stone-950 hover:text-stone-950"

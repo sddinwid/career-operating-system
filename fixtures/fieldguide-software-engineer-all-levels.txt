@@ -1,0 +1,130 @@
+Software Engineer (All Levels)
+Location
+San Francisco, CA or Remote (USA)
+
+Employment Type
+Full time
+
+Location Type
+Remote
+
+Department
+Engineering, Product, and Design
+Engineering
+
+Compensation
+Base Salary $150K - $260K - Offers Equity
+
+About Fieldguide
+Fieldguide is redefining trust in global commerce by modernizing how cybersecurity, privacy, and financial audits are done.
+
+About the Role
+We're hiring Software Engineers across multiple levels to join our growing team.
+
+Depending on your experience and interests, you may contribute as a mid-level engineer, take on leadership within a team, or drive technical strategy across teams and systems. The final level will be determined during the interview process based on scope and demonstrated experience.
+
+Our engineering hub is located in San Francisco. This role is open to remote candidates anywhere in the US; Bay Area-based employees will work in a hybrid setting.
+
+What You'll Do
+Design, build, and deliver high-quality features that drive customer and business impact
+
+Collaborate cross-functionally with product and design to turn complex problems into elegant, user-focused solutions
+
+Balance iteration speed with long-term maintainability and system health
+
+Continuously improve our tech stack, developer workflows, and reliability practices
+
+Contribute to a supportive, growth-oriented engineering culture based on trust, learning, and excellence
+
+Core Competencies (All Levels)
+Technical Craft
+Strong software engineering fundamentals and experience shipping production code
+
+Familiarity with modern web technologies such as TypeScript, React, Node.js, Python, and GraphQL
+
+Writing maintainable, well-tested, and observable code
+
+Sound judgment around tradeoffs, reliability, and performance
+
+Impact & Execution
+Ability to scope, prioritize, and deliver work that moves business outcomes
+
+Clear and proactive communication around progress, risks, and decisions
+
+Ownership mindset - following work through from ideation to production and iteration
+
+Collaboration & Influence
+Empathy for teammates and customers; contributes positively to team culture
+
+Open to feedback and committed to continuous improvement
+
+Works effectively across disciplines and functions to achieve shared goals
+
+Culture & Growth
+Embodies Fieldguide's values: Fearless, Fast, Lovable, Owners, Win-win, Inclusive
+
+Mentors and supports peers; contributes to hiring and onboarding processes
+
+Curious and self-driven in learning new skills, technologies, and domains
+
+Take increasing ownership - from building features to shaping architecture and mentoring others - as you grow.
+
+Higher-Level Responsibilities
+At the Senior level, you may:
+Lead complex projects or systems, setting technical direction and ensuring long-term health
+
+Collaborate with PMs and designers to shape roadmaps and define architectural tradeoffs
+
+Serve as a domain expert within one or more technical areas (e.g., frontend architecture, backend systems, developer experience)
+
+Mentor other engineers and help raise the technical bar across the team
+
+At the Staff level, you may:
+Drive company-level technical initiatives and influence cross-team architecture
+
+Set and champion engineering standards for scalability, security, and performance
+
+Partner with engineering and product leadership to define long-term technical strategy
+
+Serve as a trusted advisor to leaders across Engineering, Product, and Design
+
+Represent Fieldguide externally through writing, speaking, and open-source contributions
+
+Nice-to-Have Experience
+Experience or familiarity with audit, assurance, or risk management domains
+
+Shaping a new tech stack, product, or engineering org from the ground up
+
+Working with infrastructure or data layers such as AWS, Postgres, and Hasura
+
+Architecting systems for document-heavy workflows, including ingestion, processing, and retrieval
+
+Integrating or building ML-powered systems for document understanding or search
+
+Implementing DevOps and CI/CD best practices
+
+Applying information security and compliance principles (SOC 2, FedRAMP, etc.)
+
+Benefits
+Competitive compensation packages with meaningful equity ownership
+
+Comprehensive health and wellness benefits, including free therapy sessions
+
+Flexible PTO and work schedules
+
+Technology & work-from-home reimbursements
+
+401(k) plan
+
+Our Values
+Fearless - Inspire and break down seemingly impossible walls
+
+Fast - Launch fast with excellence; iterate to perfection
+
+Lovable - Deliver happiness and 11-star experiences
+
+Owners - Execute and run the business with ownership
+
+Win-win - Create mutual value and earn trust for life
+
+Inclusive - Scale the best ideas with inclusive teams

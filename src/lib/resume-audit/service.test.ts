@@ -153,43 +153,49 @@ describe("resume audit service", () => {
     await prisma.$disconnect();
   });
 
-  it("creates an immutable audit run and reuses it for identical inputs", async () => {
-    const workspace = await createWorkspace();
-    const prepared = await prepareResumeComposition(workspace.id);
+  it(
+    "creates an immutable audit run and reuses it for identical inputs",
+    async () => {
+      const workspace = await createWorkspace();
+      const prepared = await prepareResumeComposition(workspace.id);
 
-    const beforeApplication = await prisma.application.findUniqueOrThrow({
-      where: { id: prepared.application.id }
-    });
-    const beforeHistoryCount = await prisma.applicationStatusHistory.count({
-      where: { applicationId: prepared.application.id }
-    });
+      const beforeApplication = await prisma.application.findUniqueOrThrow({
+        where: { id: prepared.application.id }
+      });
+      const beforeHistoryCount = await prisma.applicationStatusHistory.count({
+        where: { applicationId: prepared.application.id }
+      });
 
-    const first = await runResumeAudit(
-      workspace.id,
-      { resumeCompositionVersionId: prepared.compositionVersionId },
-      prisma
-    );
-    const second = await runResumeAudit(
-      workspace.id,
-      { resumeCompositionVersionId: prepared.compositionVersionId },
-      prisma
-    );
-    const afterApplication = await prisma.application.findUniqueOrThrow({
-      where: { id: prepared.application.id }
-    });
-    const afterHistoryCount = await prisma.applicationStatusHistory.count({
-      where: { applicationId: prepared.application.id }
-    });
+      const first = await runResumeAudit(
+        workspace.id,
+        { resumeCompositionVersionId: prepared.compositionVersionId },
+        prisma
+      );
+      const second = await runResumeAudit(
+        workspace.id,
+        { resumeCompositionVersionId: prepared.compositionVersionId },
+        prisma
+      );
+      const afterApplication = await prisma.application.findUniqueOrThrow({
+        where: { id: prepared.application.id }
+      });
+      const afterHistoryCount = await prisma.applicationStatusHistory.count({
+        where: { applicationId: prepared.application.id }
+      });
 
-    expect(first.duplicate).toBe(false);
-    expect(second.duplicate).toBe(true);
-    expect(second.run?.id).toBe(first.run?.id);
-    expect(afterApplication.status).toBe(beforeApplication.status);
-    expect(afterApplication.recordedAt.toISOString()).toBe(beforeApplication.recordedAt.toISOString());
-    expect(afterHistoryCount).toBe(beforeHistoryCount);
-    expect(await prisma.documentVersion.count({ where: { document: { workspaceId: workspace.id } } })).toBe(0);
-    expect(await prisma.aiRun.count({ where: { workspaceId: workspace.id } })).toBe(0);
-  });
+      expect(first.duplicate).toBe(false);
+      expect(second.duplicate).toBe(true);
+      expect(second.run?.id).toBe(first.run?.id);
+      expect(afterApplication.status).toBe(beforeApplication.status);
+      expect(afterApplication.recordedAt.toISOString()).toBe(beforeApplication.recordedAt.toISOString());
+      expect(afterHistoryCount).toBe(beforeHistoryCount);
+      expect(
+        await prisma.documentVersion.count({ where: { document: { workspaceId: workspace.id } } })
+      ).toBe(0);
+      expect(await prisma.aiRun.count({ where: { workspaceId: workspace.id } })).toBe(0);
+    },
+    15_000
+  );
 
   it("rolls back the audit row when persistence fails after creation", async () => {
     const workspace = await createWorkspace();

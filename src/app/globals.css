@@ -2,6 +2,14 @@
 
 :root {
   color-scheme: light;
+  --action-primary-bg: #1c1917;
+  --action-primary-bg-hover: #292524;
+  --action-primary-fg: #fafaf9;
+  --action-secondary-border: #d6d3d1;
+  --action-secondary-border-hover: #1c1917;
+  --action-secondary-fg: #44403c;
+  --action-secondary-fg-hover: #1c1917;
+  --focus-ring: #1c1917;
 }
 
 * {
@@ -21,6 +29,147 @@ body {
 a {
   color: inherit;
   text-decoration: none;
+}
+
+a:visited {
+  color: inherit;
+}
+
+a.button-primary,
+a.button-primary:link,
+a.button-primary:visited {
+  color: var(--action-primary-fg);
+}
+
+a.button-secondary,
+a.button-secondary:link,
+a.button-secondary:visited {
+  color: var(--action-secondary-fg);
+}
+
+a.text-action,
+a.text-action:link,
+a.text-action:visited {
+  color: #1c1917;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+@layer components {
+  .button-primary,
+  .button-primary:link,
+  .button-primary:visited {
+    color: var(--action-primary-fg);
+  }
+
+  .button-primary {
+    @apply inline-flex items-center justify-center rounded-full px-5 py-3 text-sm font-semibold shadow-sm transition-colors focus-visible:outline-2 focus-visible:outline-offset-2;
+    background-color: var(--action-primary-bg);
+    border: 1px solid transparent;
+    outline-color: var(--focus-ring);
+  }
+
+  .button-primary:hover {
+    background-color: var(--action-primary-bg-hover);
+    color: var(--action-primary-fg);
+  }
+
+  .button-primary:active {
+    background-color: #0c0a09;
+  }
+
+  .button-primary:disabled,
+  .button-primary[aria-disabled="true"] {
+    @apply cursor-not-allowed opacity-60;
+  }
+
+  .button-secondary {
+    @apply inline-flex items-center justify-center rounded-full border px-5 py-3 text-sm font-semibold shadow-sm transition-colors focus-visible:outline-2 focus-visible:outline-offset-2;
+    border-color: var(--action-secondary-border);
+    color: var(--action-secondary-fg);
+    outline-color: var(--focus-ring);
+  }
+
+  .button-secondary:hover {
+    border-color: var(--action-secondary-border-hover);
+    color: var(--action-secondary-fg-hover);
+  }
+
+  .button-secondary:link,
+  .button-secondary:visited {
+    color: var(--action-secondary-fg);
+  }
+
+  .button-secondary:disabled,
+  .button-secondary[aria-disabled="true"] {
+    @apply cursor-not-allowed opacity-60;
+  }
+
+  .button-destructive {
+    @apply inline-flex items-center justify-center rounded-full border px-5 py-3 text-sm font-semibold shadow-sm transition-colors focus-visible:outline-2 focus-visible:outline-offset-2;
+    border-color: #fca5a5;
+    color: #b91c1c;
+    outline-color: #b91c1c;
+  }
+
+  .button-destructive:hover {
+    border-color: #b91c1c;
+    color: #991b1b;
+  }
+
+  .text-action {
+    @apply text-sm font-semibold underline-offset-4 transition-colors hover:underline focus-visible:outline-2 focus-visible:outline-offset-2;
+    color: #1c1917;
+    outline-color: var(--focus-ring);
+  }
+
+  .text-action:link,
+  .text-action:visited {
+    color: #1c1917;
+  }
+
+  .nav-link {
+    @apply flex items-center justify-between rounded-xl px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2;
+    color: #e7e5e4;
+    outline-color: #fafaf9;
+  }
+
+  .nav-link:hover {
+    background-color: #292524;
+    color: #fafaf9;
+  }
+
+  .nav-link[aria-current="page"] {
+    background-color: #fafaf9;
+    color: #1c1917;
+  }
+
+  .nav-link-disabled {
+    @apply flex cursor-not-allowed items-center justify-between rounded-xl px-3 py-2 text-sm font-medium;
+    color: #a8a29e;
+    background-color: #1c1917;
+  }
+
+  .status-badge {
+    @apply inline-flex items-center rounded-full border border-stone-300 bg-white px-3 py-1 text-xs font-semibold tracking-wide text-stone-700;
+  }
+
+  .status-badge-success {
+    @apply border-emerald-300 bg-emerald-50 text-emerald-800;
+  }
+
+  .status-badge-warning {
+    @apply border-amber-300 bg-amber-50 text-amber-800;
+  }
+
+  .status-badge-danger {
+    @apply border-red-300 bg-red-50 text-red-800;
+  }
 }
 
 .ag-theme-quartz {

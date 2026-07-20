@@ -10,6 +10,7 @@ import {
   assertCanonicalCareerKnowledgeContract
 } from "@/lib/career/validation";
 import { getLatestCareerProfileVersion } from "@/lib/career/service";
+import { parseStoredJobRequirementAnalysis } from "@/lib/job-descriptions/requirement-analysis-service";
 import {
   EVIDENCE_RETRIEVAL_CONTRACT_VERSION,
   EVIDENCE_RETRIEVAL_ENGINE_VERSION,
@@ -206,16 +207,25 @@ export async function getEvidenceRetrievalContext(
     return null;
   }
 
+  const confirmedAnalysisContract = latestConfirmedRequirementAnalysis
+    ? parseStoredJobRequirementAnalysis(latestConfirmedRequirementAnalysis.analysis)
+    : null;
+  const downstreamReadyRequirementAnalysis =
+    latestConfirmedRequirementAnalysis &&
+    confirmedAnalysisContract?.summary.downstreamReadiness === "READY"
+      ? latestConfirmedRequirementAnalysis
+      : null;
+
   const activeApplication =
     jobDescriptionVersion.currentForApplications[0] ?? jobDescriptionVersion.sourceApplication;
 
   let reusableRun = null;
-  if (latestCareerProfileVersion && latestConfirmedRequirementAnalysis) {
+  if (latestCareerProfileVersion && downstreamReadyRequirementAnalysis) {
     const inputChecksum = await computeInputChecksum({
       careerProfileVersionId: latestCareerProfileVersion.id,
       careerSourceChecksum: latestCareerProfileVersion.checksum,
-      requirementAnalysisId: latestConfirmedRequirementAnalysis.id,
-      requirementSourceChecksum: latestConfirmedRequirementAnalysis.sourceChecksum
+      requirementAnalysisId: downstreamReadyRequirementAnalysis.id,
+      requirementSourceChecksum: downstreamReadyRequirementAnalysis.sourceChecksum
     });
     reusableRun = await getLatestSuccessfulEvidenceRetrievalRunForInputs(
       workspaceId,
@@ -228,6 +238,9 @@ export async function getEvidenceRetrievalContext(
     jobDescriptionVersion,
     latestCareerProfileVersion,
     latestConfirmedRequirementAnalysis,
+    downstreamReadyRequirementAnalysis,
+    requirementAnalysisDownstreamReadiness:
+      confirmedAnalysisContract?.summary.downstreamReadiness ?? null,
     activeApplication,
     reusableRun
   };
@@ -289,6 +302,12 @@ export async function retrieveCareerEvidence(
       throw new Error("A confirmed requirement analysis is required before retrieving evidence.");
     }
 
+    if (!context.downstreamReadyRequirementAnalysis) {
+      throw new Error(
+        "The confirmed requirement analysis is not ready for downstream automation yet."
+      );
+    }
+
     const careerProfileVersion = options.careerProfileVersionId
       ? await transaction.careerProfileVersion.findFirst({
           where: {
@@ -309,8 +328,8 @@ export async function retrieveCareerEvidence(
     const inputChecksum = await computeInputChecksum({
       careerProfileVersionId: careerProfileVersion.id,
       careerSourceChecksum: careerProfileVersion.checksum,
-      requirementAnalysisId: context.latestConfirmedRequirementAnalysis.id,
-      requirementSourceChecksum: context.latestConfirmedRequirementAnalysis.sourceChecksum
+      requirementAnalysisId: context.downstreamReadyRequirementAnalysis.id,
+      requirementSourceChecksum: context.downstreamReadyRequirementAnalysis.sourceChecksum
     });
 
     const existing = await getLatestSuccessfulEvidenceRetrievalRunForInputs(
@@ -336,11 +355,11 @@ export async function retrieveCareerEvidence(
         content: careerProfileVersion.content
       },
       requirementAnalysisRecord: {
-        id: context.latestConfirmedRequirementAnalysis.id,
-        jobDescriptionVersionId: context.latestConfirmedRequirementAnalysis.jobDescriptionVersionId,
-        sourceChecksum: context.latestConfirmedRequirementAnalysis.sourceChecksum,
-        status: context.latestConfirmedRequirementAnalysis.status,
-        analysis: context.latestConfirmedRequirementAnalysis.analysis
+        id: context.downstreamReadyRequirementAnalysis.id,
+        jobDescriptionVersionId: context.downstreamReadyRequirementAnalysis.jobDescriptionVersionId,
+        sourceChecksum: context.downstreamReadyRequirementAnalysis.sourceChecksum,
+        status: context.downstreamReadyRequirementAnalysis.status,
+        analysis: context.downstreamReadyRequirementAnalysis.analysis
       },
       applicationId: context.activeApplication?.id ?? null,
       createdAt,
@@ -352,12 +371,12 @@ export async function retrieveCareerEvidence(
       runId,
       workspaceId,
       careerProfileVersionId: careerProfileVersion.id,
-      requirementAnalysisId: context.latestConfirmedRequirementAnalysis.id,
+      requirementAnalysisId: context.downstreamReadyRequirementAnalysis.id,
       jobDescriptionVersionId: context.jobDescriptionVersion.id,
       applicationId: context.activeApplication?.id ?? null,
       inputChecksum,
       careerSourceChecksum: careerProfileVersion.checksum,
-      requirementSourceChecksum: context.latestConfirmedRequirementAnalysis.sourceChecksum,
+      requirementSourceChecksum: context.downstreamReadyRequirementAnalysis.sourceChecksum,
       result
     });
 

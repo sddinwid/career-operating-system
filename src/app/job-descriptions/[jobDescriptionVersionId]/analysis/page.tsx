@@ -21,6 +21,28 @@ function formatAgreement(value: ExtractedFieldAgreement | undefined) {
   return value ? value.replace(/_/g, " ") : "Not compared";
 }
 
+function formatApplicability(value: string) {
+  return value
+    .replace(/_ONLY$/g, "")
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function formatExperienceRequirement(
+  minimumYears: number,
+  maximumYears: number | null,
+  plusIndicator: boolean,
+  associatedSkill: string | null
+) {
+  const yearsLabel = `${minimumYears}${maximumYears ? `-${maximumYears}` : ""}${plusIndicator ? "+" : ""} years`;
+
+  if (associatedSkill?.toLowerCase() === "software development") {
+    return `${yearsLabel} software development experience`;
+  }
+
+  return associatedSkill ? `${yearsLabel} with ${associatedSkill}` : yearsLabel;
+}
+
 export default async function JobDescriptionAnalysisPage({
   params
 }: JobDescriptionAnalysisPageProps) {
@@ -161,6 +183,30 @@ export default async function JobDescriptionAnalysisPage({
               {result.roleMetadata.location?.value ?? "Not detected"}
             </p>
           </article>
+          <article className="rounded-2xl border border-stone-200 bg-stone-50 p-4">
+            <p className="text-sm font-medium text-stone-500">Secondary location</p>
+            <p className="mt-2 text-lg font-semibold text-stone-900">
+              {result.roleMetadata.secondaryLocation?.value ?? "Not detected"}
+            </p>
+          </article>
+          <article className="rounded-2xl border border-stone-200 bg-stone-50 p-4">
+            <p className="text-sm font-medium text-stone-500">Department</p>
+            <p className="mt-2 text-lg font-semibold text-stone-900">
+              {result.roleMetadata.department?.value ?? "Not detected"}
+            </p>
+          </article>
+          <article className="rounded-2xl border border-stone-200 bg-stone-50 p-4">
+            <p className="text-sm font-medium text-stone-500">Requisition ID</p>
+            <p className="mt-2 text-lg font-semibold text-stone-900">
+              {result.roleMetadata.requisitionId?.value ?? "Not detected"}
+            </p>
+          </article>
+          <article className="rounded-2xl border border-stone-200 bg-stone-50 p-4">
+            <p className="text-sm font-medium text-stone-500">Posted</p>
+            <p className="mt-2 text-lg font-semibold text-stone-900">
+              {result.roleMetadata.postedText?.value ?? "Not detected"}
+            </p>
+          </article>
         </div>
       </section>
 
@@ -180,7 +226,12 @@ export default async function JobDescriptionAnalysisPage({
               className="rounded-2xl border border-stone-200 bg-stone-50 p-4"
             >
               <p className="text-sm font-semibold text-stone-900">{section.heading}</p>
-              <p className="mt-1 text-sm text-stone-600">{section.type.replace(/_/g, " ")}</p>
+              <p className="mt-1 text-sm text-stone-600">
+                {section.canonicalHeading} • {section.type.replace(/_/g, " ")}
+              </p>
+              <p className="mt-1 text-xs text-stone-500">
+                Depth {section.hierarchyDepth} • Applicability {formatApplicability(section.levelApplicability)}
+              </p>
             </article>
           ))}
         </div>
@@ -220,6 +271,9 @@ export default async function JobDescriptionAnalysisPage({
                   {qualification.explicitLabel.replace(/_/g, " ")}
                 </p>
                 <p className="mt-2 text-sm text-stone-700">{qualification.originalText}</p>
+                <p className="mt-2 text-xs text-stone-600">
+                  Applicability: {formatApplicability(qualification.levelApplicability)}
+                </p>
               </article>
             ))
           ) : (
@@ -260,9 +314,12 @@ export default async function JobDescriptionAnalysisPage({
               className="rounded-2xl border border-stone-200 bg-stone-50 p-4"
             >
               <p className="text-sm text-stone-900">
-                {requirement.minimumYears}
-                {requirement.maximumYears ? `-${requirement.maximumYears}` : ""}
-                {requirement.associatedSkill ? ` years with ${requirement.associatedSkill}` : " years"}
+                {formatExperienceRequirement(
+                  requirement.minimumYears,
+                  requirement.maximumYears,
+                  requirement.plusIndicator,
+                  requirement.associatedSkill
+                )}
               </p>
             </article>
           ))}
@@ -290,7 +347,9 @@ export default async function JobDescriptionAnalysisPage({
           {result.experienceRequirements.length === 0 &&
           result.educationRequirements.length === 0 &&
           result.certificationRequirements.length === 0 ? (
-            <p className="text-sm text-stone-600">No experience, education, or certifications detected.</p>
+            <p className="text-sm text-stone-600">
+              No explicit years-of-experience, education, or certifications detected.
+            </p>
           ) : null}
         </div>
       </section>

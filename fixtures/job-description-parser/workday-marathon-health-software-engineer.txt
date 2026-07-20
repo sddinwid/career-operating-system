@@ -1,0 +1,66 @@
+Company logo for, Marathon Health.
+Marathon Health
+
+Software Engineer
+
+locations
+Remote
+
+time type
+Full time
+
+posted on
+Posted 2 Days Ago
+
+job requisition id
+JR108257
+
+Apply
+Save
+Software Engineer page is loaded
+Show all
+
+About the job
+Marathon Health is a leading advanced primary care provider, partnering with employer and union plan sponsors to improve health for millions of Americans.
+
+ABOUT THE JOB
+
+The software engineer role for the Portal and Applications team is an Engineer who can operate with autonomy while adhering to well-established organizational development practices. The ideal candidate will contribute to the design and implementation of small to medium complexity features, demonstrating strong technical proficiency in one to two frameworks and the ability to write and debug code independently.
+
+ESSENTIAL DUTIES & RESPONSIBILITIES
+
+Feature Development: Design, develop, and maintain small to medium complexity features across web and mobile platforms using React and React Native, ensuring alignment with product requirements and user experience goals.
+Backend Engineering: Build and maintain scalable backend services using C#, TypeScript, Ruby on Rails, and RESTful APIs. Contribute to the development of microservices architectures that support modular and maintainable systems.
+Cloud & Infrastructure: Work with AWS cloud technologies including ECS, EKS, Lambda, API Gateway, S3, CloudWatch, and infrastructure-as-code tools like Terraform. Integrate event-driven systems using Debezium, Kafka, and SNS/NServiceBus for queueing and messaging.
+Database Development: Maintain a functional understanding of key data sources such as relational postgres database, Salesforce, NetSuite, and Athena, ensuring data integrity, performance, and scalability.
+Product Collaboration: Partner with product managers and designers to understand business requirements and contribute to feature planning and prioritization.
+Process Adherence: Follow established development best practices including version control, code reviews, automated testing, CI/CD pipelines, and documentation standards.
+Autonomous Execution: Operate independently within a framework of well-defined engineering standards, delivering high-quality solutions with minimal oversight.
+Continuous Improvement: Identify opportunities to improve code quality, system performance, and team workflows. Actively contribute to knowledge sharing and team growth.
+
+QUALIFICATIONS
+
+Bachelors or Masters Degree in computer science or related field and 2+ years of software development experience or equivalent combination of education and experience. Experience working on development teams in an Agile Scrum environment in the following technologies: React, React Native, C#, TypeScript, RESTful APIs, and microservices.
+
+DESIRED ATTRIBUTES
+
+Solid understanding of software engineering principles and basic system design.
+Demonstrated ability to write, debug and maintain clean, efficient code independently.
+Adherence to established development best practices including version control, code reviews, testing, and CI/CD workflows.
+Ability to understand product requirements and contribute meaningfully to feature planning and prioritization.
+Strong communication skills and a collaborative mindset to enable cross functional development with product and design teams.
+Comfortable working autonomously within a structured engineering framework.
+Proactive in identifying and solving problems and contributing to continuous improvement efforts.
+Familiarity with project management, software development, and ticketing tools (Azure DevOps, Freshworks).
+AWS Certified Cloud Practitioner certification or equivalent.
+
+Pay Range: $80,000 - $110,000/yr
+
+About Us
+Marathon Health is a leading advanced primary care provider, partnering with employer and union plan sponsors to improve health for millions of Americans.
+
+Read More
+Need Assistance?
+Protecting your privacy
+Privacy Policy
+Workday, Inc.

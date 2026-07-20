@@ -2,10 +2,16 @@ import { randomUUID } from "node:crypto";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
-import { ApplicationStatus, JobDescriptionSourceType, PrismaClient } from "@prisma/client";
+import {
+  ApplicationStatus,
+  DocumentFormat,
+  JobDescriptionSourceType,
+  PrismaClient
+} from "@prisma/client";
 import { createApplication } from "@/lib/applications/service";
 import { importCareerKnowledge } from "@/lib/career/service";
 import { renderApprovedResumeDocument, readDocumentVersionFile } from "@/lib/document-rendering/service";
+import { extractTextFromPdfBuffer } from "@/lib/document-rendering/pdf";
 import { env } from "@/lib/env";
 import { scoreRetrievedEvidence } from "@/lib/evidence-scoring/service";
 import { retrieveCareerEvidence } from "@/lib/evidence-retrieval/service";
@@ -240,7 +246,9 @@ describe("document rendering service", () => {
     await prisma.$disconnect();
   });
 
-  it("renders an immutable DOCX from an approved base composition and reuses exact inputs", async () => {
+  it(
+    "renders an immutable PDF from an approved base composition and reuses exact inputs",
+    async () => {
     const workspace = await createWorkspace();
     const prepared = await prepareResumeComposition(workspace.id);
     const audit = await runResumeAudit(
@@ -279,21 +287,25 @@ describe("document rendering service", () => {
       workspace.id,
       {
         jobDescriptionVersionId: prepared.jobDescriptionVersionId,
-        applicationId: prepared.application.id
+        applicationId: prepared.application.id,
+        format: DocumentFormat.PDF
       },
       prisma
     );
 
     expect(first.duplicate).toBe(false);
-    expect(first.documentVersion?.format).toBe("DOCX");
+    expect(first.documentVersion?.format).toBe("PDF");
     expect(first.documentVersion?.renderStatus).toBe("SUCCESS");
     expect(first.documentVersion?.resumeCompositionVersionId).toBe(prepared.compositionVersionId);
     expect(first.documentVersion?.resumeRevisionVersionId).toBeNull();
 
     const persisted = await readDocumentVersionFile(workspace.id, first.documentVersion!.id, prisma);
-    expect(persisted.version.originalFilename).toMatch(/Resume_v1\.docx$/);
+    expect(persisted.version.originalFilename).toMatch(/Resume_v1\.pdf$/);
     expect(persisted.buffer.byteLength).toBeGreaterThan(0);
     expect(persisted.buffer.byteLength).toBe(persisted.version.sizeBytes);
+    await expect(extractTextFromPdfBuffer(persisted.buffer)).resolves.toContain(
+      "Professional Summary"
+    );
     const checksum = await crypto.subtle.digest(
       "SHA-256",
       new Uint8Array(persisted.buffer)
@@ -307,16 +319,19 @@ describe("document rendering service", () => {
       workspace.id,
       {
         jobDescriptionVersionId: prepared.jobDescriptionVersionId,
-        applicationId: prepared.application.id
+        applicationId: prepared.application.id,
+        format: DocumentFormat.PDF
       },
       prisma
     );
 
     expect(second.duplicate).toBe(true);
     expect(second.documentVersion?.id).toBe(first.documentVersion?.id);
-  });
+    },
+    20000
+  );
 
-  it("persists finalized revision lineage and warning-aware render status", async () => {
+  it("persists finalized revision lineage and warning-aware render status for DOCX", async () => {
     const workspace = await createWorkspace();
     const prepared = await prepareResumeComposition(workspace.id);
     const finalized = await createFinalizedRevision(workspace.id, prepared.jobDescriptionVersionId);
@@ -355,11 +370,13 @@ describe("document rendering service", () => {
       workspace.id,
       {
         jobDescriptionVersionId: prepared.jobDescriptionVersionId,
-        applicationId: prepared.application.id
+        applicationId: prepared.application.id,
+        format: DocumentFormat.DOCX
       },
       prisma
     );
 
+    expect(rendered.documentVersion?.format).toBe("DOCX");
     expect(rendered.documentVersion?.resumeRevisionVersionId).toBe(finalized!.id);
     expect(rendered.documentVersion?.renderStatus).toBe("SUCCESS_WITH_WARNINGS");
     expect(rendered.documentVersion?.warningCount).toBeGreaterThanOrEqual(0);

@@ -294,10 +294,10 @@ export function ResumeRenderingApprovalPanel({
                   Approval {history.length - index} {approval.status === "APPROVED" ? "(Active)" : ""}
                 </p>
                 <p className="mt-1">
-                  {approval.sourceType.replace(/_/g, " ")} • {new Date(approval.approvedAt).toLocaleString()}
+                  {approval.sourceType.replace(/_/g, " ")} - {new Date(approval.approvedAt).toLocaleString()}
                 </p>
                 <p className="mt-1">
-                  Warnings {approval.warningCount} • Blocking {approval.blockingCount}
+                  Warnings {approval.warningCount} - Blocking {approval.blockingCount}
                 </p>
                 {approval.approvalNote ? <p className="mt-2">{approval.approvalNote}</p> : null}
                 {approval.revokedAt ? (

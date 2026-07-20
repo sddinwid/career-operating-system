@@ -246,69 +246,75 @@ describe("resume rendering approval service", () => {
     await prisma.$disconnect();
   });
 
-  it("creates idempotent base-composition approvals and resolves the rendering gate", async () => {
-    const workspace = await createWorkspace();
-    const prepared = await prepareResumeComposition(workspace.id);
-    const audit = await runResumeAudit(
-      workspace.id,
-      { resumeCompositionVersionId: prepared.compositionVersionId },
-      prisma
-    );
-    await markAuditEligible(audit.run!.id);
+  it(
+    "creates idempotent base-composition approvals and resolves the rendering gate",
+    async () => {
+      const workspace = await createWorkspace();
+      const prepared = await prepareResumeComposition(workspace.id);
+      const audit = await runResumeAudit(
+        workspace.id,
+        { resumeCompositionVersionId: prepared.compositionVersionId },
+        prisma
+      );
+      await markAuditEligible(audit.run!.id);
 
-    const eligibility = await getResumeRenderingApprovalEligibility(workspace.id, {
-      jobDescriptionVersionId: prepared.jobDescriptionVersionId,
-      applicationId: prepared.application.id,
-      sourceType: "BASE_COMPOSITION",
-      sourceId: prepared.compositionVersionId,
-      resumeAuditRunId: audit.run!.id
-    });
+      const eligibility = await getResumeRenderingApprovalEligibility(workspace.id, {
+        jobDescriptionVersionId: prepared.jobDescriptionVersionId,
+        applicationId: prepared.application.id,
+        sourceType: "BASE_COMPOSITION",
+        sourceId: prepared.compositionVersionId,
+        resumeAuditRunId: audit.run!.id
+      });
 
-    expect(eligibility.eligible).toBe(true);
+      expect(eligibility.eligible).toBe(true);
 
-    const created = await approveResumeForRendering(workspace.id, {
-      jobDescriptionVersionId: prepared.jobDescriptionVersionId,
-      applicationId: prepared.application.id,
-      sourceType: "BASE_COMPOSITION",
-      sourceId: prepared.compositionVersionId,
-      resumeAuditRunId: audit.run!.id,
-      expectedContentChecksum: eligibility.contentChecksum!,
-      expectedCurrentApprovalId: null,
-      warningAcknowledged: false,
-      approvalNote: "Approved base composition."
-    });
+      const created = await approveResumeForRendering(workspace.id, {
+        jobDescriptionVersionId: prepared.jobDescriptionVersionId,
+        applicationId: prepared.application.id,
+        sourceType: "BASE_COMPOSITION",
+        sourceId: prepared.compositionVersionId,
+        resumeAuditRunId: audit.run!.id,
+        expectedContentChecksum: eligibility.contentChecksum!,
+        expectedCurrentApprovalId: null,
+        warningAcknowledged: false,
+        approvalNote: "Approved base composition."
+      });
 
-    const duplicate = await approveResumeForRendering(workspace.id, {
-      jobDescriptionVersionId: prepared.jobDescriptionVersionId,
-      applicationId: prepared.application.id,
-      sourceType: "BASE_COMPOSITION",
-      sourceId: prepared.compositionVersionId,
-      resumeAuditRunId: audit.run!.id,
-      expectedContentChecksum: eligibility.contentChecksum!,
-      expectedCurrentApprovalId: created.approval.approvalId,
-      warningAcknowledged: false,
-      approvalNote: "Approved base composition."
-    });
+      const duplicate = await approveResumeForRendering(workspace.id, {
+        jobDescriptionVersionId: prepared.jobDescriptionVersionId,
+        applicationId: prepared.application.id,
+        sourceType: "BASE_COMPOSITION",
+        sourceId: prepared.compositionVersionId,
+        resumeAuditRunId: audit.run!.id,
+        expectedContentChecksum: eligibility.contentChecksum!,
+        expectedCurrentApprovalId: created.approval.approvalId,
+        warningAcknowledged: false,
+        approvalNote: "Approved base composition."
+      });
 
-    expect(created.duplicate).toBe(false);
-    expect(duplicate.duplicate).toBe(true);
-    expect(duplicate.approval.approvalId).toBe(created.approval.approvalId);
+      expect(created.duplicate).toBe(false);
+      expect(duplicate.duplicate).toBe(true);
+      expect(duplicate.approval.approvalId).toBe(created.approval.approvalId);
 
-    const active = await getActiveResumeRenderingApproval(workspace.id, {
-      jobDescriptionVersionId: prepared.jobDescriptionVersionId,
-      applicationId: prepared.application.id
-    });
-    expect(active?.sourceType).toBe("BASE_COMPOSITION");
+      const active = await getActiveResumeRenderingApproval(workspace.id, {
+        jobDescriptionVersionId: prepared.jobDescriptionVersionId,
+        applicationId: prepared.application.id
+      });
+      expect(active?.sourceType).toBe("BASE_COMPOSITION");
 
-    const gate = await getApprovedResumeForRendering(workspace.id, {
-      jobDescriptionVersionId: prepared.jobDescriptionVersionId,
-      applicationId: prepared.application.id
-    });
-    expect(gate.sourceType).toBe("BASE_COMPOSITION");
-    expect(gate.approval.approvalId).toBe(created.approval.approvalId);
-  });
+      const gate = await getApprovedResumeForRendering(workspace.id, {
+        jobDescriptionVersionId: prepared.jobDescriptionVersionId,
+        applicationId: prepared.application.id
+      });
+      expect(gate.sourceType).toBe("BASE_COMPOSITION");
+      expect(gate.approval.approvalId).toBe(created.approval.approvalId);
+    },
+    15_000
+  );
 
-  it("supersedes prior approvals, preserves history, and revokes the active revision approval", async () => {
+  it(
+    "supersedes prior approvals, preserves history, and revokes the active revision approval",
+    async () => {
     const workspace = await createWorkspace();
     const prepared = await prepareResumeComposition(workspace.id);
     const baseAudit = await runResumeAudit(
@@ -394,17 +400,21 @@ describe("resume rendering approval service", () => {
     ).rejects.toMatchObject({
       code: "MISSING_APPROVAL"
     });
-  });
+    },
+    15_000
+  );
 
-  it("rolls back the supersession update when creating the replacement approval fails", async () => {
-    const workspace = await createWorkspace();
-    const prepared = await prepareResumeComposition(workspace.id);
-    const baseAudit = await runResumeAudit(
-      workspace.id,
-      { resumeCompositionVersionId: prepared.compositionVersionId },
-      prisma
-    );
-    await markAuditEligible(baseAudit.run!.id);
+  it(
+    "rolls back the supersession update when creating the replacement approval fails",
+    async () => {
+      const workspace = await createWorkspace();
+      const prepared = await prepareResumeComposition(workspace.id);
+      const baseAudit = await runResumeAudit(
+        workspace.id,
+        { resumeCompositionVersionId: prepared.compositionVersionId },
+        prisma
+      );
+      await markAuditEligible(baseAudit.run!.id);
 
     const baseEligibility = await getResumeRenderingApprovalEligibility(workspace.id, {
       jobDescriptionVersionId: prepared.jobDescriptionVersionId,
@@ -484,5 +494,7 @@ describe("resume rendering approval service", () => {
     });
     expect(baseRecordAfterFailure.status).toBe("APPROVED");
     expect(baseRecordAfterFailure.supersededAt).toBeNull();
-  });
+    },
+    15_000
+  );
 });

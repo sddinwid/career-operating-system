@@ -9,9 +9,12 @@ test("loads the fixture import wizard and produces a preview", async ({ page }) 
   await expect(page.getByRole("heading", { name: "Tracker" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible();
 
-  await page.getByRole("button", { name: "Preview workbook" }).click();
+  await Promise.all([
+    page.waitForURL(/\/imports\?jobId=[^&]+&success=preview$/, { timeout: 15_000 }),
+    page.getByRole("button", { name: "Preview workbook" }).click()
+  ]);
 
-  await expect(page.getByText("Workbook preview prepared.")).toBeVisible({
+  await expect(page.getByText(/Workbook preview prepared\./)).toBeVisible({
     timeout: 15000
   });
   await expect(page.getByRole("button", { name: "Confirm and import" })).toBeVisible({
