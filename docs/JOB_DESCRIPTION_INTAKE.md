@@ -9,6 +9,8 @@ Implemented workflows:
 - Add a description from an existing application
 - Replace a description for the same opportunity with a new immutable version
 - Create a saved opportunity plus first description from `/jobs/new`
+- Add or replace a description for an existing opportunity from `/jobs/[jobOpportunityId]/job-description`
+- Preview public URL retrieval before save through the intake form
 - View a saved version at `/job-descriptions/[jobDescriptionVersionId]`
 
 Implemented downstream dependency:
@@ -88,10 +90,24 @@ Application intake always uses the application's existing opportunity and update
 `M3.1` is intentionally local and non-AI:
 
 - no OpenAI or other model calls
-- no scraping or crawling
+- no browser automation, CAPTCHA bypass, or authenticated scraping
 - no unrelated API responses that include full job-description text
 - no real private source text in fixtures or snapshot-style assertions
+
+## URL preview intake
+
+`M8.4` adds a second input mode alongside pasted text:
+
+- the browser submits a public URL to a server-side route
+- the server validates protocol, host safety, redirect targets, response size, and timeout
+- supported HTML or plain-text content is converted into editable preview text
+- request URL, final URL, status, content type, page title, extractor version, and diagnostics are shown before save
+- no `JobDescriptionVersion` is persisted until the user explicitly submits the reviewed text through the existing save path
+
+Unchanged refetches for the same opportunity still reuse the existing immutable version by normalized checksum. Changed refetches may create a successor immutable version after review and save.
 
 ## Dependency
 
 `M3.2 - Deterministic Job Description Parser` now consumes the normalized preserved source introduced here rather than reparsing ad hoc pasted text from outside the system. See [docs/JOB_DESCRIPTION_PARSER.md](docs/JOB_DESCRIPTION_PARSER.md) for the deterministic extraction contract and parse-run behavior.
+
+See [docs/URL_JOB_DESCRIPTION_INTAKE.md](docs/URL_JOB_DESCRIPTION_INTAKE.md) for the retrieval contract, SSRF protections, JSON-LD handling, and known limitations.

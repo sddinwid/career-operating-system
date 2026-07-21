@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { DocumentFormat } from "@prisma/client";
+import { CareerArtifactPipeline } from "@/components/workflow/career-artifact-pipeline";
 import {
   formatApplicationDate,
   formatApplicationDateTime,
@@ -41,6 +42,7 @@ import { parseJobDescriptionAction } from "@/lib/job-descriptions/parse-actions"
 import { getJobRequirementAnalysisContext } from "@/lib/job-descriptions/requirement-analysis-service";
 import { getApplicationDetail } from "@/lib/applications/service";
 import { countJobDescriptionWords } from "@/lib/job-descriptions/normalize";
+import { buildWorkflowReadiness } from "@/lib/workflow-readiness/service";
 import { getDefaultWorkspace } from "@/lib/workspace";
 
 type ApplicationDetailPageProps = {
@@ -363,6 +365,107 @@ export default async function ApplicationDetailPage({
     : coverLetterApprovalContext?.activeApproval
       ? "Cover Letter PDF Rendering Ready"
       : "Cover Letter PDF Rendering Not Ready";
+  const currentJobDescriptionId = application.currentJobDescriptionVersion?.id ?? null;
+  const readiness = buildWorkflowReadiness({
+    applicationId: application.id,
+    jobOpportunityId: application.opportunityId,
+    jobOpportunityTitle: application.opportunity.title,
+    linkedApplicationId: application.id,
+    currentJobDescription: currentJobDescriptionId
+      ? {
+          id: currentJobDescriptionId,
+          versionNumber: application.currentJobDescriptionVersion?.versionNumber ?? 1
+        }
+      : null,
+    latestParse: application.currentJobDescriptionVersion?.parses[0] ?? null,
+    latestAnalysis: requirementContext?.latestAnalysis ?? null,
+    latestConfirmedAnalysis: requirementContext?.latestConfirmedAnalysis ?? null,
+    downstreamReadiness: requirementContext?.latestConfirmedContract?.summary.downstreamReadiness ??
+      requirementContext?.latestAnalysisContract?.summary.downstreamReadiness ??
+      null,
+    retrievalRun: retrievalContext?.reusableRun ?? null,
+    scoringRun: scoringContext?.reusableScoringRun ?? null,
+    matchReportRun: reportContext?.reusableMatchReportRun ?? null,
+    structuredResume: resumePlanContext?.reusableStructuredResumeVersion ?? null,
+    resumeComposition: resumeCompositionContext?.reusableResumeCompositionVersion ?? null,
+    resumeAudit: resumeAuditContext?.reusableResumeAuditRun ?? null,
+    resumeApproval: resumeRenderingApproval
+      ? {
+          id: resumeRenderingApproval.approvalId,
+          renderingReadiness: resumeRenderingApproval.renderingReadiness
+        }
+      : null,
+    latestResumeDocx: latestRenderedResumeDocx,
+    latestResumePdf: latestRenderedResumePdf,
+    coverLetterComposition: coverLetterContext?.reusableCoverLetterCompositionVersion ?? null,
+    coverLetterDraft: coverLetterRevisionContext?.latestDraft ?? null,
+    coverLetterFinalizedRevision: coverLetterRevisionContext?.latestFinalizedRevision ?? null,
+    coverLetterAudit: coverLetterAuditContext?.reusableAuditRun ?? null,
+    coverLetterApproval: coverLetterApprovalContext?.activeApproval
+      ? {
+          id: coverLetterApprovalContext.activeApproval.approvalId,
+          renderingReadiness: coverLetterApprovalContext.activeApproval.renderingReadiness
+        }
+      : null,
+    latestCoverLetterDocx: latestRenderedCoverLetterDocx,
+    latestCoverLetterPdf: latestRenderedCoverLetterPdf,
+    latestDocumentId: latestRenderedResumePdf?.id ?? latestRenderedCoverLetterPdf?.id ?? null,
+    returnTo: `/applications/${application.id}`,
+    paths: {
+      jobDescriptionIntake: `/applications/${application.id}/job-description`,
+      jobDescriptionIntakeFromUrl: `/applications/${application.id}/job-description?sourceMode=url`,
+      currentJobDescription: currentJobDescriptionId ? `/job-descriptions/${currentJobDescriptionId}` : null,
+      parse: currentJobDescriptionId ? `/job-descriptions/${currentJobDescriptionId}/analysis` : null,
+      requirements: currentJobDescriptionId
+        ? requirementContext?.latestConfirmedAnalysis
+          ? `/job-descriptions/${currentJobDescriptionId}/requirements?analysisId=${requirementContext.latestConfirmedAnalysis.id}`
+          : `/job-descriptions/${currentJobDescriptionId}/requirements`
+        : null,
+      evidence: currentJobDescriptionId
+        ? retrievalContext?.reusableRun
+          ? `/job-descriptions/${currentJobDescriptionId}/evidence?runId=${retrievalContext.reusableRun.id}`
+          : `/job-descriptions/${currentJobDescriptionId}/evidence`
+        : null,
+      scores: currentJobDescriptionId && scoringContext?.reusableScoringRun
+        ? `/job-descriptions/${currentJobDescriptionId}/evidence/scores?runId=${scoringContext.reusableScoringRun.id}&retrievalRunId=${scoringContext.reusableScoringRun.evidenceRetrievalRunId}`
+        : null,
+      matchReport: currentJobDescriptionId && reportContext?.reusableMatchReportRun
+        ? `/job-descriptions/${currentJobDescriptionId}/match-report?runId=${reportContext.reusableMatchReportRun.id}&scoringRunId=${reportContext.reusableMatchReportRun.evidenceScoringRunId}`
+        : null,
+      resumePlan: currentJobDescriptionId
+        ? resumePlanContext?.reusableStructuredResumeVersion
+          ? `/job-descriptions/${currentJobDescriptionId}/resume-plan?versionId=${resumePlanContext.reusableStructuredResumeVersion.id}`
+          : `/job-descriptions/${currentJobDescriptionId}/resume-plan`
+        : null,
+      resume: currentJobDescriptionId
+        ? resumeCompositionContext?.reusableResumeCompositionVersion
+          ? `/job-descriptions/${currentJobDescriptionId}/resume?versionId=${resumeCompositionContext.reusableResumeCompositionVersion.id}`
+          : `/job-descriptions/${currentJobDescriptionId}/resume`
+        : null,
+      resumeAudit: currentJobDescriptionId
+        ? resumeAuditContext?.reusableResumeAuditRun
+          ? `/job-descriptions/${currentJobDescriptionId}/resume/audit?runId=${resumeAuditContext.reusableResumeAuditRun.id}`
+          : `/job-descriptions/${currentJobDescriptionId}/resume/audit`
+        : null,
+      resumeStudio: currentJobDescriptionId ? `/job-descriptions/${currentJobDescriptionId}/resume/studio` : null,
+      coverLetter: currentJobDescriptionId
+        ? coverLetterContext?.reusableCoverLetterCompositionVersion
+          ? `/job-descriptions/${currentJobDescriptionId}/cover-letter?versionId=${coverLetterContext.reusableCoverLetterCompositionVersion.id}`
+          : `/job-descriptions/${currentJobDescriptionId}/cover-letter`
+        : null,
+      coverLetterAudit: currentJobDescriptionId
+        ? coverLetterAuditContext?.reusableAuditRun
+          ? `/job-descriptions/${currentJobDescriptionId}/cover-letter/audit?runId=${coverLetterAuditContext.reusableAuditRun.id}`
+          : `/job-descriptions/${currentJobDescriptionId}/cover-letter/audit`
+        : null,
+      coverLetterStudio: currentJobDescriptionId
+        ? coverLetterRevisionContext?.latestDraft ?? coverLetterRevisionContext?.latestFinalizedRevision
+          ? `/job-descriptions/${currentJobDescriptionId}/cover-letter/studio?revisionId=${(coverLetterRevisionContext.latestDraft ?? coverLetterRevisionContext.latestFinalizedRevision)?.id}`
+          : `/job-descriptions/${currentJobDescriptionId}/cover-letter/studio`
+        : null,
+      documents: "/documents"
+    }
+  });
 
   return (
     <div className="space-y-8">
@@ -470,6 +573,12 @@ export default async function ApplicationDetailPage({
           </article>
         </div>
       </section>
+
+      <CareerArtifactPipeline
+        description="This application can move through parsing, evidence review, resume work, cover-letter work, and immutable rendering without leaving the browser."
+        readiness={readiness}
+        title="Application pipeline"
+      />
 
       <section className="rounded-3xl border border-stone-300 bg-white p-8 shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-4">

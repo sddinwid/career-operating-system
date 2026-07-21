@@ -1,13 +1,11 @@
 import Link from "next/link";
-import { parseJobDescriptionAction } from "@/lib/job-descriptions/parse-actions";
-import { retrieveCareerEvidenceAction } from "@/lib/evidence-retrieval/actions";
+import { WorkflowActionButton } from "@/components/workflow/workflow-action-button";
 import { listJobWorkspaceSummaries } from "@/lib/jobs/service";
 import { getDefaultWorkspace } from "@/lib/workspace";
 import {
   buttonPrimaryClassName,
   buttonSecondaryClassName,
   cardClassName,
-  cx,
   mutedCardClassName,
   textActionClassName
 } from "@/lib/ui";
@@ -218,6 +216,7 @@ export default async function JobsPage({ searchParams }: JobsPageProps) {
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-3">
+                  <WorkflowActionButton action={job.readiness.primaryAction} emphasis="primary" />
                   <Link className={buttonSecondaryClassName} href={`/jobs/${job.id}`}>
                     View job
                   </Link>
@@ -227,93 +226,6 @@ export default async function JobsPage({ searchParams }: JobsPageProps) {
                       href={`/job-descriptions/${job.currentJobDescription.id}`}
                     >
                       View description
-                    </Link>
-                  ) : null}
-                  {job.latestSuccessfulParse ? (
-                    <Link
-                      className={buttonSecondaryClassName}
-                      href={`/job-descriptions/${job.currentJobDescription?.id}/analysis`}
-                    >
-                      View parsed analysis
-                    </Link>
-                  ) : job.currentJobDescription ? (
-                    <form
-                      action={parseJobDescriptionAction.bind(
-                        null,
-                        job.currentJobDescription.id,
-                        `/jobs/${job.id}`
-                      )}
-                    >
-                      <button className={buttonSecondaryClassName} type="submit">
-                        Parse description
-                      </button>
-                    </form>
-                  ) : null}
-                  {job.latestAnalysis ? (
-                    <Link
-                      className={buttonSecondaryClassName}
-                      href={
-                        job.latestConfirmedAnalysis
-                          ? `/job-descriptions/${job.currentJobDescription?.id}/requirements?analysisId=${job.latestConfirmedAnalysis.id}`
-                          : `/job-descriptions/${job.currentJobDescription?.id}/requirements`
-                      }
-                    >
-                      {job.latestConfirmedAnalysis ? "View requirements" : "Review requirements"}
-                    </Link>
-                  ) : null}
-                  {!job.retrievalRun &&
-                  job.currentJobDescription &&
-                  job.downstreamReadiness === "READY" ? (
-                    <form
-                      action={retrieveCareerEvidenceAction.bind(
-                        null,
-                        job.currentJobDescription.id,
-                        `/jobs/${job.id}`
-                      )}
-                    >
-                      <button className={buttonSecondaryClassName} type="submit">
-                        Retrieve evidence
-                      </button>
-                    </form>
-                  ) : null}
-                  {job.retrievalRun && job.currentJobDescription ? (
-                    <Link
-                      className={buttonSecondaryClassName}
-                      href={`/job-descriptions/${job.currentJobDescription.id}/evidence?runId=${job.retrievalRun.id}`}
-                    >
-                      View evidence
-                    </Link>
-                  ) : null}
-                  {job.scoringRun && job.currentJobDescription ? (
-                    <Link
-                      className={buttonSecondaryClassName}
-                      href={`/job-descriptions/${job.currentJobDescription.id}/evidence/scores?runId=${job.scoringRun.id}&retrievalRunId=${job.scoringRun.evidenceRetrievalRunId}`}
-                    >
-                      View scores
-                    </Link>
-                  ) : null}
-                  {job.matchReportRun && job.currentJobDescription ? (
-                    <Link
-                      className={buttonSecondaryClassName}
-                      href={`/job-descriptions/${job.currentJobDescription.id}/match-report?runId=${job.matchReportRun.id}&scoringRunId=${job.matchReportRun.evidenceScoringRunId}`}
-                    >
-                      View match report
-                    </Link>
-                  ) : null}
-                  {job.structuredResume && job.currentJobDescription ? (
-                    <Link
-                      className={buttonSecondaryClassName}
-                      href={`/job-descriptions/${job.currentJobDescription.id}/resume-plan?versionId=${job.structuredResume.id}`}
-                    >
-                      View resume plan
-                    </Link>
-                  ) : null}
-                  {job.resumeComposition && job.currentJobDescription ? (
-                    <Link
-                      className={buttonSecondaryClassName}
-                      href={`/job-descriptions/${job.currentJobDescription.id}/resume?versionId=${job.resumeComposition.id}`}
-                    >
-                      View resume
                     </Link>
                   ) : null}
                   {job.linkedApplication ? (
@@ -330,6 +242,17 @@ export default async function JobsPage({ searchParams }: JobsPageProps) {
                     </Link>
                   ) : null}
                 </div>
+              </div>
+
+              <div className="mt-6 flex flex-wrap gap-2">
+                {job.readiness.summaryBadges.map((badge) => (
+                  <span
+                    key={badge}
+                    className="rounded-full border border-stone-200 bg-stone-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.15em] text-stone-600"
+                  >
+                    {badge}
+                  </span>
+                ))}
               </div>
 
               <div className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-4">

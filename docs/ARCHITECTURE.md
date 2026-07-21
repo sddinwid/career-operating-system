@@ -141,6 +141,51 @@ The version model is intentionally immutable:
 
 The existing `JobOpportunity.descriptionText` and `descriptionData` fields remain schema-level legacy fields and are not treated as the authoritative source for `M3.1`.
 
+## M8.4 workflow readiness and URL intake correction
+
+Milestone `M8.4` keeps the modular-monolith boundaries intact while making already-implemented workflow stages browser-operable through deterministic aggregate reads and one server-side URL retrieval route.
+
+```text
+Job or Application surface
+  -> workflow-readiness aggregate
+  -> truthful next action or view action
+  -> existing immutable stage pages and server actions
+```
+
+Implementation boundaries:
+
+- `src/lib/workflow-readiness/service.ts` computes stage status, primary action, badges, and prerequisite messaging without mutating records
+- `src/components/workflow/career-artifact-pipeline.tsx` renders the shared read-only panel
+- `src/components/workflow/workflow-action-button.tsx` routes valid actions to existing pages or server actions
+- `src/lib/jobs/service.ts` extends the Jobs aggregate so the list can expose the deterministic current next action
+- `src/app/page.tsx`, `src/app/jobs/page.tsx`, `src/app/jobs/[jobOpportunityId]/page.tsx`, and `src/app/applications/[applicationId]/page.tsx` reuse the same aggregate semantics instead of inventing page-specific readiness rules
+
+The readiness layer is intentionally read-only:
+
+- it uses current pointers, active rows, successful immutable rows, confirmed requirement analyses, approvals, and rendered artifact lineage
+- it does not promote failed runs into successful state
+- it does not create synthetic asynchronous states beyond existing domain semantics
+- it does not mutate opportunity, application, status-history, or document records while computing availability
+
+The same milestone also adds a narrow server-side URL retrieval path:
+
+```text
+Browser form
+  -> POST /api/job-descriptions/fetch-url
+  -> SSRF-safe bounded fetch
+  -> HTML or plain-text extraction
+  -> editable preview in browser state
+  -> existing save action
+  -> immutable JobDescriptionVersion
+```
+
+Implementation boundaries:
+
+- `src/lib/job-descriptions/url-fetch-contract.ts` defines the request and preview response contract
+- `src/lib/job-descriptions/url-fetch.ts` performs protocol validation, redirect validation, host safety checks, bounded fetching, HTML extraction, and JSON-LD `JobPosting` support
+- `src/app/api/job-descriptions/fetch-url/route.ts` keeps retrieval server-side and returns structured diagnostics to the form
+- `src/components/job-descriptions/job-description-form.tsx` keeps fetched content editable and unsaved until the user explicitly commits it through the existing persistence path
+
 ## Job description deterministic parsing
 
 Milestone `M3.2` keeps parsing inside the modular monolith and treats parsing as an immutable derived artifact rather than a mutation of preserved source text.

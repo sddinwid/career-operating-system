@@ -152,6 +152,14 @@ These remain intentionally deferred after the July 19, 2026 navigation/discovery
 - Personal workflow benefit: supports targeted cover-letter editing, deterministic review, and explicit approval without leaving the local workflow
 - Acceptance summary: mutable draft save, immutable finalized revisions, revision lineage, deterministic audit reuse, approval history, revocation, and comparison without rendering output
 
+### `M8.4 - End-to-End UI Readiness and URL Job Intake`
+- Status: `in progress`
+- Priority: `P2`
+- Milestone: `Milestone 8 - Application Package Generation`
+- Dependency: `M8.3`
+- Personal workflow benefit: makes the implemented document pipeline operable through normal browser navigation and removes repeated copy-paste from public job URLs
+- Acceptance summary: deterministic workflow-readiness panel, truthful next-action discovery on Jobs and detail pages, SSRF-safe URL preview intake, immutable save reuse, and full browser completion of the existing resume and cover-letter flow
+
 ## Later
 
 ### `M9.1 - Calculated Application Columns`

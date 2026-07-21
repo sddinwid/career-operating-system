@@ -1,28 +1,28 @@
 import { JobDescriptionSourceType } from "@prisma/client";
 import { notFound } from "next/navigation";
 import { JobDescriptionForm } from "@/components/job-descriptions/job-description-form";
-import { saveApplicationJobDescriptionAction } from "@/lib/job-descriptions/actions";
+import { saveOpportunityJobDescriptionAction } from "@/lib/job-descriptions/actions";
 import {
-  getApplicationJobDescriptionIntakeContext,
-  getCareerKnowledgeIndicator
+  getCareerKnowledgeIndicator,
+  getJobOpportunityJobDescriptionIntakeContext
 } from "@/lib/job-descriptions/service";
 import { formatApplicationDate } from "@/lib/applications/formatters";
 import { getDefaultWorkspace } from "@/lib/workspace";
 
-type ApplicationJobDescriptionPageProps = {
-  params: Promise<{ applicationId: string }>;
+type JobOpportunityJobDescriptionPageProps = {
+  params: Promise<{ jobOpportunityId: string }>;
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 };
 
-export default async function ApplicationJobDescriptionPage({
+export default async function JobOpportunityJobDescriptionPage({
   params,
   searchParams
-}: ApplicationJobDescriptionPageProps) {
-  const { applicationId } = await params;
+}: JobOpportunityJobDescriptionPageProps) {
+  const { jobOpportunityId } = await params;
   const query = (await searchParams) ?? {};
   const workspace = await getDefaultWorkspace();
   const [context, indicator] = await Promise.all([
-    getApplicationJobDescriptionIntakeContext(workspace.id, applicationId),
+    getJobOpportunityJobDescriptionIntakeContext(workspace.id, jobOpportunityId),
     getCareerKnowledgeIndicator(workspace.id)
   ]);
 
@@ -30,7 +30,7 @@ export default async function ApplicationJobDescriptionPage({
     notFound();
   }
 
-  const existingVersion = context.currentJobDescriptionVersion;
+  const existingVersion = context.jobDescriptionVersions[0] ?? null;
   const initialSourceMode = query.sourceMode === "url" ? "url" : "paste";
 
   return (
@@ -70,26 +70,26 @@ export default async function ApplicationJobDescriptionPage({
       ) : null}
 
       <JobDescriptionForm
-        action={saveApplicationJobDescriptionAction.bind(null, applicationId)}
-        cancelHref={`/applications/${applicationId}`}
+        action={saveOpportunityJobDescriptionAction.bind(null, jobOpportunityId)}
+        cancelHref={`/jobs/${jobOpportunityId}`}
         careerKnowledgeLabel={indicator.label}
         currentNormalizedText={existingVersion?.normalizedText ?? null}
         defaultValues={{
-          companyName: context.opportunity.company.name,
-          role: context.opportunity.title,
+          companyName: context.company.name,
+          role: context.title,
           descriptionText: existingVersion?.originalText ?? "",
-          sourceUrl: existingVersion?.sourceUrl ?? context.opportunity.jobUrl ?? "",
+          sourceUrl: existingVersion?.sourceUrl ?? context.jobUrl ?? "",
           sourceType: existingVersion?.sourceType ?? JobDescriptionSourceType.MANUAL_PASTE,
           sourceTitle: existingVersion?.sourceTitle ?? "",
           publishedAt: existingVersion?.publishedAt
             ? existingVersion.publishedAt.toISOString().slice(0, 10)
             : ""
         }}
-        existingJobUrl={context.opportunity.jobUrl}
+        existingJobUrl={context.jobUrl}
         initialSourceMode={initialSourceMode}
         mode="application"
         pageTitle={existingVersion ? "Replace job description" : "Add job description"}
-        pageDescription="Save the exact posting text for this application without changing status history, application timestamps, or career-profile versions."
+        pageDescription="Save the exact posting text for this opportunity without creating or mutating an application record."
       />
     </div>
   );

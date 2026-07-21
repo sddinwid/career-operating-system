@@ -8,11 +8,11 @@ Current milestone: `Milestone 8 - Application Package Generation`
 
 Prompt 04D is not automatically next.
 
-The active implementation slice is `M8.2 - Cover Letter Studio, Audit, and Approval`.
+The active implementation slice is `M8.4 - End-to-End UI Readiness and URL Job Intake`.
 
 ## Last Completed Implementation
 
-Last completed implementation: `M8.2 - Cover Letter Studio, Audit, and Approval`.
+Last completed implementation: `M8.3 - Cover Letter Rendering and Document Integration`.
 
 Repository evidence:
 - `src/lib/job-descriptions/service.ts`
@@ -135,8 +135,7 @@ These models exist in schema only. No deterministic generation workflows current
 
 ## Known Failures
 
-- The home page is still a foundation/health landing page, not a real Today workflow.
-  - Evidence: `src/app/page.tsx`
+- None currently documented for the `M8.4` slice before final verification.
 
 ## July 19, 2026 corrective navigation update
 
@@ -238,3 +237,12 @@ M7.2 adds direct deterministic PDF rendering, shared artifact validation, immuta
 ## M8.3 Status
 
 Cover-letter rendering is now wired through immutable `DocumentVersion` artifacts with approval-only gating, checksum reuse, DOCX/PDF validation, and Documents/Application/Job integrations. Application package bundling remains intentionally out of scope.
+
+## M8.4 Status
+
+The repository is currently implementing a corrective usability-and-intake slice before application-package composition:
+
+- workflow readiness is being surfaced on the homepage, Jobs list, Job detail, and Application detail
+- browser flows are being aligned so the implemented pipeline is reachable without manual deep-link entry
+- public URL job-description retrieval is being added as a server-side editable-preview intake path
+- immutable `JobDescriptionVersion`, parser, evidence, resume, cover-letter, and document pipelines remain the authoritative downstream models

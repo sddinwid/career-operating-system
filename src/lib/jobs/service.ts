@@ -19,6 +19,7 @@ import {
 } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { parseStoredJobRequirementAnalysis } from "@/lib/job-descriptions/requirement-analysis-service";
+import { buildWorkflowReadiness } from "@/lib/workflow-readiness/service";
 
 type JobListFilters = {
   search?: string;
@@ -688,6 +689,117 @@ export async function listJobWorkspaceSummaries(
         .filter((value): value is Date => value instanceof Date)
         .sort((left, right) => right.getTime() - left.getTime())[0] ?? opportunity.capturedAt;
 
+      const detailPath = `/jobs/${opportunity.id}`;
+      const currentJobDescriptionId = currentJobDescription?.id ?? null;
+      const requirementsHref = currentJobDescriptionId
+        ? latestConfirmedAnalysis
+          ? `/job-descriptions/${currentJobDescriptionId}/requirements?analysisId=${latestConfirmedAnalysis.id}`
+          : `/job-descriptions/${currentJobDescriptionId}/requirements`
+        : null;
+      const evidenceHref =
+        currentJobDescriptionId && retrievalRun
+          ? `/job-descriptions/${currentJobDescriptionId}/evidence?runId=${retrievalRun.id}`
+          : currentJobDescriptionId
+            ? `/job-descriptions/${currentJobDescriptionId}/evidence`
+            : null;
+      const scoresHref =
+        currentJobDescriptionId && scoringRun
+          ? `/job-descriptions/${currentJobDescriptionId}/evidence/scores?runId=${scoringRun.id}&retrievalRunId=${scoringRun.evidenceRetrievalRunId}`
+          : null;
+      const matchReportHref =
+        currentJobDescriptionId && matchReportRun
+          ? `/job-descriptions/${currentJobDescriptionId}/match-report?runId=${matchReportRun.id}&scoringRunId=${matchReportRun.evidenceScoringRunId}`
+          : null;
+      const resumePlanHref =
+        currentJobDescriptionId && structuredResume
+          ? `/job-descriptions/${currentJobDescriptionId}/resume-plan?versionId=${structuredResume.id}`
+          : currentJobDescriptionId
+            ? `/job-descriptions/${currentJobDescriptionId}/resume-plan`
+            : null;
+      const resumeHref =
+        currentJobDescriptionId && resumeComposition
+          ? `/job-descriptions/${currentJobDescriptionId}/resume?versionId=${resumeComposition.id}`
+          : currentJobDescriptionId
+            ? `/job-descriptions/${currentJobDescriptionId}/resume`
+            : null;
+      const coverLetterHref =
+        currentJobDescriptionId && coverLetterComposition
+          ? `/job-descriptions/${currentJobDescriptionId}/cover-letter?versionId=${coverLetterComposition.id}`
+          : currentJobDescriptionId
+            ? `/job-descriptions/${currentJobDescriptionId}/cover-letter`
+            : null;
+      const coverLetterStudioHref =
+        currentJobDescriptionId && (latestCoverLetterDraft ?? latestCoverLetterFinalizedRevision)
+          ? `/job-descriptions/${currentJobDescriptionId}/cover-letter/studio?revisionId=${(latestCoverLetterDraft ?? latestCoverLetterFinalizedRevision)?.id}`
+          : currentJobDescriptionId
+            ? `/job-descriptions/${currentJobDescriptionId}/cover-letter/studio`
+            : null;
+      const coverLetterAuditHref =
+        currentJobDescriptionId && coverLetterAudit
+          ? `/job-descriptions/${currentJobDescriptionId}/cover-letter/audit?runId=${coverLetterAudit.id}`
+          : currentJobDescriptionId
+            ? `/job-descriptions/${currentJobDescriptionId}/cover-letter/audit`
+            : null;
+      const resumeStudioHref = currentJobDescriptionId
+        ? `/job-descriptions/${currentJobDescriptionId}/resume/studio`
+        : null;
+      const resumeAuditHref =
+        currentJobDescriptionId && resumeAudit
+          ? `/job-descriptions/${currentJobDescriptionId}/resume/audit?runId=${resumeAudit.id}`
+          : currentJobDescriptionId
+            ? `/job-descriptions/${currentJobDescriptionId}/resume/audit`
+            : null;
+      const readiness = buildWorkflowReadiness({
+        applicationId: linkedApplication?.id ?? null,
+        jobOpportunityId: opportunity.id,
+        jobOpportunityTitle: opportunity.title,
+        linkedApplicationId: linkedApplication?.id ?? null,
+        currentJobDescription,
+        latestParse,
+        latestAnalysis,
+        latestConfirmedAnalysis,
+        downstreamReadiness,
+        retrievalRun,
+        scoringRun,
+        matchReportRun,
+        structuredResume,
+        resumeComposition,
+        resumeAudit,
+        resumeApproval: renderingApproval,
+        latestResumeDocx: latestDocx,
+        latestResumePdf: latestPdf,
+        coverLetterComposition,
+        coverLetterDraft: latestCoverLetterDraft,
+        coverLetterFinalizedRevision: latestCoverLetterFinalizedRevision,
+        coverLetterAudit,
+        coverLetterApproval,
+        latestCoverLetterDocx,
+        latestCoverLetterPdf,
+        latestDocumentId:
+          currentJobDescription?.documentVersions?.[0]?.id ?? null,
+        returnTo: detailPath,
+        paths: {
+          jobDescriptionIntake: `/jobs/${opportunity.id}/job-description`,
+          jobDescriptionIntakeFromUrl: `/jobs/${opportunity.id}/job-description?sourceMode=url`,
+          currentJobDescription: currentJobDescriptionId
+            ? `/job-descriptions/${currentJobDescriptionId}`
+            : null,
+          parse: currentJobDescriptionId ? `/job-descriptions/${currentJobDescriptionId}/analysis` : null,
+          requirements: requirementsHref,
+          evidence: evidenceHref,
+          scores: scoresHref,
+          matchReport: matchReportHref,
+          resumePlan: resumePlanHref,
+          resume: resumeHref,
+          resumeAudit: resumeAuditHref,
+          resumeStudio: resumeStudioHref,
+          coverLetter: coverLetterHref,
+          coverLetterAudit: coverLetterAuditHref,
+          coverLetterStudio: coverLetterStudioHref,
+          documents: currentJobDescriptionId ? "/documents" : null
+        }
+      });
+
       return {
         id: opportunity.id,
         companyName: opportunity.company.name,
@@ -768,6 +880,7 @@ export async function listJobWorkspaceSummaries(
           audit: describeResumeAuditState(resumeAudit, resumeComposition?.id ?? null),
           approval: describeApprovalState(renderingApproval, resumeAudit?.id ?? null)
         },
+        readiness,
         updatedAt,
         savedAt: currentJobDescription?.capturedAt ?? opportunity.capturedAt
       };

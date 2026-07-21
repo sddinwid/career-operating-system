@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { CareerArtifactPipeline } from "@/components/workflow/career-artifact-pipeline";
 import { getJobWorkspaceDetail } from "@/lib/jobs/service";
 import { getDefaultWorkspace } from "@/lib/workspace";
 import {
@@ -72,8 +73,8 @@ export default async function JobDetailPage({ params }: JobDetailPageProps) {
                 View current description
               </Link>
             ) : (
-              <Link className={buttonPrimaryClassName} href="/jobs/new">
-                Capture job description
+              <Link className={buttonPrimaryClassName} href={`/jobs/${opportunity.id}/job-description`}>
+                Add job description
               </Link>
             )}
           </div>
@@ -107,6 +108,14 @@ export default async function JobDetailPage({ params }: JobDetailPageProps) {
           </div>
         ) : null}
       </section>
+
+      {summary?.readiness ? (
+        <CareerArtifactPipeline
+          description="This opportunity can move through parsing, evidence, resume, cover-letter, and rendering work directly from the browser."
+          readiness={summary.readiness}
+          title="Opportunity pipeline"
+        />
+      ) : null}
 
       <section className={cardClassName}>
         <div className="flex flex-wrap items-center justify-between gap-3">

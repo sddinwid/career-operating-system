@@ -10,6 +10,8 @@
 - Preserve deterministic current-version selection semantics for job descriptions and downstream immutable records
 - Keep deferred workspaces visible only as honest disabled items or hide them
 - Maintain readable visited-link, focus, and button contrast behavior
+- Provide a workflow-oriented homepage, Jobs list, Job detail page, and Application detail page that surface valid next actions for implemented stages only
+- Support public URL-based job-description retrieval through a server-side editable preview without bypassing immutable version creation or existing downstream review
 
 ## Product goal
 
@@ -218,6 +220,25 @@ PDF rendering must remain deterministic, approval-gated, and direct.
 - artifact validation must reject invalid PDFs before any `DocumentVersion` is persisted
 
 ## M8.2 Requirements
+
+## M8.4 Requirements
+
+The system must expose the implemented `M0` through `M8` pipeline through normal browser flows without requiring manual deep-link entry or internal identifiers.
+
+- Job detail must show deterministic workflow readiness derived from exact current immutable state.
+- Application detail must show deterministic workflow readiness consistent with the job detail semantics.
+- Jobs list rows must surface the authoritative current next action for the opportunity.
+- The homepage must expose practical entry points for applications, jobs, documents, pasted job-description intake, and URL-based job-description intake.
+- Blocked actions must state the exact missing prerequisite instead of routing to placeholders or diagnostics.
+- URL intake must fetch server-side only.
+- URL intake must reject local, loopback, link-local, private-network, credential-bearing, and unsafe-redirect destinations.
+- URL intake must bound redirects, response size, and request duration.
+- URL intake must support HTML and plain-text extraction plus JSON-LD `JobPosting` extraction when present.
+- Retrieved content must remain editable before save and must not create a `JobDescriptionVersion` automatically.
+- Saved versions must preserve URL provenance and reuse the existing immutable `JobDescriptionVersion` semantics.
+- Refetching unchanged content for the same opportunity must not create a duplicate immutable version.
+- Refetching changed content may create a successor immutable version only after explicit user review and save.
+- URL browsing, resume generation, cover-letter generation, and document rendering must not mutate `Application.status`, add `ApplicationStatusHistory`, or alter unrelated workflow ownership.
 
 Cover-letter editing, audit, and approval must remain deterministic and lineage-safe.
 

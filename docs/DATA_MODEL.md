@@ -40,6 +40,8 @@ Fields: id, workspaceId, opportunityId, sourceApplicationId nullable, predecesso
 
 Unique: opportunityId plus versionNumber, and opportunityId plus checksum.
 
+`M8.4` continues to reuse this model for both pasted and URL-previewed intake. URL retrieval does not add a second persisted source model. Instead, request URL, final URL, retrieval metadata, and bounded diagnostics are stored in `provenance` only when the user explicitly saves the reviewed text.
+
 ### JobDescriptionParse
 
 Immutable deterministic parser run for one saved job-description version.
@@ -168,6 +170,8 @@ Do not persist as authoritative unless a snapshot is required:
 - monthly totals
 
 These are calculated through workflow/query services.
+
+`M8.4` adds a deterministic workflow-readiness aggregate over existing persisted records. Stage status, badges, blocking reasons, and current next actions are intentionally derived values rather than new tables.
 
 ## Prisma implementation notes
 

@@ -255,7 +255,22 @@ async function persistJobDescriptionVersion(
       provenance: {
         normalizationVersion: JOB_DESCRIPTION_FORMAT_VERSION,
         originalCharacterCount: args.input.descriptionText.length,
-        normalizedCharacterCount: normalizedText.length
+        normalizedCharacterCount: normalizedText.length,
+        intakeMode: args.input.intakeMode,
+        urlFetch:
+          args.input.intakeMode === "url"
+            ? {
+                requestedUrl: args.input.fetchedRequestedUrl ?? null,
+                finalUrl: args.input.fetchedFinalUrl ?? null,
+                status: args.input.fetchedStatus ?? null,
+                contentType: args.input.fetchedContentType ?? null,
+                retrievedAt: args.input.fetchedRetrievedAt ?? null,
+                pageTitle: args.input.fetchedPageTitle ?? null,
+                extractorVersion: args.input.fetchedExtractorVersion ?? null,
+                extractionChecksum: args.input.fetchedExtractionChecksum ?? null,
+                diagnostics: args.input.fetchedDiagnostics ?? null
+              }
+            : null
       },
       active: true
     }
@@ -324,6 +339,42 @@ export async function saveJobDescriptionForApplication(
       sourceApplicationId: application.id,
       input,
       createdByWorkflow: "applications.detail.job-description",
+      simulateFailureAfterSupersede: options?.simulateFailureAfterSupersede
+    });
+  });
+}
+
+export async function saveJobDescriptionForOpportunity(
+  workspaceId: string,
+  opportunityId: string,
+  input: SaveApplicationJobDescriptionInput,
+  prismaClient: PrismaClient = prisma,
+  options?: { simulateFailureAfterSupersede?: boolean }
+) {
+  return prismaClient.$transaction(async (transaction) => {
+    const opportunity = await transaction.jobOpportunity.findFirst({
+      where: {
+        id: opportunityId,
+        workspaceId
+      },
+      select: {
+        id: true
+      }
+    });
+
+    if (!opportunity) {
+      throw new JobDescriptionSubmissionError(
+        { descriptionText: ["Job opportunity not found."] },
+        "Job opportunity not found."
+      );
+    }
+
+    return persistJobDescriptionVersion({
+      transaction,
+      workspaceId,
+      opportunityId: opportunity.id,
+      input,
+      createdByWorkflow: "jobs.detail.job-description",
       simulateFailureAfterSupersede: options?.simulateFailureAfterSupersede
     });
   });
@@ -440,6 +491,49 @@ export async function getApplicationJobDescriptionIntakeContext(
         }
       },
       currentJobDescriptionVersion: {
+        select: {
+          id: true,
+          versionNumber: true,
+          originalText: true,
+          normalizedText: true,
+          sourceUrl: true,
+          sourceType: true,
+          sourceTitle: true,
+          publishedAt: true,
+          active: true,
+          checksum: true,
+          capturedAt: true
+        }
+      }
+    }
+  });
+}
+
+export async function getJobOpportunityJobDescriptionIntakeContext(
+  workspaceId: string,
+  opportunityId: string,
+  prismaClient: PrismaClient = prisma
+) {
+  return prismaClient.jobOpportunity.findFirst({
+    where: {
+      id: opportunityId,
+      workspaceId
+    },
+    include: {
+      company: true,
+      applications: {
+        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+        select: {
+          id: true,
+          status: true
+        }
+      },
+      jobDescriptionVersions: {
+        where: {
+          active: true
+        },
+        orderBy: [{ versionNumber: "desc" }, { createdAt: "desc" }],
+        take: 1,
         select: {
           id: true,
           versionNumber: true,

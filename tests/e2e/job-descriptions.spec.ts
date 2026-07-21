@@ -1300,13 +1300,18 @@ Preferred Qualifications
   await expect(page.getByText(/Resume Generation Ready|Match Report Generated|Match Report Has Critical Gaps|Resume Generation Ready With Limitations/).first()).toBeVisible();
   await expect(page.getByRole("link", { name: "View Match Report" })).toBeVisible();
   await expect(page.getByRole("link", { name: "View Structured Resume Plan" })).toBeVisible();
+  const renderResumePdfButton = page
+    .locator("article")
+    .filter({ hasText: "Resume PDF" })
+    .getByRole("button", { name: "Render Resume PDF", exact: true });
+  await expect(renderResumePdfButton).toHaveCount(1);
   const renderRequest = page.waitForResponse(
     (response) =>
       response.request().method() === "POST" &&
       response.url().includes(`/applications/${applicationId}`) &&
       response.status() === 303
   );
-  await page.getByRole("button", { name: "Render Resume PDF" }).click();
+  await renderResumePdfButton.click();
   const renderResponse = await renderRequest;
   expect(renderResponse.ok()).toBeFalsy();
   expect(renderResponse.status()).toBe(303);
@@ -1455,7 +1460,7 @@ Preferred Qualifications
       "The current scoring contract, engine, and configuration already had a successful result for this exact retrieval run, so the existing scoring run was reused."
     )
   ).toBeVisible();
-  await page.getByRole("link", { name: "View Confirmed Requirements" }).click();
+  await page.getByRole("link", { name: "View Confirmed Requirements", exact: true }).first().click();
   await expect(page.getByRole("link", { name: "View Candidate Evidence" })).toBeVisible();
   await expect(page.getByRole("link", { name: "View Evidence Scores" })).toBeVisible();
   await expect(page.getByRole("link", { name: "View Match Report" })).toBeVisible();

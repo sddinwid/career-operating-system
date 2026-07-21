@@ -87,6 +87,10 @@ describe("JobDescriptionDetailPage", () => {
     expect(
       screen.getByRole("link", { name: "Review Requirements" })
     ).toHaveAttribute("href", "/job-descriptions/job-description-1/requirements");
+    expect(screen.getByRole("link", { name: "Refetch from URL" })).toHaveAttribute(
+      "href",
+      "/applications/application-1/job-description?sourceMode=url"
+    );
     expect(screen.getByText("SUCCESS WITH WARNINGS")).toBeVisible();
     expect(screen.getByText("NEEDS REVIEW")).toBeVisible();
     expect(screen.getByText("2 required • 1 preferred")).toBeVisible();

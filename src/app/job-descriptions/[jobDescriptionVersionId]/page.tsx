@@ -133,6 +133,18 @@ export default async function JobDescriptionDetailPage({
                 Replace job description
               </Link>
             ) : null}
+            {version.sourceUrl ? (
+              <Link
+                className="rounded-full border border-stone-300 px-5 py-3 text-sm font-semibold text-stone-700 transition hover:border-stone-950 hover:text-stone-950"
+                href={
+                  applicationLinkId
+                    ? `/applications/${applicationLinkId}/job-description?sourceMode=url`
+                    : `/jobs/${version.opportunityId}/job-description?sourceMode=url`
+                }
+              >
+                Refetch from URL
+              </Link>
+            ) : null}
           </div>
         </div>
 

@@ -24,6 +24,7 @@ export default async function NewJobDescriptionPage() {
         sourceTitle: "",
         publishedAt: ""
       }}
+      initialSourceMode="paste"
       mode="new-opportunity"
       pageTitle="Capture a new job description"
       pageDescription="Save a pasted posting as a versioned job-description record, with company and role preserved for the linked opportunity."

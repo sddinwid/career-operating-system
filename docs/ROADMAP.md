@@ -123,7 +123,7 @@ Deterministic rules and verified evidence remain authoritative for:
 - Scope: DOCX, PDF, render validation, storage metadata, immutable `DocumentVersion` linkage
 
 ### Milestone 8 - Application Package Generation
-- Status: `M8.1` complete, `M8.2` complete, later package slices planned
+- Status: `M8.1` complete, `M8.2` complete, `M8.3` complete, `M8.4` corrective usability slice in progress, later package slices planned
 - Scope: targeted resume, concise cover letter, related package artifacts, exact submitted-version tracking
 
 ### Milestone 9 - Daily Workflow Completion
@@ -164,6 +164,8 @@ Later sequence:
 - `M7.3 - Immutable Document Versioning and Attachment`
 - `M8.1 - Deterministic Cover Letter Composition` complete
 - `M8.2 - Cover Letter Studio, Audit, and Approval` complete
+- `M8.3 - Cover Letter Rendering and Document Integration` complete
+- `M8.4 - End-to-End UI Readiness and URL Job Intake` corrective slice before package composition
 - `M9.x` tracker ergonomics and exports
 - `M10.x` analytics
 - `M11.x` generic ingestion
@@ -212,3 +214,7 @@ The July 19, 2026 navigation/discovery correction is explicitly not a new roadma
 ## M8.3
 
 Complete deterministic approved cover-letter DOCX and PDF rendering through the existing immutable document-artifact pipeline. The next roadmap step remains application package composition and submission snapshot work.
+
+## M8.4
+
+`M8.4` is not the start of `M9`. It is a corrective usability-and-intake milestone that makes the already-implemented `M0` through `M8` workflow operable from the browser and adds safe public URL job-description preview intake before save.

@@ -252,7 +252,7 @@ describe("ApplicationDetailPage", () => {
       "/job-descriptions/job-description-2/requirements"
     );
     expect(screen.getByText("SUCCESS WITH WARNINGS")).toBeVisible();
-    expect(screen.getByText("NEEDS REVIEW")).toBeVisible();
+    expect(screen.getAllByText("NEEDS REVIEW").length).toBeGreaterThan(0);
     expect(screen.getByText(/2 required/i)).toBeVisible();
     expect(screen.getByText("Evidence Scored")).toBeVisible();
     expect(screen.getByText("Resume Generation Ready With Limitations")).toBeVisible();
@@ -284,11 +284,11 @@ describe("ApplicationDetailPage", () => {
       "href",
       "/job-descriptions/job-description-2/cover-letter/compare?revisionId=cover-letter-revision-1"
     );
-    expect(screen.getByRole("link", { name: "View Cover Letter Audit" })).toHaveAttribute(
+    expect(screen.getAllByRole("link", { name: "View Cover Letter Audit" })[0]).toHaveAttribute(
       "href",
       "/job-descriptions/job-description-2/cover-letter/audit?runId=cover-letter-audit-1"
     );
-    expect(screen.getByRole("link", { name: "View Resume Audit" })).toHaveAttribute(
+    expect(screen.getAllByRole("link", { name: "View Resume Audit" })[0]).toHaveAttribute(
       "href",
       "/job-descriptions/job-description-2/resume/audit?runId=resume-audit-1"
     );

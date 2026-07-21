@@ -11,6 +11,7 @@ import {
 import {
   createJobDescriptionForNewOpportunity,
   JobDescriptionSubmissionError,
+  saveJobDescriptionForOpportunity,
   saveJobDescriptionForApplication
 } from "@/lib/job-descriptions/service";
 
@@ -54,6 +55,49 @@ export async function saveApplicationJobDescriptionAction(
     revalidatePath(`/job-descriptions/${result.version.id}`);
     redirect(
       `/applications/${applicationId}?success=${
+        result.duplicate ? "job-description-duplicate" : "job-description-saved"
+      }`
+    );
+  } catch (error) {
+    if (isNextRedirectError(error)) {
+      throw error;
+    }
+
+    return {
+      fieldErrors:
+        error instanceof JobDescriptionSubmissionError ? error.fieldErrors : undefined,
+      formError:
+        error instanceof Error ? error.message : "The job description could not be saved."
+    };
+  }
+}
+
+export async function saveOpportunityJobDescriptionAction(
+  opportunityId: string,
+  _previousState: JobDescriptionFormState,
+  formData: FormData
+): Promise<JobDescriptionFormState> {
+  const workspace = await getDefaultWorkspace();
+  const parsed = saveApplicationJobDescriptionSchema.safeParse(parseFormData(formData));
+
+  if (!parsed.success) {
+    return {
+      fieldErrors: parsed.error.flatten().fieldErrors,
+      formError: "Please fix the highlighted fields and try again."
+    };
+  }
+
+  try {
+    const result = await saveJobDescriptionForOpportunity(
+      workspace.id,
+      opportunityId,
+      parsed.data
+    );
+    revalidatePath("/jobs");
+    revalidatePath(`/jobs/${opportunityId}`);
+    revalidatePath(`/job-descriptions/${result.version.id}`);
+    redirect(
+      `/jobs/${opportunityId}?success=${
         result.duplicate ? "job-description-duplicate" : "job-description-saved"
       }`
     );

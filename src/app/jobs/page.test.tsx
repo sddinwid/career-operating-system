@@ -69,6 +69,15 @@ vi.mock("@/lib/jobs/service", () => ({
         composition: "Blocked",
         audit: "Blocked",
         approval: "Blocked"
+      },
+      readiness: {
+        primaryAction: {
+          type: "link",
+          label: "Open Match Report",
+          href: "/job-descriptions/jd-1/match-report?runId=report-1&scoringRunId=score-1"
+        },
+        summaryBadges: ["JD saved", "Parsed", "Requirements confirmed"],
+        stages: []
       }
     }
   ])
@@ -86,9 +95,13 @@ describe("JobsPage", () => {
     expect(screen.getByText("Software Engineer (All Levels)")).toBeVisible();
     expect(screen.getByText("No application linked")).toBeVisible();
     expect(screen.getByRole("link", { name: "View job" })).toHaveAttribute("href", "/jobs/job-1");
-    expect(screen.getByRole("link", { name: "View parsed analysis" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "Open Match Report" })).toHaveAttribute(
       "href",
-      "/job-descriptions/jd-1/analysis"
+      "/job-descriptions/jd-1/match-report?runId=report-1&scoringRunId=score-1"
+    );
+    expect(screen.getByRole("link", { name: "View description" })).toHaveAttribute(
+      "href",
+      "/job-descriptions/jd-1"
     );
   });
 });

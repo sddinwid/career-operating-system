@@ -30,6 +30,7 @@ Deferred:
 - evidence retrieval and scoring
 - AI-assisted parsing
 - automatic opportunity correction
+- JavaScript-only page execution during URL intake retrieval
 
 ## Storage model
 
@@ -166,6 +167,7 @@ UI entry points:
 
 - application detail parse action
 - job-description detail parse action
+- workflow-readiness next actions on the homepage, Jobs list, Job detail, and Application detail
 - `/job-descriptions/[jobDescriptionVersionId]/analysis`
 
 The analysis page shows:

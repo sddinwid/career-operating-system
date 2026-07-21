@@ -136,6 +136,19 @@ The repository now includes a corrective navigation and discovery slice for alre
 
 See [docs/NAVIGATION_AND_DISCOVERY.md](docs/NAVIGATION_AND_DISCOVERY.md).
 
+## Workflow readiness and URL intake
+
+`M8.4` makes the existing `M0` through `M8` pipeline operable from normal browser flows without requiring manual deep-link entry or internal record identifiers.
+
+- `/` now acts as a workflow-oriented landing page with daily entry points into Applications, Jobs, Documents, pasted intake, and URL-based intake
+- `/jobs` now exposes the current deterministic next action for each opportunity instead of only listing saved records
+- `/jobs/[jobOpportunityId]` and `/applications/[applicationId]` now show a read-only workflow readiness panel with truthful stage state, prerequisites, next actions, and view actions
+- `/jobs/[jobOpportunityId]/job-description` adds opportunity-scoped job-description intake without requiring a linked application
+- pasted text and public URL intake both flow through the existing immutable `JobDescriptionVersion` pipeline
+- URL retrieval always stops at an editable preview before save and preserves request or redirect provenance when a version is created
+
+The workflow-readiness model is documented in [docs/WORKFLOW_READINESS.md](docs/WORKFLOW_READINESS.md). The URL retrieval design, safety constraints, and known limitations are documented in [docs/URL_JOB_DESCRIPTION_INTAKE.md](docs/URL_JOB_DESCRIPTION_INTAKE.md).
+
 ## Evidence retrieval
 
 Milestone `M4.1` adds deterministic candidate-evidence retrieval from one confirmed requirement analysis plus one immutable career-profile version.

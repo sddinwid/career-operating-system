@@ -17,13 +17,16 @@ describe("HomePage", () => {
     const page = await HomePage();
     render(page);
 
-    expect(screen.getAllByRole("link", { name: "Open applications" })[0]).toHaveClass(
+    expect(screen.getByRole("link", { name: "Open applications" })).toHaveClass(
       "button-primary"
     );
-    expect(screen.getAllByRole("link", { name: "Browse jobs" })[0]).toBeVisible();
-    expect(screen.getAllByRole("link", { name: "Browse documents" })[0]).toBeVisible();
-    expect(screen.getByRole("link", { name: "New application" })).toBeVisible();
-    expect(screen.getByRole("link", { name: "New job" })).toBeVisible();
+    expect(screen.getByRole("link", { name: "Add Job from URL" })).toHaveClass(
+      "button-secondary"
+    );
+    expect(screen.getByRole("link", { name: "Paste Job Description" })).toBeVisible();
+    expect(screen.getByRole("link", { name: "Open applications" })).toBeVisible();
+    expect(screen.getByRole("link", { name: "Browse jobs" })).toBeVisible();
+    expect(screen.getByRole("link", { name: "Browse documents" })).toBeVisible();
     expect(screen.getByText("Diagnostics")).toBeVisible();
     expect(screen.getByRole("link", { name: "Open health page" })).toHaveAttribute(
       "href",

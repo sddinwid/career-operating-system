@@ -114,7 +114,7 @@ test("supports corrected shell navigation and Fieldguide discovery workflow", as
 
   await Promise.all([
     page.waitForURL(/\/jobs\/[^/]+$/, { timeout: 15_000 }),
-    fieldguideCard.getByRole("link", { name: "View job" }).click()
+    fieldguideCard.getByRole("link", { name: "View job", exact: true }).click()
   ]);
 
   await page.getByRole("link", { name: "View current description" }).click();

@@ -291,3 +291,30 @@ Reasoning:
 - Preserved the exact immutable approved source referenced by `CoverLetterApproval`; the renderer does not silently choose the latest revision.
 - Reused the approved source header date as the deterministic rendered date policy so rerenders remain idempotent for the same approved input.
 - Rendered PDF directly from the canonical model; DOCX is not converted to PDF through external tooling.
+
+## D026 - Workflow readiness is computed, not persisted
+
+Milestone `M8.4` exposes full browser-operable pipeline readiness through aggregate reads over existing immutable records instead of adding a workflow-state table.
+
+Consequence:
+- stage status is derived from exact current pointers, successful runs, confirmed analyses, approvals, and rendered artifacts
+- page-specific views stay consistent because Jobs, Job detail, Application detail, and the homepage all reuse the same readiness logic
+- browsing workflow state does not mutate applications, opportunities, status history, or document rows
+
+## D027 - URL job-description retrieval stops at editable preview
+
+Milestone `M8.4` keeps URL retrieval separate from immutable persistence. Fetching a public posting URL may populate preview text and provenance metadata, but it does not create a `JobDescriptionVersion` until the user explicitly saves the reviewed text.
+
+Consequence:
+- immutable source preservation semantics remain the same for pasted and URL-derived content
+- unchanged refetches for the same opportunity still reuse existing versions by normalized checksum
+- changed refetches create successor immutable versions only through the existing transactional save path
+
+## D028 - SSRF protection is enforced inside the server-side intake route
+
+Milestone `M8.4` performs URL retrieval server-side so private-network protections, redirect validation, response limits, and content-type filtering stay authoritative.
+
+Consequence:
+- browser code never fetches arbitrary job-posting URLs directly
+- loopback, private, link-local, credential-bearing, and unsafe redirect targets are rejected before content extraction
+- HTML and plain-text retrieval are supported, but JavaScript-only or authenticated pages remain an understood limitation rather than a silently partial scrape

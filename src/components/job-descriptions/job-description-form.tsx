@@ -2,10 +2,16 @@
 
 import type { Route } from "next";
 import Link from "next/link";
-import { useActionState } from "react";
+import { useActionState, useMemo, useState, useTransition } from "react";
 import { SubmitButton } from "@/components/applications/submit-button";
+import type {
+  JobDescriptionFetchResponse
+} from "@/lib/job-descriptions/url-fetch-contract";
 import type { JobDescriptionFormState } from "@/lib/job-descriptions/schemas";
-import { MAX_JOB_DESCRIPTION_CHARACTERS } from "@/lib/job-descriptions/normalize";
+import {
+  MAX_JOB_DESCRIPTION_CHARACTERS,
+  normalizeJobDescriptionText
+} from "@/lib/job-descriptions/normalize";
 
 const jobDescriptionSourceTypeOptions = [
   "MANUAL_PASTE",
@@ -19,6 +25,7 @@ const jobDescriptionSourceTypeOptions = [
 ] as const;
 
 type JobDescriptionSourceType = (typeof jobDescriptionSourceTypeOptions)[number];
+type SourceMode = "paste" | "url";
 
 type JobDescriptionFormValues = {
   companyName?: string;
@@ -40,8 +47,10 @@ type JobDescriptionFormProps = {
   ) => Promise<JobDescriptionFormState>;
   cancelHref: string;
   careerKnowledgeLabel: string;
+  currentNormalizedText?: string | null;
   defaultValues: JobDescriptionFormValues;
   existingJobUrl?: string | null;
+  initialSourceMode?: SourceMode;
   mode: "application" | "new-opportunity";
   pageTitle: string;
   pageDescription: string;
@@ -69,13 +78,75 @@ export function JobDescriptionForm({
   action,
   cancelHref,
   careerKnowledgeLabel,
+  currentNormalizedText,
   defaultValues,
   existingJobUrl,
+  initialSourceMode = "paste",
   mode,
   pageTitle,
   pageDescription
 }: JobDescriptionFormProps) {
   const [state, formAction] = useActionState(action, initialState);
+  const [sourceMode, setSourceMode] = useState<SourceMode>(initialSourceMode);
+  const [urlToFetch, setUrlToFetch] = useState(defaultValues.sourceUrl ?? defaultValues.jobUrl ?? "");
+  const [sourceUrl, setSourceUrl] = useState(defaultValues.sourceUrl ?? defaultValues.jobUrl ?? "");
+  const [sourceTitle, setSourceTitle] = useState(defaultValues.sourceTitle ?? "");
+  const [descriptionText, setDescriptionText] = useState(defaultValues.descriptionText);
+  const [fetchPreview, setFetchPreview] = useState<JobDescriptionFetchResponse | null>(null);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+  const [isFetching, startFetchTransition] = useTransition();
+
+  const serializedDiagnostics = useMemo(
+    () => (fetchPreview ? JSON.stringify(fetchPreview.diagnostics) : ""),
+    [fetchPreview]
+  );
+  const comparisonState = useMemo(() => {
+    if (!fetchPreview || !currentNormalizedText) {
+      return null;
+    }
+
+    return normalizeJobDescriptionText(fetchPreview.extractedText) === currentNormalizedText
+      ? "unchanged"
+      : "changed";
+  }, [currentNormalizedText, fetchPreview]);
+
+  const fetchFromUrl = () => {
+    setFetchError(null);
+
+    startFetchTransition(async () => {
+      const response = await fetch("/api/job-descriptions/fetch-url", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json"
+        },
+        body: JSON.stringify({ url: urlToFetch })
+      });
+
+      const payload = (await response.json()) as
+        | JobDescriptionFetchResponse
+        | { error?: string; diagnostics?: Array<{ message: string }> };
+
+      if (!response.ok) {
+        const errorMessage =
+          "error" in payload && typeof payload.error === "string" ? payload.error : null;
+        const diagnosticMessage =
+          "diagnostics" in payload && Array.isArray(payload.diagnostics)
+            ? payload.diagnostics[0]?.message
+            : null;
+        setFetchError(errorMessage ?? diagnosticMessage ?? "The job posting could not be fetched.");
+        setFetchPreview(null);
+        return;
+      }
+
+      const preview = payload as JobDescriptionFetchResponse;
+      setFetchPreview(preview);
+      setDescriptionText(preview.extractedText);
+      setSourceUrl(preview.finalUrl);
+      if (preview.pageTitle) {
+        setSourceTitle((currentValue) => currentValue || preview.pageTitle || "");
+      }
+    });
+  };
 
   return (
     <form action={formAction} className="space-y-8">
@@ -175,16 +246,178 @@ export function JobDescriptionForm({
       </section>
 
       <section className="rounded-3xl border border-stone-300 bg-white p-6 shadow-sm">
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            className={
+              sourceMode === "paste"
+                ? "rounded-full bg-stone-950 px-4 py-2 text-sm font-semibold text-white"
+                : "rounded-full border border-stone-300 px-4 py-2 text-sm font-semibold text-stone-700"
+            }
+            onClick={() => setSourceMode("paste")}
+            type="button"
+          >
+            Paste Text
+          </button>
+          <button
+            className={
+              sourceMode === "url"
+                ? "rounded-full bg-stone-950 px-4 py-2 text-sm font-semibold text-white"
+                : "rounded-full border border-stone-300 px-4 py-2 text-sm font-semibold text-stone-700"
+            }
+            onClick={() => setSourceMode("url")}
+            type="button"
+          >
+            Import from URL
+          </button>
+        </div>
+
+        <input name="intakeMode" type="hidden" value={sourceMode} />
+        <input name="fetchedRequestedUrl" type="hidden" value={fetchPreview?.requestedUrl ?? ""} />
+        <input name="fetchedFinalUrl" type="hidden" value={fetchPreview?.finalUrl ?? ""} />
+        <input name="fetchedStatus" type="hidden" value={fetchPreview?.status ?? ""} />
+        <input name="fetchedContentType" type="hidden" value={fetchPreview?.contentType ?? ""} />
+        <input name="fetchedRetrievedAt" type="hidden" value={fetchPreview?.retrievedAt ?? ""} />
+        <input name="fetchedPageTitle" type="hidden" value={fetchPreview?.pageTitle ?? ""} />
+        <input
+          name="fetchedExtractorVersion"
+          type="hidden"
+          value={fetchPreview?.extractorVersion ?? ""}
+        />
+        <input
+          name="fetchedExtractionChecksum"
+          type="hidden"
+          value={fetchPreview?.extractionChecksum ?? ""}
+        />
+        <input name="fetchedDiagnostics" type="hidden" value={serializedDiagnostics} />
+
+        {sourceMode === "url" ? (
+          <div className="mt-6 space-y-6">
+            <div className="grid gap-4 md:grid-cols-[1fr_auto]">
+              <label className="grid gap-2">
+                <span className="text-sm font-medium text-stone-700">Job posting URL</span>
+                <input
+                  className="rounded-2xl border border-stone-300 px-4 py-3 text-sm"
+                  onChange={(event) => setUrlToFetch(event.target.value)}
+                  placeholder="https://company.example/jobs/123"
+                  type="url"
+                  value={urlToFetch}
+                />
+              </label>
+              <div className="flex items-end">
+                <button
+                  className="rounded-full bg-stone-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-stone-700 disabled:cursor-not-allowed disabled:bg-stone-400"
+                  disabled={isFetching || urlToFetch.trim().length === 0}
+                  onClick={fetchFromUrl}
+                  type="button"
+                >
+                  {isFetching ? "Fetching..." : fetchPreview ? "Fetch Again" : "Fetch Job Description"}
+                </button>
+              </div>
+            </div>
+
+            {fetchError ? (
+              <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                {fetchError}
+              </div>
+            ) : null}
+
+            {fetchPreview ? (
+              <div className="rounded-2xl border border-stone-200 bg-stone-50 p-5">
+                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                  <article>
+                    <p className="text-sm font-medium text-stone-500">Requested URL</p>
+                    <p className="mt-1 break-all text-sm text-stone-800">{fetchPreview.requestedUrl}</p>
+                  </article>
+                  <article>
+                    <p className="text-sm font-medium text-stone-500">Final URL</p>
+                    <p className="mt-1 break-all text-sm text-stone-800">{fetchPreview.finalUrl}</p>
+                  </article>
+                  <article>
+                    <p className="text-sm font-medium text-stone-500">HTTP status</p>
+                    <p className="mt-1 text-sm text-stone-800">{fetchPreview.status}</p>
+                  </article>
+                  <article>
+                    <p className="text-sm font-medium text-stone-500">Content type</p>
+                    <p className="mt-1 text-sm text-stone-800">{fetchPreview.contentType}</p>
+                  </article>
+                  <article>
+                    <p className="text-sm font-medium text-stone-500">Retrieved at</p>
+                    <p className="mt-1 text-sm text-stone-800">{fetchPreview.retrievedAt}</p>
+                  </article>
+                  <article>
+                    <p className="text-sm font-medium text-stone-500">Extractor version</p>
+                    <p className="mt-1 text-sm text-stone-800">{fetchPreview.extractorVersion}</p>
+                  </article>
+                  <article>
+                    <p className="text-sm font-medium text-stone-500">Extraction checksum</p>
+                    <p className="mt-1 break-all text-sm text-stone-800">
+                      {fetchPreview.extractionChecksum}
+                    </p>
+                  </article>
+                </div>
+
+                <div className="mt-4 grid gap-4 md:grid-cols-2">
+                  <article>
+                    <p className="text-sm font-medium text-stone-500">Page title</p>
+                    <p className="mt-1 text-sm text-stone-800">
+                      {fetchPreview.pageTitle ?? "Title not available"}
+                    </p>
+                  </article>
+                  <article>
+                    <p className="text-sm font-medium text-stone-500">Extraction warnings</p>
+                    <div className="mt-1 flex flex-wrap gap-2">
+                      {fetchPreview.diagnostics.length > 0 ? (
+                        fetchPreview.diagnostics.map((diagnostic) => (
+                          <span
+                            key={`${diagnostic.code}-${diagnostic.message}`}
+                            className="rounded-full border border-stone-200 bg-white px-3 py-1 text-xs font-semibold uppercase tracking-[0.12em] text-stone-600"
+                          >
+                            {diagnostic.code}
+                          </span>
+                        ))
+                      ) : (
+                        <span className="text-sm text-stone-600">No extraction warnings.</span>
+                      )}
+                    </div>
+                  </article>
+                </div>
+
+                {comparisonState ? (
+                  <div
+                    className={
+                      comparisonState === "unchanged"
+                        ? "mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800"
+                        : "mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900"
+                    }
+                  >
+                    {comparisonState === "unchanged"
+                      ? "No material change detected. Saving now will reuse the current immutable version."
+                      : "Fetched content differs from the current reviewed source. Review edits before saving a successor version."}
+                  </div>
+                ) : null}
+              </div>
+            ) : (
+              <div className="rounded-2xl border border-dashed border-stone-300 bg-stone-50 p-5 text-sm text-stone-600">
+                Fetch a public job-posting URL to review the extracted text before saving it as the
+                immutable source.
+              </div>
+            )}
+          </div>
+        ) : null}
+      </section>
+
+      <section className="rounded-3xl border border-stone-300 bg-white p-6 shadow-sm">
         <h2 className="text-xl font-semibold text-stone-900">Source metadata</h2>
         <div className="mt-6 grid gap-5 md:grid-cols-2">
           <label className="grid gap-2">
             <span className="text-sm font-medium text-stone-700">Source URL</span>
             <input
               className="rounded-2xl border border-stone-300 px-4 py-3 text-sm"
-              defaultValue={defaultValues.sourceUrl ?? defaultValues.jobUrl ?? ""}
               name="sourceUrl"
+              onChange={(event) => setSourceUrl(event.target.value)}
               placeholder="https://company.example/jobs/123"
               type="url"
+              value={sourceUrl}
             />
             <FieldError errors={state.fieldErrors} field="sourceUrl" />
           </label>
@@ -209,9 +442,10 @@ export function JobDescriptionForm({
             <span className="text-sm font-medium text-stone-700">Source title</span>
             <input
               className="rounded-2xl border border-stone-300 px-4 py-3 text-sm"
-              defaultValue={defaultValues.sourceTitle ?? ""}
               name="sourceTitle"
+              onChange={(event) => setSourceTitle(event.target.value)}
               placeholder="Senior Backend Engineer job posting"
+              value={sourceTitle}
             />
             <FieldError errors={state.fieldErrors} field="sourceTitle" />
           </label>
@@ -232,9 +466,9 @@ export function JobDescriptionForm({
       <section className="rounded-3xl border border-stone-300 bg-white p-6 shadow-sm">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
-            <h2 className="text-xl font-semibold text-stone-900">Original job description</h2>
+            <h2 className="text-xl font-semibold text-stone-900">Job description preview</h2>
             <p className="mt-2 text-sm leading-6 text-stone-600">
-              Paste the exact text you want preserved. The system stores the original
+              Review and edit the exact text that will be preserved. The system stores the original
               text and a deterministic normalized copy for later parsing.
             </p>
           </div>
@@ -247,9 +481,14 @@ export function JobDescriptionForm({
           <span className="sr-only">Job description text</span>
           <textarea
             className="min-h-[28rem] rounded-2xl border border-stone-300 px-4 py-3 text-sm leading-6"
-            defaultValue={defaultValues.descriptionText}
             name="descriptionText"
-            placeholder="Paste the full job description here."
+            onChange={(event) => setDescriptionText(event.target.value)}
+            placeholder={
+              sourceMode === "url"
+                ? "Fetch a job posting URL, then review the extracted text here."
+                : "Paste the full job description here."
+            }
+            value={descriptionText}
           />
           <FieldError errors={state.fieldErrors} field="descriptionText" />
         </label>
