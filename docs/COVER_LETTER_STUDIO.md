@@ -62,3 +62,6 @@ It exists to inspect:
 - audit summary
 - current approval state
 - revision lineage context
+## Rendering Dependency
+
+Studio drafts remain mutable and are never rendered directly. M8.3 only renders finalized revision content after the revision is audited successfully and approved, preserving the exact finalized immutable source referenced by the approval.

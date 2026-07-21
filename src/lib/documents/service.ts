@@ -79,6 +79,11 @@ export async function listDocumentWorkspaceEntries(
         select: {
           renderingReadiness: true
         }
+      },
+      coverLetterApproval: {
+        select: {
+          renderingReadiness: true
+        }
       }
     }
   });
@@ -104,7 +109,10 @@ export async function listDocumentWorkspaceEntries(
       renderStatusLabel: toLabel(version.renderStatus),
       rendererVersion: version.rendererVersion,
       templateVersion: version.templateVersion,
-      approvalState: version.resumeRenderingApproval.renderingReadiness.replace(/_/g, " "),
+      approvalState:
+        version.resumeRenderingApproval?.renderingReadiness?.replace(/_/g, " ") ??
+        version.coverLetterApproval?.renderingReadiness?.replace(/_/g, " ") ??
+        "Not recorded",
       fileSizeBytes: version.sizeBytes,
       versionNumber: version.versionNumber
     }))

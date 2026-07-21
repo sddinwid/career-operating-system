@@ -11,6 +11,8 @@ import {
   archiveApplicationAction,
   restoreApplicationAction
 } from "@/lib/applications/actions";
+import { renderApprovedCoverLetterDocumentAction } from "@/lib/cover-letter-rendering/actions";
+import { getLatestRenderedCoverLetterDocumentVersion } from "@/lib/cover-letter-rendering/service";
 import { renderApprovedResumeDocumentAction } from "@/lib/document-rendering/actions";
 import { getLatestRenderedResumeDocumentVersion } from "@/lib/document-rendering/service";
 import { runResumeAuditAction } from "@/lib/resume-audit/actions";
@@ -84,7 +86,15 @@ function SuccessBanner({ success }: { success?: string }) {
       "The active approved resume already had a matching immutable PDF, so the existing document version was reused.",
     "docx-document-rendered": "Approved resume rendered to an immutable DOCX successfully.",
     "docx-document-reused":
-      "The active approved resume already had a matching immutable DOCX, so the existing document version was reused."
+      "The active approved resume already had a matching immutable DOCX, so the existing document version was reused.",
+    "cover-letter-pdf-document-rendered":
+      "Approved cover letter rendered to an immutable PDF successfully.",
+    "cover-letter-pdf-document-reused":
+      "The active approved cover letter already had a matching immutable PDF, so the existing document version was reused.",
+    "cover-letter-docx-document-rendered":
+      "Approved cover letter rendered to an immutable DOCX successfully.",
+    "cover-letter-docx-document-reused":
+      "The active approved cover letter already had a matching immutable DOCX, so the existing document version was reused."
   };
 
   if (!success || !messages[success]) {
@@ -189,6 +199,22 @@ export default async function ApplicationDetailPage({
   const latestRenderedResumeDocx =
     application.currentJobDescriptionVersion
       ? await getLatestRenderedResumeDocumentVersion(workspace.id, {
+          jobDescriptionVersionId: application.currentJobDescriptionVersion.id,
+          applicationId: application.id,
+          format: DocumentFormat.DOCX
+        })
+      : null;
+  const latestRenderedCoverLetterPdf =
+    application.currentJobDescriptionVersion
+      ? await getLatestRenderedCoverLetterDocumentVersion(workspace.id, {
+          jobDescriptionVersionId: application.currentJobDescriptionVersion.id,
+          applicationId: application.id,
+          format: DocumentFormat.PDF
+        })
+      : null;
+  const latestRenderedCoverLetterDocx =
+    application.currentJobDescriptionVersion
+      ? await getLatestRenderedCoverLetterDocumentVersion(workspace.id, {
           jobDescriptionVersionId: application.currentJobDescriptionVersion.id,
           applicationId: application.id,
           format: DocumentFormat.DOCX
@@ -332,6 +358,11 @@ export default async function ApplicationDetailPage({
     : coverLetterAuditContext?.reusableAuditRun
       ? "Ready for Approval"
       : "No Active Approval";
+  const coverLetterPdfStateLabel = latestRenderedCoverLetterPdf
+    ? "Immutable Cover Letter PDF Ready"
+    : coverLetterApprovalContext?.activeApproval
+      ? "Cover Letter PDF Rendering Ready"
+      : "Cover Letter PDF Rendering Not Ready";
 
   return (
     <div className="space-y-8">
@@ -711,6 +742,78 @@ export default async function ApplicationDetailPage({
                 </button>
               </form>
             ) : null}
+            {latestRenderedCoverLetterPdf ? (
+              <>
+                <Link
+                  className="rounded-full border border-stone-300 px-5 py-3 text-sm font-semibold text-stone-700 transition hover:border-stone-950 hover:text-stone-950"
+                  href={`/documents/${latestRenderedCoverLetterPdf.id}`}
+                >
+                  View Cover Letter PDF
+                </Link>
+                <a
+                  className="rounded-full border border-stone-300 px-5 py-3 text-sm font-semibold text-stone-700 transition hover:border-stone-950 hover:text-stone-950"
+                  href={`/api/documents/${latestRenderedCoverLetterPdf.id}/download`}
+                >
+                  Download Cover Letter PDF
+                </a>
+              </>
+            ) : null}
+            {latestRenderedCoverLetterDocx ? (
+              <>
+                <Link
+                  className="rounded-full border border-stone-300 px-5 py-3 text-sm font-semibold text-stone-700 transition hover:border-stone-950 hover:text-stone-950"
+                  href={`/documents/${latestRenderedCoverLetterDocx.id}`}
+                >
+                  View Cover Letter DOCX
+                </Link>
+                <a
+                  className="rounded-full border border-stone-300 px-5 py-3 text-sm font-semibold text-stone-700 transition hover:border-stone-950 hover:text-stone-950"
+                  href={`/api/documents/${latestRenderedCoverLetterDocx.id}/download`}
+                >
+                  Download Cover Letter DOCX
+                </a>
+              </>
+            ) : null}
+            {application.currentJobDescriptionVersion && coverLetterApprovalContext?.activeApproval ? (
+              <>
+                <form
+                  action={renderApprovedCoverLetterDocumentAction.bind(
+                    null,
+                    application.currentJobDescriptionVersion.id,
+                    DocumentFormat.PDF,
+                    application.id,
+                    `/applications/${application.id}`
+                  )}
+                >
+                  <button
+                    className="rounded-full border border-stone-300 px-5 py-3 text-sm font-semibold text-stone-700 transition hover:border-stone-950 hover:text-stone-950"
+                    type="submit"
+                  >
+                    {latestRenderedCoverLetterPdf
+                      ? "Render Cover Letter PDF Again"
+                      : "Render Cover Letter PDF"}
+                  </button>
+                </form>
+                <form
+                  action={renderApprovedCoverLetterDocumentAction.bind(
+                    null,
+                    application.currentJobDescriptionVersion.id,
+                    DocumentFormat.DOCX,
+                    application.id,
+                    `/applications/${application.id}`
+                  )}
+                >
+                  <button
+                    className="rounded-full border border-stone-300 px-5 py-3 text-sm font-semibold text-stone-700 transition hover:border-stone-950 hover:text-stone-950"
+                    type="submit"
+                  >
+                    {latestRenderedCoverLetterDocx
+                      ? "Render Cover Letter DOCX Again"
+                      : "Render Cover Letter DOCX"}
+                  </button>
+                </form>
+              </>
+            ) : null}
             {latestRenderedResumePdf ? (
               <>
                 <Link
@@ -1057,6 +1160,19 @@ export default async function ApplicationDetailPage({
                   : resumeRenderingApproval
                     ? "An approved resume source is ready for immutable PDF rendering."
                     : "Approve a ready audited resume before rendering a PDF."}
+              </p>
+            </article>
+            <article className="rounded-2xl border border-stone-200 bg-stone-50 p-4">
+              <p className="text-sm font-medium text-stone-500">Cover Letter PDF</p>
+              <p className="mt-2 text-lg font-semibold text-stone-900">
+                {coverLetterPdfStateLabel}
+              </p>
+              <p className="mt-1 text-sm text-stone-600">
+                {latestRenderedCoverLetterPdf
+                  ? `Latest version ${latestRenderedCoverLetterPdf.versionNumber} is available for download.`
+                  : coverLetterApprovalContext?.activeApproval
+                    ? "An approved cover-letter source is ready for immutable PDF rendering."
+                    : "Approve a ready audited cover letter before rendering a PDF."}
               </p>
             </article>
             <article className="rounded-2xl border border-stone-200 bg-stone-50 p-4">

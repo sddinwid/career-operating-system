@@ -93,6 +93,8 @@ export default async function JobDetailPage({ params }: JobDetailPageProps) {
               ["Cover letter revision", summary.statusLabels.coverLetterRevision],
               ["Cover letter audit", summary.statusLabels.coverLetterAudit],
               ["Cover letter approval", summary.statusLabels.coverLetterApproval],
+              ["Cover letter DOCX", summary.statusLabels.coverLetterDocx],
+              ["Cover letter PDF", summary.statusLabels.coverLetterPdf],
               ["Resume composition", summary.statusLabels.composition],
               ["Resume audit", summary.statusLabels.audit],
               ["Rendering approval", summary.statusLabels.approval]
@@ -143,6 +145,14 @@ export default async function JobDetailPage({ params }: JobDetailPageProps) {
               const latestComposition = version.resumeCompositionVersions[0] ?? null;
               const latestAudit = version.resumeAuditRuns[0] ?? null;
               const latestApproval = version.resumeRenderingApprovals[0] ?? null;
+              const latestCoverLetterPdf =
+                version.documentVersions.find(
+                  (document) => document.document.type === "COVER_LETTER" && document.format === "PDF"
+                ) ?? null;
+              const latestCoverLetterDocx =
+                version.documentVersions.find(
+                  (document) => document.document.type === "COVER_LETTER" && document.format === "DOCX"
+                ) ?? null;
               const latestDocument = version.documentVersions[0] ?? null;
 
               return (
@@ -245,6 +255,16 @@ export default async function JobDetailPage({ params }: JobDetailPageProps) {
                           Cover letter audit
                         </Link>
                       ) : null}
+                      {latestCoverLetterPdf ? (
+                        <Link className={buttonSecondaryClassName} href={`/documents/${latestCoverLetterPdf.id}`}>
+                          Cover letter PDF
+                        </Link>
+                      ) : null}
+                      {latestCoverLetterDocx ? (
+                        <Link className={buttonSecondaryClassName} href={`/documents/${latestCoverLetterDocx.id}`}>
+                          Cover letter DOCX
+                        </Link>
+                      ) : null}
                       {latestComposition ? (
                         <Link
                           className={buttonSecondaryClassName}
@@ -296,6 +316,8 @@ export default async function JobDetailPage({ params }: JobDetailPageProps) {
                         ? latestCoverLetterApproval.renderingReadiness.replace(/_/g, " ")
                         : "Not approved"}
                     </span>
+                    <span>Cover letter DOCX: {latestCoverLetterDocx ? "Ready" : "Not rendered"}</span>
+                    <span>Cover letter PDF: {latestCoverLetterPdf ? "Ready" : "Not rendered"}</span>
                     <span>Resume: {latestComposition ? "Composed" : "Not composed"}</span>
                     <span>
                       Approval:{" "}
@@ -311,7 +333,7 @@ export default async function JobDetailPage({ params }: JobDetailPageProps) {
                           className={textActionClassName}
                           href={`/documents/${document.id}`}
                         >
-                          {document.format} artifact
+                          {document.document.type === "COVER_LETTER" ? "Cover letter" : "Resume"} {document.format} artifact
                         </Link>
                       ))}
                     </div>

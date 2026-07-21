@@ -69,3 +69,6 @@ The preview page is read-only. It shows the latest composition, summary metadata
 - `DocumentVersion` output
 
 Those capabilities are implemented in `M8.2`.
+## Rendering Dependency
+
+M8.3 renders only the immutable composition content referenced by an active `CoverLetterApproval` when the approval source type is `BASE_COMPOSITION`. The composition output remains unchanged; rendering consumes it as a read-only approved source.

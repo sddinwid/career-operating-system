@@ -85,3 +85,6 @@ M7.2 adds deterministic direct PDF rendering on top of the existing rendering ap
 - no hyperlink field rendering
 - no temp-file plus atomic move flow
 - no attachment package workflow yet
+## Cover Letter PDF
+
+M8.3 adds direct text-based cover-letter PDF rendering using the local font and `pdf-lib`/`pdfjs-dist` stack. Validation enforces one-page output, searchable/selectable text, zero image-only operators, expected employer-facing snippets, forbidden internal-fragment checks, UUID leakage checks, and reasonable artifact size before persistence.

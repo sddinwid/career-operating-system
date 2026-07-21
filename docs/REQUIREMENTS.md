@@ -228,3 +228,11 @@ Cover-letter editing, audit, and approval must remain deterministic and lineage-
 - approval must require an exact matching cover-letter source plus exact matching audit
 - cover-letter workflows must not create `DocumentVersion` rows in the current milestone
 - identical approved PDF inputs must reuse the existing successful immutable version without changing application workflow state
+## M8.3 Requirements
+
+- Render cover letters only from an active approved immutable source.
+- Support approved base compositions and approved finalized revisions.
+- Reuse identical successful DOCX or PDF renders by exact input checksum.
+- Persist exact approval, audit, composition, revision, application, and job-description lineage.
+- Validate DOCX and PDF artifacts before persistence.
+- Keep Application status and Status History unchanged by rendering activity.

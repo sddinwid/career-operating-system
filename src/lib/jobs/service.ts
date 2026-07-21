@@ -320,15 +320,19 @@ function describeCoverLetterApprovalState(
 function latestArtifactForFormat(
   versions: Array<{
     id: string;
+    document: {
+      type: DocumentType;
+    };
     format: DocumentFormat;
     generatedAt: Date;
     renderStatus: DocumentRenderStatus;
   }>,
+  documentType: DocumentType,
   format: DocumentFormat
 ) {
   return (
     versions
-      .filter((version) => version.format === format)
+      .filter((version) => version.document.type === documentType && version.format === format)
       .sort((left, right) => right.generatedAt.getTime() - left.generatedAt.getTime())[0] ?? null
   );
 }
@@ -586,9 +590,6 @@ export async function listJobWorkspaceSummaries(
           },
           documentVersions: {
             where: {
-              document: {
-                type: DocumentType.RESUME
-              },
               renderStatus: {
                 in: [DocumentRenderStatus.SUCCESS, DocumentRenderStatus.SUCCESS_WITH_WARNINGS]
               }
@@ -596,6 +597,11 @@ export async function listJobWorkspaceSummaries(
             orderBy: [{ generatedAt: "desc" }, { id: "desc" }],
             select: {
               id: true,
+              document: {
+                select: {
+                  type: true
+                }
+              },
               format: true,
               generatedAt: true,
               renderStatus: true,
@@ -648,10 +654,16 @@ export async function listJobWorkspaceSummaries(
       const resumeAudit = currentJobDescription?.resumeAuditRuns?.[0] ?? null;
       const renderingApproval = currentJobDescription?.resumeRenderingApprovals?.[0] ?? null;
       const latestDocx = currentJobDescription
-        ? latestArtifactForFormat(currentJobDescription.documentVersions, DocumentFormat.DOCX)
+        ? latestArtifactForFormat(currentJobDescription.documentVersions, DocumentType.RESUME, DocumentFormat.DOCX)
         : null;
       const latestPdf = currentJobDescription
-        ? latestArtifactForFormat(currentJobDescription.documentVersions, DocumentFormat.PDF)
+        ? latestArtifactForFormat(currentJobDescription.documentVersions, DocumentType.RESUME, DocumentFormat.PDF)
+        : null;
+      const latestCoverLetterDocx = currentJobDescription
+        ? latestArtifactForFormat(currentJobDescription.documentVersions, DocumentType.COVER_LETTER, DocumentFormat.DOCX)
+        : null;
+      const latestCoverLetterPdf = currentJobDescription
+        ? latestArtifactForFormat(currentJobDescription.documentVersions, DocumentType.COVER_LETTER, DocumentFormat.PDF)
         : null;
       const linkedApplication = opportunity.applications[0] ?? null;
       const updatedAt = [
@@ -705,6 +717,8 @@ export async function listJobWorkspaceSummaries(
         renderingApproval,
         latestDocx,
         latestPdf,
+        latestCoverLetterDocx,
+        latestCoverLetterPdf,
         statusLabels: {
           parse: latestParse ? toLabel(latestParse.status) : "Not parsed",
           requirement: latestAnalysis ? toLabel(latestAnalysis.status) : "Not reviewed",
@@ -741,6 +755,16 @@ export async function listJobWorkspaceSummaries(
             coverLetterApproval,
             coverLetterAudit?.id ?? null
           ),
+          coverLetterDocx: latestCoverLetterDocx
+            ? "DOCX ready"
+            : coverLetterApproval
+              ? "DOCX render ready"
+              : "DOCX not ready",
+          coverLetterPdf: latestCoverLetterPdf
+            ? "PDF ready"
+            : coverLetterApproval
+              ? "PDF render ready"
+              : "PDF not ready",
           audit: describeResumeAuditState(resumeAudit, resumeComposition?.id ?? null),
           approval: describeApprovalState(renderingApproval, resumeAudit?.id ?? null)
         },
@@ -1088,6 +1112,11 @@ export async function getJobWorkspaceDetail(
               orderBy: [{ generatedAt: "desc" }, { id: "desc" }],
               select: {
                 id: true,
+                document: {
+                  select: {
+                    type: true
+                  }
+                },
                 format: true,
                 originalFilename: true,
                 generatedAt: true,

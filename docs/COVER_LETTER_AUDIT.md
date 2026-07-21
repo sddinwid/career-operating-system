@@ -65,3 +65,6 @@ The audit does not:
 - override findings manually
 - create `DocumentVersion` rows
 - approve content automatically
+## Rendering Gate
+
+M8.3 uses `CoverLetterAuditRun` as the final render gate. A cover letter cannot render unless the active approval still points to a successful matching audit with `READY_FOR_RENDERING` or `READY_WITH_WARNINGS`, no blocking findings, and exact source-checksum agreement.

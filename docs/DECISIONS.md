@@ -285,3 +285,9 @@ Reasoning:
 - extracted-text validation proves the artifact remains searchable and ATS-friendly rather than rasterized
 - metadata inspection prevents persisted PDFs from leaking internal revision notes or provenance-only fields
 - format-specific reuse still belongs inside the existing immutable `DocumentVersion` lineage, so the requested format is part of the render-input checksum
+## M8.3 Decisions
+
+- Reused the generic `Document` and `DocumentVersion` artifact pipeline for cover letters instead of creating a separate cover-letter document model.
+- Preserved the exact immutable approved source referenced by `CoverLetterApproval`; the renderer does not silently choose the latest revision.
+- Reused the approved source header date as the deterministic rendered date policy so rerenders remain idempotent for the same approved input.
+- Rendered PDF directly from the canonical model; DOCX is not converted to PDF through external tooling.

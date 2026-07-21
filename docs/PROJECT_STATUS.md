@@ -235,3 +235,6 @@ M7.2 adds direct deterministic PDF rendering, shared artifact validation, immuta
 - the observed failure was `P3006` with nested `P1014`, reporting that the underlying table for model `JobRequirementAnalysis` does not exist
 - this does not invalidate the deployed M7.1 migration because deploy succeeded against the real database
 - the shadow-database replay problem remains technical debt for future migration-history reset compatibility
+## M8.3 Status
+
+Cover-letter rendering is now wired through immutable `DocumentVersion` artifacts with approval-only gating, checksum reuse, DOCX/PDF validation, and Documents/Application/Job integrations. Application package bundling remains intentionally out of scope.

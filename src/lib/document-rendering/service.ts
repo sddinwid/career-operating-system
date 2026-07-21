@@ -495,6 +495,10 @@ export async function getDocumentVersionById(
           }
         }
       },
+      coverLetterApproval: true,
+      coverLetterAuditRun: true,
+      coverLetterCompositionVersion: true,
+      coverLetterRevisionVersion: true,
       resumeRenderingApproval: true,
       resumeAuditRun: true,
       resumeCompositionVersion: true,

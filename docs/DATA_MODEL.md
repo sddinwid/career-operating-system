@@ -371,3 +371,13 @@ Behavior:
 ## ResumeRenderingApproval
 
 `ResumeRenderingApproval` records one immutable rendering decision for one exact resume content source and one exact audit. It references the upstream composition or finalized revision plus the structured resume, career profile, match report, requirement analysis, job description, and optional application lineage needed for downstream rendering verification.
+## M8.3 Data Model Notes
+
+`DocumentType.COVER_LETTER` now uses the existing `Document` and `DocumentVersion` models for immutable cover-letter artifacts. `DocumentVersion` preserves exact cover-letter lineage with nullable:
+
+- `coverLetterApprovalId`
+- `coverLetterAuditRunId`
+- `coverLetterCompositionVersionId`
+- `coverLetterRevisionVersionId`
+
+Resume lineage remains intact on the same table, and successful renders continue to use relative local storage paths plus persisted checksums, MIME type, render checksum, template version, and validation summary metadata.

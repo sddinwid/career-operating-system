@@ -142,3 +142,6 @@ M7.1 introduced deterministic DOCX rendering, and M7.2 keeps DOCX inside the sha
 ## Shared Contract
 
 M7.2 reuses the same approval gate, format-aware render-input checksum, immutable artifact lineage, relative local storage, and download integrity checks for DOCX and PDF.
+## Cover Letter DOCX
+
+M8.3 adds ATS-friendly cover-letter DOCX rendering with restrained text-only layout, standard margins, deterministic paragraph order, and no draft or internal provenance leakage. Validation checks the OOXML package, `word/document.xml`, required content snippets, forbidden internal fragments, UUID leakage, and artifact size before persistence.

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { DocumentFormat } from "@prisma/client";
 import { createCoverLetterCompositionAction } from "@/lib/cover-letter-composition/actions";
 import { getCoverLetterApprovalContext } from "@/lib/cover-letter-approval/service";
 import { getCoverLetterAuditContext } from "@/lib/cover-letter-audit/service";
@@ -7,6 +8,8 @@ import {
   getCoverLetterCompositionContext,
   parseStoredCoverLetterCompositionVersion
 } from "@/lib/cover-letter-composition/service";
+import { renderApprovedCoverLetterDocumentAction } from "@/lib/cover-letter-rendering/actions";
+import { getLatestRenderedCoverLetterDocumentVersion } from "@/lib/cover-letter-rendering/service";
 import { getCoverLetterRevisionContext } from "@/lib/cover-letter-revision/service";
 import { getDefaultWorkspace } from "@/lib/workspace";
 
@@ -23,7 +26,15 @@ function SuccessBanner({ success }: { success?: string }) {
   const messages: Record<string, string> = {
     "cover-letter-created": "Cover letter composed successfully.",
     "cover-letter-reused":
-      "The current cover-letter contract, engine, and configuration already had a successful result for these exact inputs, so the existing composition was reused."
+      "The current cover-letter contract, engine, and configuration already had a successful result for these exact inputs, so the existing composition was reused.",
+    "cover-letter-pdf-document-rendered":
+      "Approved cover letter rendered to an immutable PDF successfully.",
+    "cover-letter-pdf-document-reused":
+      "The active approved cover letter already had a matching immutable PDF, so the existing document version was reused.",
+    "cover-letter-docx-document-rendered":
+      "Approved cover letter rendered to an immutable DOCX successfully.",
+    "cover-letter-docx-document-reused":
+      "The active approved cover letter already had a matching immutable DOCX, so the existing document version was reused."
   };
 
   if (!success || !messages[success]) {
@@ -100,6 +111,16 @@ export default async function CoverLetterPage({ params, searchParams }: CoverLet
   const approvalContext = await getCoverLetterApprovalContext(workspace.id, {
     jobDescriptionVersionId,
     applicationId: version.applicationId
+  });
+  const latestPdfDocumentVersion = await getLatestRenderedCoverLetterDocumentVersion(workspace.id, {
+    jobDescriptionVersionId,
+    applicationId: version.applicationId,
+    format: DocumentFormat.PDF
+  });
+  const latestDocxDocumentVersion = await getLatestRenderedCoverLetterDocumentVersion(workspace.id, {
+    jobDescriptionVersionId,
+    applicationId: version.applicationId,
+    format: DocumentFormat.DOCX
   });
 
   return (
@@ -243,6 +264,18 @@ export default async function CoverLetterPage({ params, searchParams }: CoverLet
                 : "No active approval"}
             </p>
           </article>
+          <article className="rounded-2xl border border-stone-200 bg-stone-50 p-4">
+            <p className="text-sm font-medium text-stone-500">DOCX</p>
+            <p className="mt-2 text-lg font-semibold text-stone-900">
+              {latestDocxDocumentVersion ? "Ready" : "Not rendered"}
+            </p>
+          </article>
+          <article className="rounded-2xl border border-stone-200 bg-stone-50 p-4">
+            <p className="text-sm font-medium text-stone-500">PDF</p>
+            <p className="mt-2 text-lg font-semibold text-stone-900">
+              {latestPdfDocumentVersion ? "Ready" : "Not rendered"}
+            </p>
+          </article>
         </div>
 
         <div className="mt-6 text-sm text-stone-600">
@@ -269,6 +302,92 @@ export default async function CoverLetterPage({ params, searchParams }: CoverLet
             <p>{content.closing}</p>
           </div>
         </div>
+      </section>
+
+      <section className="rounded-3xl border border-stone-300 bg-white p-8 shadow-sm">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <h2 className="text-2xl font-semibold text-stone-900">Rendering Output</h2>
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-stone-600">
+              Render immutable DOCX and PDF artifacts only from the current active approved cover-letter source.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-3">
+            {latestPdfDocumentVersion ? (
+              <>
+                <Link
+                  className="rounded-full border border-stone-300 px-5 py-3 text-sm font-semibold text-stone-700 transition hover:border-stone-950 hover:text-stone-950"
+                  href={`/documents/${latestPdfDocumentVersion.id}`}
+                >
+                  View PDF Version
+                </Link>
+                <a
+                  className="rounded-full border border-stone-300 px-5 py-3 text-sm font-semibold text-stone-700 transition hover:border-stone-950 hover:text-stone-950"
+                  href={`/api/documents/${latestPdfDocumentVersion.id}/download`}
+                >
+                  Download PDF
+                </a>
+              </>
+            ) : null}
+            {latestDocxDocumentVersion ? (
+              <>
+                <Link
+                  className="rounded-full border border-stone-300 px-5 py-3 text-sm font-semibold text-stone-700 transition hover:border-stone-950 hover:text-stone-950"
+                  href={`/documents/${latestDocxDocumentVersion.id}`}
+                >
+                  View DOCX Version
+                </Link>
+                <a
+                  className="rounded-full border border-stone-300 px-5 py-3 text-sm font-semibold text-stone-700 transition hover:border-stone-950 hover:text-stone-950"
+                  href={`/api/documents/${latestDocxDocumentVersion.id}/download`}
+                >
+                  Download DOCX
+                </a>
+              </>
+            ) : null}
+            {approvalContext?.activeApproval ? (
+              <>
+                <form
+                  action={renderApprovedCoverLetterDocumentAction.bind(
+                    null,
+                    jobDescriptionVersionId,
+                    DocumentFormat.PDF,
+                    version.applicationId,
+                    `/job-descriptions/${jobDescriptionVersionId}/cover-letter`
+                  )}
+                >
+                  <button
+                    className="rounded-full bg-stone-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-stone-800"
+                    type="submit"
+                  >
+                    {latestPdfDocumentVersion ? "Render Approved PDF Again" : "Render Approved PDF"}
+                  </button>
+                </form>
+                <form
+                  action={renderApprovedCoverLetterDocumentAction.bind(
+                    null,
+                    jobDescriptionVersionId,
+                    DocumentFormat.DOCX,
+                    version.applicationId,
+                    `/job-descriptions/${jobDescriptionVersionId}/cover-letter`
+                  )}
+                >
+                  <button
+                    className="rounded-full border border-stone-300 px-5 py-3 text-sm font-semibold text-stone-700 transition hover:border-stone-950 hover:text-stone-950"
+                    type="submit"
+                  >
+                    {latestDocxDocumentVersion ? "Render Approved DOCX Again" : "Render Approved DOCX"}
+                  </button>
+                </form>
+              </>
+            ) : null}
+          </div>
+        </div>
+        {!approvalContext?.activeApproval ? (
+          <p className="mt-6 rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm text-stone-700">
+            Approval is required before rendering. Review the latest audit or continue in Cover Letter Studio to prepare an approvable immutable source.
+          </p>
+        ) : null}
       </section>
 
       <section className="rounded-3xl border border-stone-300 bg-white p-8 shadow-sm">

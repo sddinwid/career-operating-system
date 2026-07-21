@@ -209,3 +209,6 @@ The July 19, 2026 navigation/discovery correction is explicitly not a new roadma
 - M6.2 introduced comparison and approval and now serves as the rendering gate for M7.1.
 - M7.1 is complete.
 - M7.2 adds direct deterministic PDF rendering plus shared artifact validation and is complete.
+## M8.3
+
+Complete deterministic approved cover-letter DOCX and PDF rendering through the existing immutable document-artifact pipeline. The next roadmap step remains application package composition and submission snapshot work.

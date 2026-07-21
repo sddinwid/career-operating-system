@@ -15,10 +15,12 @@ type DocumentValidationSummary = {
   pageCount?: number;
   totalTextItemCount?: number;
   totalImageOperatorCount?: number;
-  extractedTextLength?: number;
   missingSnippets?: string[];
   forbiddenMetadataLeaks?: string[];
   metadata?: Record<string, string | null>;
+  extractedTextLength?: number;
+  forbiddenFragments?: string[];
+  leakedUuid?: boolean;
 };
 
 export default async function DocumentDetailPage({ params }: DocumentDetailPageProps) {
@@ -37,6 +39,23 @@ export default async function DocumentDetailPage({ params }: DocumentDetailPageP
   const checksumPreview = version.checksum.slice(0, 12);
   const renderChecksumPreview = version.renderInputChecksum.slice(0, 12);
   const formatLabel = version.format === "PDF" ? "PDF" : "DOCX";
+  const isCoverLetter = version.document.type === "COVER_LETTER";
+  const documentTypeLabel = isCoverLetter ? "Cover Letter" : "Resume";
+  const backHref = isCoverLetter
+    ? `/job-descriptions/${version.jobDescriptionVersionId}/cover-letter`
+    : `/job-descriptions/${version.jobDescriptionVersionId}/resume`;
+  const approvalId = isCoverLetter
+    ? version.coverLetterApprovalId
+    : version.resumeRenderingApprovalId;
+  const auditId = isCoverLetter ? version.coverLetterAuditRunId : version.resumeAuditRunId;
+  const compositionId = isCoverLetter
+    ? version.coverLetterCompositionVersionId
+    : version.resumeCompositionVersionId;
+  const revisionId = isCoverLetter
+    ? version.coverLetterRevisionVersionId
+    : version.resumeRevisionVersionId;
+  const companyName = version.jobDescriptionVersion.opportunity.company.name;
+  const roleTitle = version.jobDescriptionVersion.opportunity.title;
 
   return (
     <div className="space-y-8">
@@ -50,7 +69,10 @@ export default async function DocumentDetailPage({ params }: DocumentDetailPageP
               {version.document.title}
             </h1>
             <p className="mt-3 text-base text-stone-600">
-              Version {version.versionNumber} | {version.renderStatus.replace(/_/g, " ")} | {formatLabel}
+              {documentTypeLabel} | Version {version.versionNumber} | {version.renderStatus.replace(/_/g, " ")} | {formatLabel}
+            </p>
+            <p className="mt-2 text-sm text-stone-500">
+              {companyName} | {roleTitle}
             </p>
           </div>
           <div className="flex flex-wrap gap-3">
@@ -64,9 +86,9 @@ export default async function DocumentDetailPage({ params }: DocumentDetailPageP
             ) : null}
             <Link
               className="rounded-full border border-stone-300 px-5 py-3 text-sm font-semibold text-stone-700 transition hover:border-stone-950 hover:text-stone-950"
-              href={`/job-descriptions/${version.jobDescriptionVersionId}/resume`}
+              href={backHref}
             >
-              Back to resume
+              Back to {documentTypeLabel.toLowerCase()}
             </Link>
             <a
               className="rounded-full bg-stone-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-stone-800"
@@ -106,28 +128,28 @@ export default async function DocumentDetailPage({ params }: DocumentDetailPageP
         <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           <article className="rounded-2xl border border-stone-200 bg-stone-50 p-4">
             <p className="text-sm font-medium text-stone-500">Approval</p>
-            <p className="mt-2 break-all text-sm font-semibold text-stone-900">
-              {version.resumeRenderingApprovalId}
-            </p>
-          </article>
-          <article className="rounded-2xl border border-stone-200 bg-stone-50 p-4">
-            <p className="text-sm font-medium text-stone-500">Audit</p>
-            <p className="mt-2 break-all text-sm font-semibold text-stone-900">
-              {version.resumeAuditRunId}
-            </p>
-          </article>
-          <article className="rounded-2xl border border-stone-200 bg-stone-50 p-4">
-            <p className="text-sm font-medium text-stone-500">Composition</p>
-            <p className="mt-2 break-all text-sm font-semibold text-stone-900">
-              {version.resumeCompositionVersionId}
-            </p>
-          </article>
-          <article className="rounded-2xl border border-stone-200 bg-stone-50 p-4">
-            <p className="text-sm font-medium text-stone-500">Revision</p>
-            <p className="mt-2 break-all text-sm font-semibold text-stone-900">
-              {version.resumeRevisionVersionId ?? "Base composition"}
-            </p>
-          </article>
+              <p className="mt-2 break-all text-sm font-semibold text-stone-900">
+              {approvalId}
+              </p>
+            </article>
+            <article className="rounded-2xl border border-stone-200 bg-stone-50 p-4">
+              <p className="text-sm font-medium text-stone-500">Audit</p>
+              <p className="mt-2 break-all text-sm font-semibold text-stone-900">
+              {auditId}
+              </p>
+            </article>
+            <article className="rounded-2xl border border-stone-200 bg-stone-50 p-4">
+              <p className="text-sm font-medium text-stone-500">Composition</p>
+              <p className="mt-2 break-all text-sm font-semibold text-stone-900">
+              {compositionId}
+              </p>
+            </article>
+            <article className="rounded-2xl border border-stone-200 bg-stone-50 p-4">
+              <p className="text-sm font-medium text-stone-500">Revision</p>
+              <p className="mt-2 break-all text-sm font-semibold text-stone-900">
+              {revisionId ?? "Base composition"}
+              </p>
+            </article>
           <article className="rounded-2xl border border-stone-200 bg-stone-50 p-4">
             <p className="text-sm font-medium text-stone-500">Checksum</p>
             <p className="mt-2 break-all text-sm font-semibold text-stone-900">{version.checksum}</p>
@@ -172,9 +194,10 @@ export default async function DocumentDetailPage({ params }: DocumentDetailPageP
                 Missing expected snippets: {validationSummary?.missingSnippets?.join(", ") || "None"}
               </p>
               <p>
-                Forbidden metadata leaks: {validationSummary?.forbiddenMetadataLeaks?.join(", ") || "None"}
+                Forbidden metadata leaks: {validationSummary?.forbiddenMetadataLeaks?.join(", ") || validationSummary?.forbiddenFragments?.join(", ") || "None"}
               </p>
               <p>PDF title metadata: {validationSummary?.metadata?.title ?? "Not recorded"}</p>
+              <p>UUID leak detected: {validationSummary?.leakedUuid ? "Yes" : "No"}</p>
             </>
           )}
         </div>

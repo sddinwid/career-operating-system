@@ -648,10 +648,14 @@ model DocumentVersion {
   workspaceId      String
   applicationId    String?
   jobDescriptionVersionId String
-  resumeRenderingApprovalId String
-  resumeAuditRunId String
-  resumeCompositionVersionId String
+  resumeRenderingApprovalId String?
+  resumeAuditRunId String?
+  resumeCompositionVersionId String?
   resumeRevisionVersionId String?
+  coverLetterApprovalId String?
+  coverLetterAuditRunId String?
+  coverLetterCompositionVersionId String?
+  coverLetterRevisionVersionId String?
   versionNumber    Int
   format           DocumentFormat
   originalFilename String
@@ -677,10 +681,14 @@ model DocumentVersion {
   application      Application?   @relation("ApplicationDocumentVersions", fields: [applicationId], references: [id], onDelete: SetNull)
   document         Document       @relation(fields: [documentId], references: [id], onDelete: Restrict)
   jobDescriptionVersion JobDescriptionVersion @relation(fields: [jobDescriptionVersionId], references: [id], onDelete: Restrict)
-  resumeAuditRun   ResumeAuditRun @relation(fields: [resumeAuditRunId], references: [id], onDelete: Restrict)
-  resumeCompositionVersion ResumeCompositionVersion @relation(fields: [resumeCompositionVersionId], references: [id], onDelete: Restrict)
-  resumeRenderingApproval ResumeRenderingApproval @relation(fields: [resumeRenderingApprovalId], references: [id], onDelete: Restrict)
+  resumeAuditRun   ResumeAuditRun? @relation(fields: [resumeAuditRunId], references: [id], onDelete: Restrict)
+  resumeCompositionVersion ResumeCompositionVersion? @relation(fields: [resumeCompositionVersionId], references: [id], onDelete: Restrict)
+  resumeRenderingApproval ResumeRenderingApproval? @relation(fields: [resumeRenderingApprovalId], references: [id], onDelete: Restrict)
   resumeRevisionVersion ResumeRevisionVersion? @relation(fields: [resumeRevisionVersionId], references: [id], onDelete: SetNull)
+  coverLetterApproval CoverLetterApproval? @relation(fields: [coverLetterApprovalId], references: [id], onDelete: Restrict)
+  coverLetterAuditRun CoverLetterAuditRun? @relation(fields: [coverLetterAuditRunId], references: [id], onDelete: Restrict)
+  coverLetterCompositionVersion CoverLetterCompositionVersion? @relation(fields: [coverLetterCompositionVersionId], references: [id], onDelete: Restrict)
+  coverLetterRevisionVersion CoverLetterRevisionVersion? @relation(fields: [coverLetterRevisionVersionId], references: [id], onDelete: SetNull)
   workspace        Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
 
   @@unique([documentId, versionNumber])
@@ -692,6 +700,10 @@ model DocumentVersion {
   @@index([resumeAuditRunId, generatedAt])
   @@index([resumeCompositionVersionId, generatedAt])
   @@index([resumeRevisionVersionId, generatedAt])
+  @@index([coverLetterApprovalId, generatedAt])
+  @@index([coverLetterAuditRunId, generatedAt])
+  @@index([coverLetterCompositionVersionId, generatedAt])
+  @@index([coverLetterRevisionVersionId, generatedAt])
   @@index([workspaceId, renderInputChecksum, renderStatus, generatedAt])
 }
 
@@ -1116,6 +1128,7 @@ model CoverLetterCompositionVersion {
   coverLetterApprovals       CoverLetterApproval[]
   coverLetterRevisionVersions CoverLetterRevisionVersion[]
   coverLetterAuditRuns       CoverLetterAuditRun[]
+  documentVersions           DocumentVersion[]
   successorVersions          CoverLetterCompositionVersion[]     @relation("CoverLetterCompositionVersionPredecessor")
   workspace                  Workspace                           @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
 
@@ -1167,6 +1180,7 @@ model CoverLetterRevisionVersion {
   coverLetterApprovals       CoverLetterApproval[]
   coverLetterAuditRuns       CoverLetterAuditRun[]
   coverLetterCompositionVersion CoverLetterCompositionVersion @relation(fields: [coverLetterCompositionVersionId], references: [id], onDelete: Restrict)
+  documentVersions           DocumentVersion[]
   evidenceRetrievalRun       EvidenceRetrievalRun            @relation(fields: [evidenceRetrievalRunId], references: [id], onDelete: Restrict)
   evidenceScoringRun         EvidenceScoringRun              @relation(fields: [evidenceScoringRunId], references: [id], onDelete: Restrict)
   jobDescriptionVersion      JobDescriptionVersion           @relation(fields: [jobDescriptionVersionId], references: [id], onDelete: Restrict)
@@ -1218,6 +1232,7 @@ model CoverLetterAuditRun {
   careerProfileVersion       CareerProfileVersion      @relation(fields: [careerProfileVersionId], references: [id], onDelete: Restrict)
   coverLetterApprovals       CoverLetterApproval[]
   coverLetterCompositionVersion CoverLetterCompositionVersion @relation(fields: [coverLetterCompositionVersionId], references: [id], onDelete: Restrict)
+  documentVersions           DocumentVersion[]
   coverLetterRevisionVersion CoverLetterRevisionVersion? @relation(fields: [coverLetterRevisionVersionId], references: [id], onDelete: SetNull)
   evidenceRetrievalRun       EvidenceRetrievalRun      @relation(fields: [evidenceRetrievalRunId], references: [id], onDelete: Restrict)
   evidenceScoringRun         EvidenceScoringRun        @relation(fields: [evidenceScoringRunId], references: [id], onDelete: Restrict)
@@ -1266,6 +1281,7 @@ model CoverLetterApproval {
   application                Application?              @relation(fields: [applicationId], references: [id], onDelete: SetNull)
   coverLetterAuditRun        CoverLetterAuditRun       @relation(fields: [coverLetterAuditRunId], references: [id], onDelete: Restrict)
   coverLetterCompositionVersion CoverLetterCompositionVersion @relation(fields: [coverLetterCompositionVersionId], references: [id], onDelete: Restrict)
+  documentVersions           DocumentVersion[]
   coverLetterRevisionVersion CoverLetterRevisionVersion? @relation(fields: [coverLetterRevisionVersionId], references: [id], onDelete: SetNull)
   jobDescriptionVersion      JobDescriptionVersion     @relation(fields: [jobDescriptionVersionId], references: [id], onDelete: Restrict)
   jobOpportunity             JobOpportunity            @relation(fields: [jobOpportunityId], references: [id], onDelete: Restrict)

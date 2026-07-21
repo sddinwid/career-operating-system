@@ -319,3 +319,7 @@ These remain intentionally deferred after the July 19, 2026 navigation/discovery
 ## Next
 
 - M7.1 — DOCX Renderer and Immutable Document Version
+## After M8.3
+
+- Application package composition and submission snapshot remain the next milestone.
+- Cover-letter hyperlink enrichment can be revisited later if direct OOXML hyperlink fields become important enough to justify broader renderer changes.

@@ -81,3 +81,6 @@ It lists immutable `DocumentVersion` records with:
 - Shared primary, secondary, text-action, active-nav, and disabled-nav styles are consolidated
 - Explicit visited-link color inheritance prevents dark visited text from overriding dark primary button backgrounds
 - Focus-visible states remain visible across nav and action controls
+## Cover Letter Artifacts
+
+Cover-letter render and discovery entry points now appear on Cover Letter Preview, Application detail, Job detail, and the Documents workspace. These additions reuse the existing navigation shell and document-detail/download routes instead of introducing a separate cover-letter library surface.

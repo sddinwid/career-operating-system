@@ -69,3 +69,6 @@ Approval remains separate from editing and audit generation.
 `M8.2` does not add cover-letter DOCX or PDF rendering.
 
 Approval only establishes the exact immutable source that later rendering must consume.
+## Rendering Integration
+
+The active `CoverLetterApproval` is now the sole authority for cover-letter rendering. Historical revoked or superseded approvals keep their previously rendered artifacts as immutable history, but only the current active approved source may create or reuse new render artifacts.

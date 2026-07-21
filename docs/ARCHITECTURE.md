@@ -464,3 +464,10 @@ Storage notes:
 - download routes never accept arbitrary paths
 - M7.2 does not use LibreOffice, Microsoft Word automation, browser screenshots, or DOCX-to-PDF conversion
 - M7.2 does not currently use a separate temp file plus atomic rename; it writes the final relative path and removes the file if the transaction fails
+## M8.3 Cover Letter Rendering
+
+M8.3 extends the existing immutable document-artifact architecture rather than introducing a second storage model. The pipeline is:
+
+`CoverLetterApproval -> exact immutable source resolution -> canonical render model -> DOCX or PDF renderer -> artifact validation -> Document -> immutable DocumentVersion -> Documents/Application/Job surfaces`.
+
+Cover-letter rendering never reads mutable Studio drafts. New artifact persistence reuses the shared `Document` and `DocumentVersion` boundary, with cover-letter-specific lineage stored on `DocumentVersion`.

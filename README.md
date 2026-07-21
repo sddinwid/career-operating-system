@@ -274,3 +274,6 @@ The resume workflow now supports deterministic PDF rendering from the active ren
 - Artifacts are written under the local ignored storage root from `LOCAL_DATA_DIR`, not into the repository
 
 See [docs/PDF_RENDERING.md](docs/PDF_RENDERING.md) and [docs/DOCX_RENDERING.md](docs/DOCX_RENDERING.md).
+## Cover Letter Rendering
+
+Approved cover letters can now render to immutable DOCX and PDF artifacts through the same local-first `Document` and `DocumentVersion` pipeline used for resumes. Rendering is gated by an active `CoverLetterApproval`, persists exact approval and audit lineage, validates artifacts before persistence, and exposes the resulting downloads through Cover Letter Preview, Applications, Jobs, and the Documents workspace.
