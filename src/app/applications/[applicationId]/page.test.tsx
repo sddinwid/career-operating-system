@@ -166,6 +166,45 @@ vi.mock("@/lib/cover-letter-composition/service", () => ({
   }))
 }));
 
+vi.mock("@/lib/cover-letter-revision/service", () => ({
+  getCoverLetterRevisionContext: vi.fn(async () => ({
+    latestDraft: null,
+    latestFinalizedRevision: {
+      id: "cover-letter-revision-1",
+      status: "FINALIZED"
+    }
+  }))
+}));
+
+vi.mock("@/lib/cover-letter-audit/service", () => ({
+  getCoverLetterAuditContext: vi.fn(async () => ({
+    auditSource: {
+      sourceType: "FINALIZED_REVISION"
+    },
+    reusableAuditRun: {
+      id: "cover-letter-audit-1",
+      sourceType: "FINALIZED_REVISION",
+      summary: {
+        errorCount: 0,
+        warningCount: 1,
+        infoCount: 2
+      }
+    }
+  }))
+}));
+
+vi.mock("@/lib/cover-letter-approval/service", () => ({
+  getCoverLetterApprovalContext: vi.fn(async () => ({
+    activeApproval: {
+      approvalId: "cover-letter-approval-1",
+      sourceType: "FINALIZED_REVISION",
+      renderingReadiness: "READY_WITH_WARNINGS",
+      status: "APPROVED"
+    },
+    history: [{ approvalId: "cover-letter-approval-1" }]
+  }))
+}));
+
 vi.mock("@/lib/resume-audit/service", () => ({
   getResumeAuditContext: vi.fn(async () => ({
     auditReady: true,
@@ -233,13 +272,34 @@ describe("ApplicationDetailPage", () => {
       "href",
       "/job-descriptions/job-description-2/resume?versionId=resume-composition-1"
     );
+    expect(screen.getByRole("link", { name: "View Cover Letter" })).toHaveAttribute(
+      "href",
+      "/job-descriptions/job-description-2/cover-letter?versionId=cover-letter-1"
+    );
+    expect(screen.getByRole("link", { name: "View Cover Letter Revision" })).toHaveAttribute(
+      "href",
+      "/job-descriptions/job-description-2/cover-letter/studio?revisionId=cover-letter-revision-1"
+    );
+    expect(screen.getByRole("link", { name: "View Cover Letter Comparison" })).toHaveAttribute(
+      "href",
+      "/job-descriptions/job-description-2/cover-letter/compare?revisionId=cover-letter-revision-1"
+    );
+    expect(screen.getByRole("link", { name: "View Cover Letter Audit" })).toHaveAttribute(
+      "href",
+      "/job-descriptions/job-description-2/cover-letter/audit?runId=cover-letter-audit-1"
+    );
     expect(screen.getByRole("link", { name: "View Resume Audit" })).toHaveAttribute(
       "href",
       "/job-descriptions/job-description-2/resume/audit?runId=resume-audit-1"
     );
+    expect(screen.getByText("Cover Letter Composed")).toBeVisible();
+    expect(screen.getByText("Revision Available")).toBeVisible();
+    expect(screen.getByText("Cover Letter Audit Complete")).toBeVisible();
+    expect(screen.getAllByText("Active Approval")[0]).toBeVisible();
+    expect(screen.getByText(/Approval history 1/i)).toBeVisible();
     expect(screen.getByText("Resume Audit Complete")).toBeVisible();
     expect(screen.getByText("Resume PDF Rendering Not Ready")).toBeVisible();
-    expect(screen.getByText(/READY WITH WARNINGS/i)).toBeVisible();
+    expect(screen.getAllByText(/READY WITH WARNINGS/i).length).toBeGreaterThan(0);
     expect(screen.getByRole("link", { name: "Replace Job Description" })).toHaveAttribute(
       "href",
       "/applications/application-1/job-description"

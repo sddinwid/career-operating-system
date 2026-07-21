@@ -222,6 +222,18 @@ The product stores explainable match reports as immutable derived runs rather th
 
 Cover-letter composition is stored in `CoverLetterCompositionVersion`, not `DocumentVersion`, so paragraph provenance, resume-overlap checks, deterministic reuse, and writing diagnostics remain inspectable before later editing, approval, or rendering work begins.
 
+## M8.2 Cover Letter Studio, Audit, and Approval Decision
+
+Editable cover-letter work is stored in `CoverLetterRevisionVersion`, deterministic checks are stored in `CoverLetterAuditRun`, and approval history is stored in `CoverLetterApproval` rather than mutating `CoverLetterCompositionVersion`.
+
+Reasoning:
+
+- immutable base composition must remain inspectable as the deterministic starting point
+- human edits need explicit mutable-draft versus immutable-finalized state
+- audit history must remain exact-source-aware for both base composition and finalized revisions
+- approval must stay separate from content so later renderers can resolve one exact audited source
+- cover-letter rendering is intentionally deferred, so no `DocumentVersion` coupling is introduced yet
+
 ## M5.2 Resume Composition Decision
 
 The system stores employer-facing structured resume content in `ResumeCompositionVersion`, not `DocumentVersion`, so provenance, deterministic reuse, and immutable history remain inspectable before rendering begins.

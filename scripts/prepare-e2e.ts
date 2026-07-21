@@ -170,6 +170,60 @@ async function cleanupOpportunityFixtures(args: {
         ]
       }
     });
+    await transaction.coverLetterApproval.deleteMany({
+      where: {
+        OR: [
+          {
+            workspaceId: args.workspaceId,
+            applicationId: {
+              in: applicationIds
+            }
+          },
+          {
+            workspaceId: args.workspaceId,
+            jobDescriptionVersionId: {
+              in: jobDescriptionVersionIds
+            }
+          }
+        ]
+      }
+    });
+    await transaction.coverLetterAuditRun.deleteMany({
+      where: {
+        OR: [
+          {
+            workspaceId: args.workspaceId,
+            applicationId: {
+              in: applicationIds
+            }
+          },
+          {
+            workspaceId: args.workspaceId,
+            jobDescriptionVersionId: {
+              in: jobDescriptionVersionIds
+            }
+          }
+        ]
+      }
+    });
+    await transaction.coverLetterRevisionVersion.deleteMany({
+      where: {
+        OR: [
+          {
+            workspaceId: args.workspaceId,
+            applicationId: {
+              in: applicationIds
+            }
+          },
+          {
+            workspaceId: args.workspaceId,
+            jobDescriptionVersionId: {
+              in: jobDescriptionVersionIds
+            }
+          }
+        ]
+      }
+    });
     await transaction.resumeRevisionVersion.deleteMany({
       where: {
         OR: [
@@ -490,6 +544,66 @@ async function main() {
         }
       });
       await transaction.resumeAuditRun.deleteMany({
+        where: {
+          OR: [
+            {
+              workspaceId: workspace.id,
+              applicationId: {
+                in: applicationIds
+              }
+            },
+            {
+              workspaceId: workspace.id,
+              jobDescriptionVersion: {
+                opportunityId: {
+                  in: opportunityIds
+                }
+              }
+            }
+          ]
+        }
+      });
+      await transaction.coverLetterApproval.deleteMany({
+        where: {
+          OR: [
+            {
+              workspaceId: workspace.id,
+              applicationId: {
+                in: applicationIds
+              }
+            },
+            {
+              workspaceId: workspace.id,
+              jobDescriptionVersion: {
+                opportunityId: {
+                  in: opportunityIds
+                }
+              }
+            }
+          ]
+        }
+      });
+      await transaction.coverLetterAuditRun.deleteMany({
+        where: {
+          OR: [
+            {
+              workspaceId: workspace.id,
+              applicationId: {
+                in: applicationIds
+              }
+            },
+            {
+              workspaceId: workspace.id,
+              jobDescriptionVersion: {
+                opportunityId: {
+                  in: opportunityIds
+                }
+              }
+            }
+          ]
+        }
+      });
+      await transaction.coverLetterRevisionVersion.deleteMany({
         where: {
           OR: [
             {

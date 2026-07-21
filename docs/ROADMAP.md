@@ -123,7 +123,7 @@ Deterministic rules and verified evidence remain authoritative for:
 - Scope: DOCX, PDF, render validation, storage metadata, immutable `DocumentVersion` linkage
 
 ### Milestone 8 - Application Package Generation
-- Status: `M8.1` complete, later package slices planned
+- Status: `M8.1` complete, `M8.2` complete, later package slices planned
 - Scope: targeted resume, concise cover letter, related package artifacts, exact submitted-version tracking
 
 ### Milestone 9 - Daily Workflow Completion
@@ -163,6 +163,7 @@ Deferred support slice:
 Later sequence:
 - `M7.3 - Immutable Document Versioning and Attachment`
 - `M8.1 - Deterministic Cover Letter Composition` complete
+- `M8.2 - Cover Letter Studio, Audit, and Approval` complete
 - `M9.x` tracker ergonomics and exports
 - `M10.x` analytics
 - `M11.x` generic ingestion
@@ -200,7 +201,7 @@ The roadmap rebaseline is successful when:
 Commercial viability remains intact because deterministic, provenance-aware generation is a stronger long-term architecture than prompt-only generation. Multi-user requirements are deferred, not abandoned, until the Scott-specific workflow proves useful end to end.
 ## Immediate Next Step
 
-Start `M8.2 - Cover Letter Studio, Audit, and Approval`.
+Do not implement the next roadmap milestone during this verification pass.
 
 The July 19, 2026 navigation/discovery correction is explicitly not a new roadmap milestone. It makes existing `M1` through `M7.2` workflows discoverable without changing milestone order.
 ## Resume Workflow Progress

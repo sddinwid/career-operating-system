@@ -1,5 +1,7 @@
+import { PrismaClient } from "@prisma/client";
 import type { GridApi } from "ag-grid-community";
 import { expect, test } from "@playwright/test";
+import { E2E_COMPANY_NAME, E2E_ROLE_NAME, resetE2EApplicationFixture } from "@/lib/testing/e2e-fixtures";
 import type { ApplicationGridRow } from "@/lib/applications/grid";
 
 declare global {
@@ -9,6 +11,8 @@ declare global {
     };
   }
 }
+
+const prisma = new PrismaClient();
 
 function isApplicationsViewCommandResponse(
   response: import("@playwright/test").Response,
@@ -26,11 +30,25 @@ function isApplicationsViewCommandResponse(
   return payload?.type === commandType;
 }
 
+type ApplicationsViewCommandSuccessPayload = {
+  ok: true;
+  preferences: {
+    activeViewId: string;
+    userViews: Array<{
+      id: string;
+      name: string;
+    }>;
+  };
+  warning?: string;
+};
+
 test("supports saved views, persistence, detail navigation, rollback, and search", async ({
   page
 }) => {
-  const companyName = "E2E Grid Company";
-  const roleName = "E2E Grid Role";
+  await resetE2EApplicationFixture(prisma);
+
+  const companyName = E2E_COMPANY_NAME;
+  const roleName = E2E_ROLE_NAME;
   const runToken = Date.now();
   const initialViewName = `E2E Saved View ${runToken}`;
   const renamedViewName = `E2E Saved View Renamed ${runToken}`;
@@ -194,38 +212,38 @@ test("supports saved views, persistence, detail navigation, rollback, and search
     isApplicationsViewCommandResponse(response, "create")
   );
   await page.getByRole("button", { name: "Save View" }).click();
-  await createViewResponse;
+  const createViewPayload =
+    (await (await createViewResponse).json()) as ApplicationsViewCommandSuccessPayload;
   await expect(page.getByText("Saved view created.")).toBeVisible();
 
+  const createdViewId = createViewPayload.preferences.activeViewId;
+  expect(createdViewId.startsWith("user:")).toBe(true);
   await expect
     .poll(
       async () =>
-        viewSelect.evaluate((element, expectedName) => {
+        viewSelect.evaluate((element, expectedViewId) => {
         const select = element as HTMLSelectElement;
-        return Array.from(select.options).some((option) => option.textContent?.trim() === expectedName);
-        }, initialViewName),
+        return Array.from(select.options).some((option) => option.value === expectedViewId);
+        }, createdViewId),
       { timeout: 15_000 }
     )
     .toBe(true);
-  const createdViewId = await viewSelect.evaluate((element, expectedName) => {
-    const select = element as HTMLSelectElement;
-    const matchingOption = Array.from(select.options).find(
-      (option) => option.textContent?.trim() === expectedName
-    );
-    return matchingOption?.value ?? "";
-  }, initialViewName);
-  expect(createdViewId.startsWith("user:")).toBe(true);
-  await viewSelect.selectOption(createdViewId);
   await expect
     .poll(
       async () =>
         viewSelect.evaluate((element) => {
           const select = element as HTMLSelectElement;
-          return select.selectedOptions[0]?.textContent?.trim();
+          return {
+            selectedValue: select.value,
+            selectedLabel: select.selectedOptions[0]?.textContent?.trim()
+          };
         }),
       { timeout: 15_000 }
     )
-    .toBe(initialViewName);
+    .toMatchObject({
+      selectedValue: createdViewId,
+      selectedLabel: initialViewName
+    });
 
   await page.reload();
   await waitForGridApi();
@@ -286,19 +304,26 @@ test("supports saved views, persistence, detail navigation, rollback, and search
     isApplicationsViewCommandResponse(response, "rename")
   );
   await page.getByRole("button", { name: "Save Name" }).click();
-  await renameViewResponse;
+  const renameViewPayload =
+    (await (await renameViewResponse).json()) as ApplicationsViewCommandSuccessPayload;
   await expect(page.getByText("Saved view renamed.")).toBeVisible();
   await expect
     .poll(
       async () =>
-        viewSelect.evaluate((element, expectedName) => {
+        viewSelect.evaluate((element, args) => {
         const select = element as HTMLSelectElement;
-        return Array.from(select.options).some((option) => option.textContent?.trim() === expectedName);
-        }, renamedViewName),
+        return Array.from(select.options).some(
+          (option) =>
+            option.value === args.expectedViewId &&
+            option.textContent?.trim() === args.expectedName
+        );
+        }, {
+          expectedViewId: renameViewPayload.preferences.activeViewId,
+          expectedName: renamedViewName
+        }),
       { timeout: 15_000 }
     )
     .toBe(true);
-  await viewSelect.selectOption({ label: renamedViewName });
 
   await page.reload();
   await waitForGridApi();
@@ -495,4 +520,8 @@ test("supports saved views, persistence, detail navigation, rollback, and search
 
   await searchbox.fill(companyName);
   await expect(page.getByText("Showing 1 of")).toBeVisible();
+});
+
+test.afterAll(async () => {
+  await prisma.$disconnect();
 });

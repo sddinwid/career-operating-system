@@ -4,6 +4,7 @@ import { pathToFileURL } from "node:url";
 import { PrismaClient } from "@prisma/client";
 import { expect, test, type Page } from "@playwright/test";
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
+import { E2E_COMPANY_NAME, E2E_ROLE_NAME, resetE2EApplicationFixture } from "@/lib/testing/e2e-fixtures";
 
 const prisma = new PrismaClient();
 const FIELDGUIDE_COMPANY_NAME = "Fieldguide";
@@ -501,9 +502,11 @@ test("parses and reviews the Fieldguide fixture as atomic, level-aware requireme
 test("captures, versions, and reuses job descriptions without changing application workflow state", async ({
   page
 }) => {
-  test.setTimeout(65_000);
-  const companyName = "E2E Grid Company";
-  const roleName = "E2E Grid Role";
+  test.setTimeout(120_000);
+  await resetE2EApplicationFixture(prisma);
+
+  const companyName = E2E_COMPANY_NAME;
+  const roleName = E2E_ROLE_NAME;
   const candidateName = "Fixture Candidate";
   const approvedRoleBullet = "Built backend services for internal tools.";
   const approvedAccomplishmentBullet = "Improved throughput by 20 percent.";
@@ -564,23 +567,28 @@ Preferred Qualifications
     .filter({ has: page.getByRole("heading", { name: "Status history" }) });
   const initialStatusHistoryCount = await statusHistorySection.locator("article").count();
 
-  await expect(
-    page.getByText("No job description has been saved for this application yet.")
-  ).toBeVisible();
+  const replaceJobDescriptionLink = page.getByRole("link", { name: "Replace Job Description" });
+  const addJobDescriptionLink = page.getByRole("link", { name: "Add Job Description" });
+  const jobDescriptionEntryLink =
+    (await replaceJobDescriptionLink.count()) > 0 ? replaceJobDescriptionLink : addJobDescriptionLink;
 
   await Promise.all([
     page.waitForURL(/\/applications\/[^/]+\/job-description$/, { timeout: 15_000 }),
-    page.getByRole("link", { name: "Add Job Description" }).click()
+    jobDescriptionEntryLink.click()
   ]);
   await expect(
-    page.getByRole("heading", { name: "Add job description" })
+    page.getByRole("heading", { name: /Add job description|Replace job description/ })
   ).toBeVisible();
 
   const descriptionField = page.getByRole("textbox", { name: "Job description text" });
   await descriptionField.fill(firstDescription);
   await page.getByRole("button", { name: "Save job description" }).click();
 
-  await expect(page.getByText("Job description saved successfully.")).toBeVisible();
+  await expect(
+    page.getByText(
+      /Job description saved successfully\.|That exact job description already existed for this opportunity, so the existing version was linked without creating a duplicate\./
+    )
+  ).toBeVisible();
   await expect(page.getByText("1 versions")).toBeVisible();
   await expect(page.getByRole("link", { name: "View version" })).toBeVisible();
 
@@ -601,7 +609,11 @@ Preferred Qualifications
   await descriptionField.fill(secondDescription);
   await page.getByRole("button", { name: "Save job description" }).click();
 
-  await expect(page.getByText("Job description saved successfully.")).toBeVisible();
+  await expect(
+    page.getByText(
+      /Job description saved successfully\.|That exact job description already existed for this opportunity, so the existing version was linked without creating a duplicate\./
+    )
+  ).toBeVisible();
   await expect(page.getByText("2 versions")).toBeVisible();
   await expect(page.getByText("2").first()).toBeVisible();
 
@@ -780,6 +792,322 @@ Preferred Qualifications
   const coverLetterWordCount = Number.parseInt(wordCountText?.replace(/\D+/g, "") ?? "0", 10);
   expect(coverLetterWordCount).toBeGreaterThanOrEqual(250);
   expect(coverLetterWordCount).toBeLessThanOrEqual(400);
+  await Promise.all([
+    page.waitForURL(/\/job-descriptions\/[^/]+\/cover-letter\/studio\?revisionId=[^&]+(?:&.*)?$/, {
+      timeout: 15_000
+    }),
+    page.getByRole("link", { name: "Create Cover Letter Revision" }).click()
+  ]);
+  await expect(page.getByText("Cover Letter Studio")).toBeVisible();
+  const coverLetterDraftRevisionId = new URL(page.url()).searchParams.get("revisionId");
+  expect(coverLetterDraftRevisionId).toBeTruthy();
+  const initialCoverLetterDraft = await prisma.coverLetterRevisionVersion.findUnique({
+    where: {
+      id: coverLetterDraftRevisionId ?? ""
+    },
+    select: {
+      updatedAt: true,
+      content: true,
+      userNotes: true
+    }
+  });
+  expect(initialCoverLetterDraft?.updatedAt).toBeTruthy();
+  const revisedOpeningParagraph =
+    "I am excited to apply for this role because it lines up with the backend platform systems I have delivered in production.";
+  const openingParagraphField = page.getByRole("textbox", { name: /opening paragraph/i });
+  await expect(openingParagraphField).toBeVisible();
+  await openingParagraphField.fill(revisedOpeningParagraph);
+  await page
+    .getByRole("textbox", { name: "Review Notes" })
+    .fill("Tightened the opening and clarified why the role matches my production backend work.");
+  const saveCoverLetterDraftResponse = page.waitForResponse((response) => {
+    return (
+      response.request().method() === "PATCH" &&
+      response.url().includes("/api/cover-letter-studio/") &&
+      response.status() === 200
+    );
+  });
+  await page.getByRole("button", { name: "Save Draft" }).click();
+  await saveCoverLetterDraftResponse;
+  await expect(page.getByText("Draft saved.")).toBeVisible();
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await expect(page.getByRole("textbox", { name: /opening paragraph/i })).toHaveValue(
+    revisedOpeningParagraph
+  );
+  const savedCoverLetterDraft = await prisma.coverLetterRevisionVersion.findUnique({
+    where: {
+      id: coverLetterDraftRevisionId ?? ""
+    },
+    select: {
+      updatedAt: true,
+      content: true,
+      userNotes: true
+    }
+  });
+  expect(savedCoverLetterDraft?.updatedAt).toBeTruthy();
+  const staleCoverLetterSave = await page.evaluate(
+    async ({ revisionId, updatedAt, content, userNotes }) => {
+      const response = await fetch(`/api/cover-letter-studio/${revisionId}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          updatedAt,
+          content,
+          userNotes
+        })
+      });
+
+      return {
+        status: response.status,
+        body: await response.json()
+      };
+    },
+    {
+      revisionId: coverLetterDraftRevisionId,
+      updatedAt: initialCoverLetterDraft?.updatedAt.toISOString(),
+      content: savedCoverLetterDraft?.content,
+      userNotes: savedCoverLetterDraft?.userNotes
+    }
+  );
+  expect(staleCoverLetterSave.status).toBe(409);
+  expect(staleCoverLetterSave.body.code).toBe("STALE_REVISION");
+  const invalidCoverLetterSave = await page.evaluate(
+    async ({ revisionId, updatedAt, content, userNotes }) => {
+      const invalidContent = structuredClone(content) as {
+        salutation?: string;
+      } | null;
+      if (!invalidContent) {
+        throw new Error("Expected finalized cover-letter content to be available.");
+      }
+      invalidContent.salutation = "";
+      const response = await fetch(`/api/cover-letter-studio/${revisionId}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          updatedAt,
+          content: invalidContent,
+          userNotes
+        })
+      });
+
+      return {
+        status: response.status,
+        body: await response.json()
+      };
+    },
+    {
+      revisionId: coverLetterDraftRevisionId,
+      updatedAt: savedCoverLetterDraft?.updatedAt.toISOString(),
+      content: savedCoverLetterDraft?.content,
+      userNotes: savedCoverLetterDraft?.userNotes
+    }
+  );
+  expect(invalidCoverLetterSave.status).toBe(400);
+  await expect(page.getByRole("button", { name: "Finalize Revision" })).toBeVisible();
+  const finalizedCoverLetterResponse = await page.evaluate(
+    async ({ revisionId, updatedAt }) => {
+      const returnTo = new URL(window.location.href).pathname;
+      const response = await fetch(`/api/cover-letter-studio/${revisionId}/finalize`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          updatedAt,
+          returnTo
+        })
+      });
+
+      return {
+        status: response.status,
+        body: await response.json()
+      };
+    },
+    {
+      revisionId: coverLetterDraftRevisionId,
+      updatedAt: savedCoverLetterDraft?.updatedAt.toISOString()
+    }
+  );
+  expect(finalizedCoverLetterResponse.status).toBe(200);
+  await page.goto(finalizedCoverLetterResponse.body.redirectTo, { waitUntil: "networkidle" });
+  const coverLetterFinalizedRevisionId = new URL(page.url()).searchParams.get("revisionId");
+  expect(coverLetterFinalizedRevisionId).toBeTruthy();
+  await expect(page.getByText("Cover-letter revision finalized successfully.")).toBeVisible();
+  await expect(page.getByRole("textbox", { name: /opening paragraph/i })).toBeDisabled();
+  const repeatedFinalizeResponse = await page.evaluate(
+    async ({ revisionId, updatedAt }) => {
+      const response = await fetch(`/api/cover-letter-studio/${revisionId}/finalize`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          updatedAt,
+          returnTo: "/job-descriptions/retry/cover-letter/studio"
+        })
+      });
+
+      return {
+        status: response.status,
+        body: await response.json()
+      };
+    },
+    {
+      revisionId: coverLetterDraftRevisionId,
+      updatedAt: savedCoverLetterDraft?.updatedAt.toISOString()
+    }
+  );
+  expect(repeatedFinalizeResponse.status).toBe(200);
+  expect(repeatedFinalizeResponse.body.revisionId).toBe(coverLetterFinalizedRevisionId);
+  await Promise.all([
+    page.waitForURL(
+      /\/job-descriptions\/[^/]+\/cover-letter\/studio\?(?=.*\brevisionId=[^&]+)(?=.*\bsuccess=audit-(created|reused)\b).*/,
+      {
+        timeout: 15_000
+      }
+    ),
+    page.getByRole("button", { name: "Run Audit" }).click()
+  ]);
+  await expect(page.getByText("Cover-letter audit completed successfully.")).toBeVisible();
+  await expect(page.getByRole("link", { name: "View Audit" })).toBeVisible();
+  await Promise.all([
+    page.waitForURL(/\/job-descriptions\/[^/]+\/cover-letter\/audit\?runId=[^&]+$/, {
+      timeout: 15_000
+    }),
+    page.getByRole("link", { name: "View Audit" }).click()
+  ]);
+  await expect(page.getByText("Cover-letter audit report")).toBeVisible();
+  await expect(page.getByText("Finalized Revision")).toBeVisible();
+  await Promise.all([
+    page.waitForURL(/\/job-descriptions\/[^/]+\/cover-letter\/compare\?revisionId=[^&]+$/, {
+      timeout: 15_000
+    }),
+    page.getByRole("link", { name: "View Comparison" }).click()
+  ]);
+  await expect(page.getByText("Cover-letter comparison")).toBeVisible();
+  await expect(page.getByText(/Modified - word delta/i)).toBeVisible();
+  await expect(page.getByText(revisedOpeningParagraph)).toBeVisible();
+  await Promise.all([
+    page.waitForURL(/\/job-descriptions\/[^/]+\/cover-letter\/studio\?revisionId=[^&]+$/, {
+      timeout: 15_000
+    }),
+    page.getByRole("link", { name: "Back to Revision" }).click()
+  ]);
+  await expect(page.getByText("Approval History")).toBeVisible();
+  expect(await approveCoverLetter(page, { required: true })).toBe(true);
+  const activeCoverLetterApprovalCount = await prisma.coverLetterApproval.count({
+    where: {
+      applicationId,
+      status: "APPROVED"
+    }
+  });
+  expect(activeCoverLetterApprovalCount).toBe(1);
+  await Promise.all([
+    page.waitForURL(/\/job-descriptions\/[^/]+\/cover-letter\/studio\?revisionId=[^&]+$/, {
+      timeout: 15_000
+    }),
+    page.getByRole("link", { name: "Create Successor Draft" }).click()
+  ]);
+  await expect(page.getByText("Predecessor")).toBeVisible();
+  const successorOpeningParagraph = page.getByRole("textbox", { name: /opening paragraph/i });
+  const successorOpeningText =
+    "I am excited to apply for this role because it matches the production platform systems I have led through delivery and iteration.";
+  await successorOpeningParagraph.fill(successorOpeningText);
+  const saveSuccessorDraftResponse = page.waitForResponse((response) => {
+    return (
+      response.request().method() === "PATCH" &&
+      response.url().includes("/api/cover-letter-studio/") &&
+      response.status() === 200
+    );
+  });
+  await page.getByRole("button", { name: "Save Draft" }).click();
+  await saveSuccessorDraftResponse;
+  const successorDraftRevisionId = new URL(page.url()).searchParams.get("revisionId");
+  const savedSuccessorDraft = await prisma.coverLetterRevisionVersion.findUnique({
+    where: {
+      id: successorDraftRevisionId ?? ""
+    },
+    select: {
+      updatedAt: true
+    }
+  });
+  const finalizedSuccessorResponse = await page.evaluate(
+    async ({ revisionId, updatedAt }) => {
+      const returnTo = new URL(window.location.href).pathname;
+      const response = await fetch(`/api/cover-letter-studio/${revisionId}/finalize`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          updatedAt,
+          returnTo
+        })
+      });
+
+      return {
+        status: response.status,
+        body: await response.json()
+      };
+    },
+    {
+      revisionId: successorDraftRevisionId,
+      updatedAt: savedSuccessorDraft?.updatedAt.toISOString()
+    }
+  );
+  expect(finalizedSuccessorResponse.status).toBe(200);
+  await page.goto(finalizedSuccessorResponse.body.redirectTo, { waitUntil: "networkidle" });
+  await Promise.all([
+    page.waitForURL(
+      /\/job-descriptions\/[^/]+\/cover-letter\/studio\?(?=.*\brevisionId=[^&]+)(?=.*\bsuccess=audit-(created|reused)\b).*/,
+      {
+        timeout: 15_000
+      }
+    ),
+    page.getByRole("button", { name: "Run Audit" }).click()
+  ]);
+  expect(await approveCoverLetter(page, { required: true })).toBe(true);
+  await expect(page.getByText("Approval History")).toBeVisible();
+  await page.getByRole("textbox", { name: "Revocation reason" }).fill("Pausing the active cover-letter approval.");
+  const revokeCoverLetterApprovalResponse = page.waitForResponse(
+    (response) =>
+      response.request().method() === "POST" &&
+      response.url().includes("/api/cover-letter-approvals/") &&
+      response.url().includes("/revoke"),
+    { timeout: 15_000 }
+  );
+  await page.getByRole("button", { name: "Revoke Approval" }).click();
+  await revokeCoverLetterApprovalResponse;
+  await expect(page.getByText("The active cover-letter approval was revoked.")).toBeVisible();
+  expect(await approveCoverLetter(page, { required: true })).toBe(true);
+  const coverLetterStatusAfterWorkflow = await prisma.application.findUnique({
+    where: {
+      id: applicationId
+    },
+    select: {
+      status: true
+    }
+  });
+  expect(coverLetterStatusAfterWorkflow?.status).toBe(initialStatusValue);
+  expect(
+    await prisma.applicationStatusHistory.count({
+      where: {
+        applicationId
+      }
+    })
+  ).toBe(initialStatusHistoryCount);
+  expect(
+    await prisma.documentVersion.count({
+      where: {
+        applicationId
+      }
+    })
+  ).toBe(0);
+  await page.getByRole("link", { name: "Return to Cover Letter" }).click();
   await page.getByRole("link", { name: "Open application" }).click();
   await expect(page.getByRole("button", { name: "Generate Cover Letter" })).toBeVisible();
   await page.getByRole("button", { name: "Generate Cover Letter" }).click();
@@ -924,7 +1252,13 @@ Preferred Qualifications
   await expect(page.getByText(/Provenance preserved|Provenance changed/i).first()).toBeVisible();
   await approveForRendering(page, { required: false });
   await expect(page.getByText("Approval History")).toBeVisible();
-  await page.getByRole("link", { name: "Back to Revision" }).click();
+  await Promise.all([
+    page.waitForURL(
+      /\/job-descriptions\/[^/]+\/resume\/studio\?revisionId=[^&]+(?:&.*)?$/,
+      { timeout: 15_000 }
+    ),
+    page.getByRole("link", { name: "Back to Revision" }).click()
+  ]);
   await expect(page.getByRole("link", { name: "Create New Revision" }).first()).toBeVisible();
   await Promise.all([
     page.waitForURL(
@@ -936,8 +1270,17 @@ Preferred Qualifications
   await expect(page.getByText("Resume Studio")).toBeVisible();
   await expect(page.getByText("Predecessor revision")).toBeVisible();
   await expect(interactiveDocxArtifacts(page)).toHaveCount(0);
-  await page.getByRole("link", { name: "Back to Resume Preview" }).click();
-  await page.getByRole("link", { name: "Open application" }).click();
+  await Promise.all([
+    page.waitForURL(/\/job-descriptions\/[^/]+\/resume\?versionId=[^&]+(?:&.*)?$/, {
+      timeout: 15_000
+    }),
+    page.getByRole("link", { name: "Back to Resume Preview" }).click()
+  ]);
+  await Promise.all([
+    page.waitForURL(/\/applications\/[^/]+$/, { timeout: 15_000 }),
+    page.getByRole("link", { name: "Open application" }).click()
+  ]);
+  await expect(page.getByRole("heading", { name: roleName })).toBeVisible({ timeout: 15_000 });
   await expect(page.getByText("Match report summary")).toBeVisible();
   await expect(page.getByText("Structured Resume Plan Generated")).toBeVisible();
   await expect(page.getByText("Resume Audit Complete")).toBeVisible();
@@ -1242,6 +1585,63 @@ function preparedApplicationIdFromUrl(url: string) {
 
 const RENDERING_WARNING_ACKNOWLEDGEMENT =
   "I acknowledge the remaining non-blocking warnings.";
+const COVER_LETTER_WARNING_ACKNOWLEDGEMENT =
+  "I acknowledge the remaining non-blocking warnings.";
+
+async function approveCoverLetter(
+  page: Page,
+  options: { required: boolean }
+) {
+  const approvalSection = page
+    .locator("section")
+    .filter({ has: page.getByRole("heading", { name: "Approval" }) })
+    .first();
+  await expect(approvalSection).toBeVisible();
+
+  const warningCheckbox = approvalSection.getByRole("checkbox", {
+    name: /approve this cover letter despite/i
+  });
+  if ((await warningCheckbox.count()) > 0) {
+    await warningCheckbox.check();
+    const acknowledgementField = approvalSection.getByRole("textbox", {
+      name: "Required acknowledgement"
+    });
+    await acknowledgementField.fill(COVER_LETTER_WARNING_ACKNOWLEDGEMENT);
+    await expect(acknowledgementField).toHaveValue(COVER_LETTER_WARNING_ACKNOWLEDGEMENT);
+  }
+
+  const approvalButton = approvalSection.getByRole("button", { name: "Approve Cover Letter" });
+  const alreadyActiveMessage = approvalSection.getByText(
+    "The exact approved cover letter was already active, so the existing record was reused."
+  );
+  if (await alreadyActiveMessage.count()) {
+    return true;
+  }
+
+  if (!(await approvalButton.isEnabled())) {
+    if (!options.required) {
+      return false;
+    }
+  }
+
+  if (!options.required && !(await approvalButton.isEnabled())) {
+    return false;
+  }
+
+  await expect(approvalButton).toBeEnabled();
+  const approvalRequest = page.waitForResponse(
+    (response) =>
+      response.request().method() === "POST" &&
+      response.url().includes("/api/cover-letter-approvals"),
+    { timeout: 15_000 }
+  );
+  await approvalButton.click();
+  await approvalRequest;
+  await expect(
+    page.getByText(/Cover-letter approval is now active|existing record was reused/i)
+  ).toBeVisible({ timeout: 15_000 });
+  return true;
+}
 
 async function approveForRendering(
   page: Page,

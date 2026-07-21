@@ -540,7 +540,7 @@ describe("application service", () => {
       updateApplicationGridField(workspace.id, {
         applicationId: manualApplication.id,
         field: "appliedAt",
-        value: "2026-07-20T09:00"
+        value: "2026-07-25T09:00"
       })
     ).rejects.toThrow(/cannot be in the future/i);
 

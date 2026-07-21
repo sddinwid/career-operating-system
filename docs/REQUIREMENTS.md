@@ -104,7 +104,10 @@ Career Knowledge Base
 - Enforce truthfulness, experience ceilings, duplication limits, and section ordering rules.
 - Generate immutable, versioned artifacts linked to their source versions and target application.
 - Support resume, cover letter, application-answer, and related package artifacts as separate but linked outputs.
-- Cover-letter generation must remain deterministic, provenance-aware, concise, and read-only until later editing, audit, approval, and rendering milestones are implemented.
+- Cover-letter generation must remain deterministic, provenance-aware, concise, and versioned separately from rendered artifacts.
+- Cover-letter revisions must preserve immutable base composition and explicit predecessor-successor lineage.
+- Cover-letter audit must remain deterministic, immutable, and exact-source-aware for both base composition and finalized revisions.
+- Cover-letter approval must reject mutable drafts, source-audit mismatches, checksum mismatches, and blocking audit findings.
 
 ### Spreadsheet compatibility and later tracker ergonomics
 
@@ -213,4 +216,15 @@ PDF rendering must remain deterministic, approval-gated, and direct.
 - rendered PDFs must remain searchable, selectable, Unicode-capable, and ATS-friendly
 - rasterized pages, browser screenshots, LibreOffice, Microsoft Word automation, and external executables are not allowed
 - artifact validation must reject invalid PDFs before any `DocumentVersion` is persisted
+
+## M8.2 Requirements
+
+Cover-letter editing, audit, and approval must remain deterministic and lineage-safe.
+
+- draft editing must not mutate `CoverLetterCompositionVersion`
+- finalization must create immutable `CoverLetterRevisionVersion` history
+- successor drafts must preserve predecessor lineage
+- audit must reuse exact matching inputs and remain read-only
+- approval must require an exact matching cover-letter source plus exact matching audit
+- cover-letter workflows must not create `DocumentVersion` rows in the current milestone
 - identical approved PDF inputs must reuse the existing successful immutable version without changing application workflow state

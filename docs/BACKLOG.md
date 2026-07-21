@@ -144,6 +144,14 @@ These remain intentionally deferred after the July 19, 2026 navigation/discovery
 - Personal workflow benefit: replaces repeated chat-based cover-letter drafting while preserving evidence, provenance, and truthfulness checks
 - Acceptance summary: immutable deterministic cover-letter composition, paragraph-level provenance, read-only preview, and idempotent reuse without editing or rendering
 
+### `M8.2 - Cover Letter Studio, Audit, and Approval`
+- Status: `verified complete`
+- Priority: `P2`
+- Milestone: `Milestone 8 - Application Package Generation`
+- Dependency: `M8.1`
+- Personal workflow benefit: supports targeted cover-letter editing, deterministic review, and explicit approval without leaving the local workflow
+- Acceptance summary: mutable draft save, immutable finalized revisions, revision lineage, deterministic audit reuse, approval history, revocation, and comparison without rendering output
+
 ## Later
 
 ### `M9.1 - Calculated Application Columns`

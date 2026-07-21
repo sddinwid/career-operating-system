@@ -1,10 +1,13 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createCoverLetterCompositionAction } from "@/lib/cover-letter-composition/actions";
+import { getCoverLetterApprovalContext } from "@/lib/cover-letter-approval/service";
+import { getCoverLetterAuditContext } from "@/lib/cover-letter-audit/service";
 import {
   getCoverLetterCompositionContext,
   parseStoredCoverLetterCompositionVersion
 } from "@/lib/cover-letter-composition/service";
+import { getCoverLetterRevisionContext } from "@/lib/cover-letter-revision/service";
 import { getDefaultWorkspace } from "@/lib/workspace";
 
 type CoverLetterPageProps = {
@@ -41,6 +44,8 @@ export default async function CoverLetterPage({ params, searchParams }: CoverLet
   const success = getStringParam(query.success);
   const workspace = await getDefaultWorkspace();
   const context = await getCoverLetterCompositionContext(workspace.id, jobDescriptionVersionId);
+  const revisionContext = await getCoverLetterRevisionContext(workspace.id, jobDescriptionVersionId);
+  const auditContext = await getCoverLetterAuditContext(workspace.id, jobDescriptionVersionId);
 
   if (!context) {
     notFound();
@@ -92,6 +97,10 @@ export default async function CoverLetterPage({ params, searchParams }: CoverLet
     workspace.id,
     selectedVersionId
   );
+  const approvalContext = await getCoverLetterApprovalContext(workspace.id, {
+    jobDescriptionVersionId,
+    applicationId: version.applicationId
+  });
 
   return (
     <div className="space-y-8">
@@ -133,6 +142,36 @@ export default async function CoverLetterPage({ params, searchParams }: CoverLet
                 href={`/applications/${version.applicationId}`}
               >
                 Open application
+              </Link>
+            ) : null}
+            <Link
+              className="rounded-full border border-stone-300 px-5 py-3 text-sm font-semibold text-stone-700 transition hover:border-stone-950 hover:text-stone-950"
+              href={
+                revisionContext?.latestDraft
+                  ? `/job-descriptions/${jobDescriptionVersionId}/cover-letter/studio?revisionId=${revisionContext.latestDraft.id}`
+                  : revisionContext?.latestFinalizedRevision
+                    ? `/job-descriptions/${jobDescriptionVersionId}/cover-letter/studio?revisionId=${revisionContext.latestFinalizedRevision.id}`
+                    : `/job-descriptions/${jobDescriptionVersionId}/cover-letter/studio`
+              }
+            >
+              {revisionContext?.latestDraft || revisionContext?.latestFinalizedRevision
+                ? "Open Cover Letter Studio"
+                : "Create Cover Letter Revision"}
+            </Link>
+            {revisionContext?.latestFinalizedRevision ? (
+              <Link
+                className="rounded-full border border-stone-300 px-5 py-3 text-sm font-semibold text-stone-700 transition hover:border-stone-950 hover:text-stone-950"
+                href={`/job-descriptions/${jobDescriptionVersionId}/cover-letter/compare?revisionId=${revisionContext.latestFinalizedRevision.id}`}
+              >
+                View Comparison
+              </Link>
+            ) : null}
+            {auditContext?.reusableAuditRun ? (
+              <Link
+                className="rounded-full border border-stone-300 px-5 py-3 text-sm font-semibold text-stone-700 transition hover:border-stone-950 hover:text-stone-950"
+                href={`/job-descriptions/${jobDescriptionVersionId}/cover-letter/audit?runId=${auditContext.reusableAuditRun.id}`}
+              >
+                View Audit
               </Link>
             ) : null}
             <form
@@ -188,6 +227,20 @@ export default async function CoverLetterPage({ params, searchParams }: CoverLet
             <p className="text-sm font-medium text-stone-500">Resume source</p>
             <p className="mt-2 text-lg font-semibold text-stone-900">
               {content.provenance.resumeSource?.sourceType.replace(/_/g, " ") ?? "None"}
+            </p>
+          </article>
+          <article className="rounded-2xl border border-stone-200 bg-stone-50 p-4">
+            <p className="text-sm font-medium text-stone-500">Audit</p>
+            <p className="mt-2 text-lg font-semibold text-stone-900">
+              {auditContext?.reusableAuditRun?.renderingReadiness?.replace(/_/g, " ") ?? "Not audited"}
+            </p>
+          </article>
+          <article className="rounded-2xl border border-stone-200 bg-stone-50 p-4">
+            <p className="text-sm font-medium text-stone-500">Approval</p>
+            <p className="mt-2 text-lg font-semibold text-stone-900">
+              {approvalContext?.activeApproval
+                ? approvalContext.activeApproval.status.replace(/_/g, " ")
+                : "No active approval"}
             </p>
           </article>
         </div>

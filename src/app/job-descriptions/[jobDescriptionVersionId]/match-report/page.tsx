@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
 import { createCoverLetterCompositionAction } from "@/lib/cover-letter-composition/actions";
 import { getCoverLetterCompositionContext } from "@/lib/cover-letter-composition/service";
+import { getCoverLetterRevisionContext } from "@/lib/cover-letter-revision/service";
 import { createStructuredResumePlanAction } from "@/lib/structured-resume/actions";
 import { getStructuredResumeContext } from "@/lib/structured-resume/service";
 import { parseStoredMatchReportRun, getMatchReportContext } from "@/lib/match-report/service";
@@ -86,6 +87,7 @@ export default async function MatchReportPage({ params, searchParams }: MatchRep
   const context = await getMatchReportContext(workspace.id, jobDescriptionVersionId);
   const resumePlanContext = await getStructuredResumeContext(workspace.id, jobDescriptionVersionId);
   const coverLetterContext = await getCoverLetterCompositionContext(workspace.id, jobDescriptionVersionId);
+  const coverLetterRevisionContext = await getCoverLetterRevisionContext(workspace.id, jobDescriptionVersionId);
 
   if (!context) {
     notFound();
@@ -183,6 +185,20 @@ export default async function MatchReportPage({ params, searchParams }: MatchRep
                 href={`/job-descriptions/${jobDescriptionVersionId}/cover-letter?versionId=${coverLetterContext.reusableCoverLetterCompositionVersion.id}`}
               >
                 View Cover Letter
+              </Link>
+            ) : null}
+            {coverLetterContext?.reusableCoverLetterCompositionVersion ? (
+              <Link
+                className="rounded-full border border-stone-300 px-5 py-3 text-sm font-semibold text-stone-700 transition hover:border-stone-950 hover:text-stone-950"
+                href={
+                  coverLetterRevisionContext?.latestDraft
+                    ? `/job-descriptions/${jobDescriptionVersionId}/cover-letter/studio?revisionId=${coverLetterRevisionContext.latestDraft.id}`
+                    : coverLetterRevisionContext?.latestFinalizedRevision
+                      ? `/job-descriptions/${jobDescriptionVersionId}/cover-letter/studio?revisionId=${coverLetterRevisionContext.latestFinalizedRevision.id}`
+                      : `/job-descriptions/${jobDescriptionVersionId}/cover-letter/studio`
+                }
+              >
+                {coverLetterRevisionContext?.latestFinalizedRevision ? "View Cover Letter Revision" : "Open Cover Letter Studio"}
               </Link>
             ) : coverLetterContext?.compositionReady ? (
               <form

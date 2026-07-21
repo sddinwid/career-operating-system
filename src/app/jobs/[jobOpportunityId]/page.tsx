@@ -89,6 +89,10 @@ export default async function JobDetailPage({ params }: JobDetailPageProps) {
               ["Evidence scoring", summary.statusLabels.scoring],
               ["Match report", summary.statusLabels.matchReport],
               ["Resume plan", summary.statusLabels.plan],
+              ["Cover letter composition", summary.statusLabels.coverLetterComposition],
+              ["Cover letter revision", summary.statusLabels.coverLetterRevision],
+              ["Cover letter audit", summary.statusLabels.coverLetterAudit],
+              ["Cover letter approval", summary.statusLabels.coverLetterApproval],
               ["Resume composition", summary.statusLabels.composition],
               ["Resume audit", summary.statusLabels.audit],
               ["Rendering approval", summary.statusLabels.approval]
@@ -129,6 +133,13 @@ export default async function JobDetailPage({ params }: JobDetailPageProps) {
               const latestScoring = version.evidenceScoringRuns[0] ?? null;
               const latestReport = version.matchReportRuns[0] ?? null;
               const latestPlan = version.structuredResumeVersions[0] ?? null;
+              const latestCoverLetterComposition = version.coverLetterCompositionVersions[0] ?? null;
+              const latestCoverLetterDraft =
+                version.coverLetterRevisionVersions.find((revision) => revision.status === "DRAFT") ?? null;
+              const latestCoverLetterFinalizedRevision =
+                version.coverLetterRevisionVersions.find((revision) => revision.status === "FINALIZED") ?? null;
+              const latestCoverLetterAudit = version.coverLetterAuditRuns[0] ?? null;
+              const latestCoverLetterApproval = version.coverLetterApprovals[0] ?? null;
               const latestComposition = version.resumeCompositionVersions[0] ?? null;
               const latestAudit = version.resumeAuditRuns[0] ?? null;
               const latestApproval = version.resumeRenderingApprovals[0] ?? null;
@@ -202,6 +213,38 @@ export default async function JobDetailPage({ params }: JobDetailPageProps) {
                           Resume plan
                         </Link>
                       ) : null}
+                      {latestCoverLetterComposition ? (
+                        <Link
+                          className={buttonSecondaryClassName}
+                          href={`/job-descriptions/${version.id}/cover-letter?versionId=${latestCoverLetterComposition.id}`}
+                        >
+                          Cover letter
+                        </Link>
+                      ) : null}
+                      {latestCoverLetterDraft || latestCoverLetterFinalizedRevision ? (
+                        <Link
+                          className={buttonSecondaryClassName}
+                          href={`/job-descriptions/${version.id}/cover-letter/studio?revisionId=${(latestCoverLetterDraft ?? latestCoverLetterFinalizedRevision)?.id}`}
+                        >
+                          Cover letter studio
+                        </Link>
+                      ) : null}
+                      {latestCoverLetterFinalizedRevision ? (
+                        <Link
+                          className={buttonSecondaryClassName}
+                          href={`/job-descriptions/${version.id}/cover-letter/compare?revisionId=${latestCoverLetterFinalizedRevision.id}`}
+                        >
+                          Cover letter comparison
+                        </Link>
+                      ) : null}
+                      {latestCoverLetterAudit ? (
+                        <Link
+                          className={buttonSecondaryClassName}
+                          href={`/job-descriptions/${version.id}/cover-letter/audit?runId=${latestCoverLetterAudit.id}`}
+                        >
+                          Cover letter audit
+                        </Link>
+                      ) : null}
                       {latestComposition ? (
                         <Link
                           className={buttonSecondaryClassName}
@@ -238,6 +281,21 @@ export default async function JobDetailPage({ params }: JobDetailPageProps) {
                       Evidence: {latestRetrieval ? "Retrieved" : "Not retrieved"}
                     </span>
                     <span>Match report: {latestReport ? "Generated" : "Not generated"}</span>
+                    <span>Cover letter: {latestCoverLetterComposition ? "Composed" : "Not composed"}</span>
+                    <span>
+                      Cover letter revision:{" "}
+                      {latestCoverLetterDraft
+                        ? "Draft in progress"
+                        : latestCoverLetterFinalizedRevision
+                          ? "Finalized revision available"
+                          : "Not started"}
+                    </span>
+                    <span>
+                      Cover letter approval:{" "}
+                      {latestCoverLetterApproval
+                        ? latestCoverLetterApproval.renderingReadiness.replace(/_/g, " ")
+                        : "Not approved"}
+                    </span>
                     <span>Resume: {latestComposition ? "Composed" : "Not composed"}</span>
                     <span>
                       Approval:{" "}

@@ -706,6 +706,7 @@ export function ApplicationsGrid({
   const isApplyingViewStateRef = useRef(false);
   const draftSaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const draftSaveRequestIdRef = useRef(0);
+  const draftSavePromiseRef = useRef<Promise<void> | null>(null);
   const externalFilterStateRef = useRef<{
     archiveMode: ApplicationsGridArchiveMode;
     scope: ApplicationsGridScope;
@@ -838,10 +839,14 @@ export function ApplicationsGrid({
 
   const syncLocalPreferencesDraftState = useCallback(
     (nextDraftState: ReturnType<typeof createApplicationsGridViewState>) => {
-      setPreferences((current) => ({
-        ...current,
-        draftState: nextDraftState
-      }));
+      setPreferences((current) => {
+        const nextPreferences = {
+          ...current,
+          draftState: nextDraftState
+        };
+        preferencesRef.current = nextPreferences;
+        return nextPreferences;
+      });
     },
     []
   );
@@ -881,6 +886,7 @@ export function ApplicationsGrid({
           return;
         }
 
+        preferencesRef.current = result.preferences;
         setPreferences(result.preferences);
         if (result.warning) {
           setViewStateMessage({
@@ -890,28 +896,52 @@ export function ApplicationsGrid({
         }
       };
 
+      const trackedRunSave = async () => {
+        const previousSavePromise = draftSavePromiseRef.current;
+        const savePromise = (async () => {
+          if (previousSavePromise) {
+            await previousSavePromise;
+          }
+
+          await runSave();
+        })();
+        draftSavePromiseRef.current = savePromise;
+
+        try {
+          await savePromise;
+        } finally {
+          if (draftSavePromiseRef.current === savePromise) {
+            draftSavePromiseRef.current = null;
+          }
+        }
+      };
+
       if (immediate) {
-        await runSave();
+        await trackedRunSave();
         return;
       }
 
       draftSaveTimeoutRef.current = setTimeout(() => {
-        void runSave();
+        draftSaveTimeoutRef.current = null;
+        void trackedRunSave();
       }, 300);
     },
     [syncLocalPreferencesDraftState]
   );
 
   const flushPendingDraftState = useCallback(async () => {
-    if (!draftSaveTimeoutRef.current) {
+    if (draftSaveTimeoutRef.current) {
+      clearTimeout(draftSaveTimeoutRef.current);
+      draftSaveTimeoutRef.current = null;
+      await persistDraftState(buildPersistedDraftState(), {
+        immediate: true
+      });
       return;
     }
 
-    clearTimeout(draftSaveTimeoutRef.current);
-    draftSaveTimeoutRef.current = null;
-    await persistDraftState(buildPersistedDraftState(), {
-      immediate: true
-    });
+    if (draftSavePromiseRef.current) {
+      await draftSavePromiseRef.current;
+    }
   }, [buildPersistedDraftState, persistDraftState]);
 
   const applyViewStateToGrid = useCallback(
@@ -1101,6 +1131,7 @@ export function ApplicationsGrid({
         return null;
       }
 
+      preferencesRef.current = result.preferences;
       setPreferences(result.preferences);
       setSearch(result.preferences.draftState.quickSearch ?? "");
       externalFilterStateRef.current = {

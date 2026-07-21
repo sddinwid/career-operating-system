@@ -1,4 +1,8 @@
 import {
+  CoverLetterApprovalStatus,
+  CoverLetterAuditRunStatus,
+  CoverLetterCompositionVersionStatus,
+  CoverLetterRevisionVersionStatus,
   DocumentFormat,
   DocumentRenderStatus,
   DocumentType,
@@ -253,6 +257,66 @@ function describeApprovalState(approval: { renderingReadiness: string } | null, 
   return auditId ? "Ready for approval" : "Blocked";
 }
 
+function describeCoverLetterCompositionState(
+  composition: { status: string } | null,
+  reportRunId: string | null
+) {
+  if (composition) {
+    return composition.status === "SUCCESS_WITH_WARNINGS"
+      ? "Composed with warnings"
+      : "Cover letter composed";
+  }
+
+  return reportRunId ? "Ready to compose" : "Blocked";
+}
+
+function describeCoverLetterRevisionState(
+  draft: { id: string } | null,
+  finalizedRevision: { id: string } | null,
+  compositionId: string | null
+) {
+  if (draft) {
+    return "Draft in progress";
+  }
+
+  if (finalizedRevision) {
+    return "Finalized revision available";
+  }
+
+  return compositionId ? "Studio ready" : "Blocked";
+}
+
+function describeCoverLetterAuditState(
+  audit: { renderingReadiness: string } | null,
+  compositionId: string | null,
+  finalizedRevisionId: string | null
+) {
+  if (audit) {
+    return audit.renderingReadiness === "READY_FOR_RENDERING"
+      ? "Ready for approval"
+      : audit.renderingReadiness === "READY_WITH_WARNINGS"
+        ? "Ready with warnings"
+        : audit.renderingReadiness === "NEEDS_REVIEW"
+          ? "Needs review"
+          : "Blocked by audit";
+  }
+
+  return compositionId || finalizedRevisionId ? "Ready to audit" : "Blocked";
+}
+
+function describeCoverLetterApprovalState(
+  approval: { status: string; renderingReadiness: string } | null,
+  auditId: string | null
+) {
+  if (approval) {
+    return approval.renderingReadiness === "READY_WITH_WARNINGS"
+      ? "Approved with warnings"
+      : "Approved";
+  }
+
+  return auditId ? "Ready for approval" : "Blocked";
+}
+
 function latestArtifactForFormat(
   versions: Array<{
     id: string;
@@ -430,6 +494,67 @@ export async function listJobWorkspaceSummaries(
               createdAt: true
             }
           },
+          coverLetterCompositionVersions: {
+            where: {
+              status: {
+                in: [
+                  CoverLetterCompositionVersionStatus.SUCCESS,
+                  CoverLetterCompositionVersionStatus.SUCCESS_WITH_WARNINGS
+                ]
+              }
+            },
+            orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+            select: {
+              id: true,
+              status: true,
+              createdAt: true
+            }
+          },
+          coverLetterRevisionVersions: {
+            where: {
+              status: {
+                in: [
+                  CoverLetterRevisionVersionStatus.DRAFT,
+                  CoverLetterRevisionVersionStatus.FINALIZED
+                ]
+              }
+            },
+            orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+            select: {
+              id: true,
+              status: true,
+              createdAt: true
+            }
+          },
+          coverLetterAuditRuns: {
+            where: {
+              status: {
+                in: [
+                  CoverLetterAuditRunStatus.SUCCESS,
+                  CoverLetterAuditRunStatus.SUCCESS_WITH_WARNINGS
+                ]
+              }
+            },
+            orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+            select: {
+              id: true,
+              status: true,
+              renderingReadiness: true,
+              createdAt: true
+            }
+          },
+          coverLetterApprovals: {
+            where: {
+              status: CoverLetterApprovalStatus.APPROVED
+            },
+            orderBy: [{ approvedAt: "desc" }, { createdAt: "desc" }, { id: "desc" }],
+            select: {
+              id: true,
+              status: true,
+              renderingReadiness: true,
+              createdAt: true
+            }
+          },
           resumeAuditRuns: {
             where: {
               status: {
@@ -504,13 +629,24 @@ export async function listJobWorkspaceSummaries(
         ) ?? null;
       const requirementSummary = parseRequirementSummary(latestConfirmedAnalysis ?? latestAnalysis);
       const downstreamReadiness = requirementSummary?.downstreamReadiness ?? null;
-      const retrievalRun = currentJobDescription?.evidenceRetrievalRuns[0] ?? null;
-      const scoringRun = currentJobDescription?.evidenceScoringRuns[0] ?? null;
-      const matchReportRun = currentJobDescription?.matchReportRuns[0] ?? null;
-      const structuredResume = currentJobDescription?.structuredResumeVersions[0] ?? null;
-      const resumeComposition = currentJobDescription?.resumeCompositionVersions[0] ?? null;
-      const resumeAudit = currentJobDescription?.resumeAuditRuns[0] ?? null;
-      const renderingApproval = currentJobDescription?.resumeRenderingApprovals[0] ?? null;
+      const retrievalRun = currentJobDescription?.evidenceRetrievalRuns?.[0] ?? null;
+      const scoringRun = currentJobDescription?.evidenceScoringRuns?.[0] ?? null;
+      const matchReportRun = currentJobDescription?.matchReportRuns?.[0] ?? null;
+      const structuredResume = currentJobDescription?.structuredResumeVersions?.[0] ?? null;
+      const resumeComposition = currentJobDescription?.resumeCompositionVersions?.[0] ?? null;
+      const coverLetterComposition = currentJobDescription?.coverLetterCompositionVersions?.[0] ?? null;
+      const latestCoverLetterDraft =
+        currentJobDescription?.coverLetterRevisionVersions?.find(
+          (revision) => revision.status === CoverLetterRevisionVersionStatus.DRAFT
+        ) ?? null;
+      const latestCoverLetterFinalizedRevision =
+        currentJobDescription?.coverLetterRevisionVersions?.find(
+          (revision) => revision.status === CoverLetterRevisionVersionStatus.FINALIZED
+        ) ?? null;
+      const coverLetterAudit = currentJobDescription?.coverLetterAuditRuns?.[0] ?? null;
+      const coverLetterApproval = currentJobDescription?.coverLetterApprovals?.[0] ?? null;
+      const resumeAudit = currentJobDescription?.resumeAuditRuns?.[0] ?? null;
+      const renderingApproval = currentJobDescription?.resumeRenderingApprovals?.[0] ?? null;
       const latestDocx = currentJobDescription
         ? latestArtifactForFormat(currentJobDescription.documentVersions, DocumentFormat.DOCX)
         : null;
@@ -527,6 +663,11 @@ export async function listJobWorkspaceSummaries(
         matchReportRun?.createdAt,
         structuredResume?.createdAt,
         resumeComposition?.createdAt,
+        coverLetterComposition?.createdAt,
+        latestCoverLetterDraft?.createdAt,
+        latestCoverLetterFinalizedRevision?.createdAt,
+        coverLetterAudit?.createdAt,
+        coverLetterApproval?.createdAt,
         resumeAudit?.createdAt,
         renderingApproval?.createdAt,
         latestDocx?.generatedAt,
@@ -582,6 +723,24 @@ export async function listJobWorkspaceSummaries(
           matchReport: describeMatchReportState(scoringRun?.id ?? null, matchReportRun?.summary ?? null),
           plan: describeResumePlanState(structuredResume, matchReportRun?.id ?? null),
           composition: describeResumeCompositionState(resumeComposition, structuredResume?.id ?? null),
+          coverLetterComposition: describeCoverLetterCompositionState(
+            coverLetterComposition,
+            matchReportRun?.id ?? null
+          ),
+          coverLetterRevision: describeCoverLetterRevisionState(
+            latestCoverLetterDraft,
+            latestCoverLetterFinalizedRevision,
+            coverLetterComposition?.id ?? null
+          ),
+          coverLetterAudit: describeCoverLetterAuditState(
+            coverLetterAudit,
+            coverLetterComposition?.id ?? null,
+            latestCoverLetterFinalizedRevision?.id ?? null
+          ),
+          coverLetterApproval: describeCoverLetterApprovalState(
+            coverLetterApproval,
+            coverLetterAudit?.id ?? null
+          ),
           audit: describeResumeAuditState(resumeAudit, resumeComposition?.id ?? null),
           approval: describeApprovalState(renderingApproval, resumeAudit?.id ?? null)
         },
@@ -827,6 +986,67 @@ export async function getJobWorkspaceDetail(
               select: {
                 id: true,
                 status: true,
+                createdAt: true
+              }
+            },
+            coverLetterCompositionVersions: {
+              where: {
+                status: {
+                  in: [
+                    CoverLetterCompositionVersionStatus.SUCCESS,
+                    CoverLetterCompositionVersionStatus.SUCCESS_WITH_WARNINGS
+                  ]
+                }
+              },
+              orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+              select: {
+                id: true,
+                status: true,
+                createdAt: true
+              }
+            },
+            coverLetterRevisionVersions: {
+              where: {
+                status: {
+                  in: [
+                    CoverLetterRevisionVersionStatus.DRAFT,
+                    CoverLetterRevisionVersionStatus.FINALIZED
+                  ]
+                }
+              },
+              orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+              select: {
+                id: true,
+                status: true,
+                createdAt: true
+              }
+            },
+            coverLetterAuditRuns: {
+              where: {
+                status: {
+                  in: [
+                    CoverLetterAuditRunStatus.SUCCESS,
+                    CoverLetterAuditRunStatus.SUCCESS_WITH_WARNINGS
+                  ]
+                }
+              },
+              orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+              select: {
+                id: true,
+                status: true,
+                renderingReadiness: true,
+                createdAt: true
+              }
+            },
+            coverLetterApprovals: {
+              where: {
+                status: CoverLetterApprovalStatus.APPROVED
+              },
+              orderBy: [{ approvedAt: "desc" }, { createdAt: "desc" }, { id: "desc" }],
+              select: {
+                id: true,
+                status: true,
+                renderingReadiness: true,
                 createdAt: true
               }
             },

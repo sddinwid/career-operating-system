@@ -371,7 +371,37 @@ Implementation boundaries:
 - `src/lib/cover-letter-composition/actions.ts` integrates the generation action into existing UI flows
 - `src/app/job-descriptions/[jobDescriptionVersionId]/cover-letter/page.tsx` exposes the read-only preview
 
-The milestone stops at immutable structured composition. It does not add cover-letter revisions, persistent cover-letter audit, approval, DOCX/PDF rendering, or `DocumentVersion` output.
+The base composition layer is immutable and render-independent. `M8.2` extends it with revision, audit, and approval modules instead of mutating the base composition record.
+
+## M8.2 Cover Letter Studio, Audit, and Approval
+
+Milestone `M8.2` adds a separate editable layer and separate decision layers on top of immutable `CoverLetterCompositionVersion`.
+
+```text
+immutable CoverLetterCompositionVersion
+  -> mutable draft CoverLetterRevisionVersion
+  -> immutable finalized CoverLetterRevisionVersion
+  -> immutable CoverLetterAuditRun
+  -> immutable CoverLetterApproval
+```
+
+Implementation boundaries:
+
+- `src/lib/cover-letter-revision/*` owns draft save, finalization, revision checksums, and successor lineage
+- `src/lib/cover-letter-audit/*` owns deterministic audit execution and exact-input reuse
+- `src/lib/cover-letter-approval/*` owns approval eligibility, approval history, supersession, and revocation
+- `src/app/job-descriptions/[jobDescriptionVersionId]/cover-letter/studio/page.tsx` hosts editing, audit, and approval controls
+- `src/app/job-descriptions/[jobDescriptionVersionId]/cover-letter/audit/page.tsx` exposes the read-only audit report
+- `src/app/job-descriptions/[jobDescriptionVersionId]/cover-letter/compare/page.tsx` exposes comparison against base composition
+
+Architectural rules:
+
+- base composition remains immutable
+- draft edits never mutate evidence, scoring, match-report, resume, or job-description records
+- finalized revisions are the only editable-source alternative to base composition for audit and approval
+- audit remains immutable and read-only
+- approval remains separate from content so later renderers can resolve one exact source without guessing
+- `DocumentVersion` output remains out of scope for cover letters in the current repository state
 
 ## M5.1 Structured Resume Contract
 

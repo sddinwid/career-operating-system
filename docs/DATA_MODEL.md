@@ -204,6 +204,88 @@ Behavior:
 
 `CoverLetterCompositionVersion` stores immutable cover-letter compositions with references to workspace, optional application, job opportunity, job description version, career profile version, requirement analysis, evidence retrieval run, evidence scoring run, match report run, optional resume composition source, optional finalized resume revision source, and optional predecessor version. It also stores contract, engine, configuration, deterministic input checksums, structured content JSON, summary JSON, diagnostics JSON, and completion timestamps.
 
+## CoverLetterRevisionVersion
+
+`CoverLetterRevisionVersion` stores editable and finalized cover-letter revisions derived from one exact `CoverLetterCompositionVersion`.
+
+Fields:
+
+- workspace, application, and exact upstream version linkage
+- base cover-letter composition version id
+- predecessor revision id nullable
+- career profile, requirement analysis, evidence retrieval, evidence scoring, match-report, and optional resume source linkage
+- revision contract, engine, and configuration versions
+- content checksum and deterministic revision input checksum
+- status
+- content JSONB
+- change set JSONB
+- summary JSONB
+- diagnostics JSONB
+- user notes
+- created, updated, finalized, and superseded timestamps
+
+Behavior:
+
+- the latest active draft is reused for the same base composition until finalization
+- finalization freezes immutable content and preserves lineage
+- successor drafts can branch from finalized revisions without mutating prior versions
+
+## CoverLetterAuditRun
+
+`CoverLetterAuditRun` stores immutable audit results for one exact `CoverLetterCompositionVersion` or one exact finalized `CoverLetterRevisionVersion`.
+
+Fields:
+
+- workspace, application, and exact upstream version linkage
+- source type
+- exact cover-letter composition version id
+- optional exact cover-letter revision version id
+- audit contract, engine, and configuration versions
+- content checksum
+- deterministic audit input checksum
+- audit status
+- rendering-readiness state
+- result JSONB
+- summary JSONB
+- diagnostics JSONB
+- error summary
+- created and completed timestamps
+
+Behavior:
+
+- identical exact-source audit inputs reuse the latest existing audit run
+- changed content checksum, changed source type, or changed audit versions create a new immutable run
+- audit runs do not create `DocumentVersion` rows and do not mutate upstream records
+
+## CoverLetterApproval
+
+`CoverLetterApproval` records one immutable approval decision for one exact cover-letter content source and one exact audit.
+
+Fields:
+
+- workspace, application, and lineage linkage
+- source type
+- exact cover-letter composition version id
+- optional exact cover-letter revision version id
+- exact cover-letter audit run id
+- predecessor approval id nullable
+- approval contract, engine, and configuration versions
+- content checksum
+- audit input checksum
+- status
+- rendering readiness
+- warning acknowledgement state
+- warning and blocking counts
+- optional approval note
+- optional revocation reason
+- approved, revoked, superseded, and created timestamps
+
+Behavior:
+
+- approval is stored separately from composition, revision, and audit content
+- later approvals supersede prior active approvals for the same lineage
+- revocation preserves history and does not mutate source content or audits
+
 ## StructuredResumeVersion
 
 `StructuredResumeVersion` stores immutable structured resume plans with references to workspace, career profile version, requirement analysis, evidence retrieval run, evidence scoring run, match report run, job description version, optional application, and optional predecessor version.

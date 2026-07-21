@@ -2,9 +2,14 @@
 
 Prompt 00 bootstraps a local-first Career Operating System as a Next.js modular monolith for Windows, using PostgreSQL and Prisma without authentication or cloud dependencies.
 
-## Cover Letter Composition
+## Cover Letter Workflow
 
-`M8.1` adds deterministic, immutable cover-letter composition. The repository now exposes `/job-descriptions/[jobDescriptionVersionId]/cover-letter` as a read-only preview backed by `CoverLetterCompositionVersion` rows with paragraph-level provenance and exact upstream linkage.
+`M8.1` and `M8.2` now provide deterministic cover-letter composition, editable revision workflow, immutable audit, and approval history.
+
+- `/job-descriptions/[jobDescriptionVersionId]/cover-letter` shows the read-only preview backed by `CoverLetterCompositionVersion`
+- `/job-descriptions/[jobDescriptionVersionId]/cover-letter/studio` supports draft save, finalization, audit launch, approval, and successor revision creation backed by `CoverLetterRevisionVersion`
+- `/job-descriptions/[jobDescriptionVersionId]/cover-letter/audit` shows the immutable `CoverLetterAuditRun`
+- `/job-descriptions/[jobDescriptionVersionId]/cover-letter/compare` shows computed comparison between base composition and the current revision context
 
 ## Resume Composition
 
@@ -157,14 +162,16 @@ See [docs/EVIDENCE_SCORING.md](docs/EVIDENCE_SCORING.md).
 
 ## Cover-letter workflow
 
-Milestone `M8.1` composes concise, evidence-backed cover letters from existing authoritative artifacts.
+Milestones `M8.1` and `M8.2` now cover deterministic composition plus revision, audit, and approval.
 
-- Successful cover-letter compositions are stored immutably in `CoverLetterCompositionVersion`
-- Exact inputs reuse the latest successful cover-letter version instead of mutating prior content
+- Successful base compositions are stored immutably in `CoverLetterCompositionVersion`
+- Editable and finalized revisions are stored separately in `CoverLetterRevisionVersion`
+- Exact audit inputs reuse the latest matching `CoverLetterAuditRun`
+- Immutable approval history is stored in `CoverLetterApproval`
 - Optional resume sources are used only for deterministic overlap checks and traceability
-- The preview remains read-only and does not create `DocumentVersion` records or rendered files
+- The current workflow still does not create `DocumentVersion` rows or rendered cover-letter files
 
-See [docs/COVER_LETTER_COMPOSITION.md](docs/COVER_LETTER_COMPOSITION.md).
+See [docs/COVER_LETTER_COMPOSITION.md](docs/COVER_LETTER_COMPOSITION.md), [docs/COVER_LETTER_STUDIO.md](docs/COVER_LETTER_STUDIO.md), [docs/COVER_LETTER_AUDIT.md](docs/COVER_LETTER_AUDIT.md), and [docs/COVER_LETTER_APPROVAL.md](docs/COVER_LETTER_APPROVAL.md).
 
 ## Verification commands
 

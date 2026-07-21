@@ -23,7 +23,10 @@ import { getResumeRevisionContext } from "@/lib/resume-revision/service";
 import { createResumeCompositionAction } from "@/lib/resume-composition/actions";
 import { getResumeCompositionContext } from "@/lib/resume-composition/service";
 import { createCoverLetterCompositionAction } from "@/lib/cover-letter-composition/actions";
+import { getCoverLetterApprovalContext } from "@/lib/cover-letter-approval/service";
+import { getCoverLetterAuditContext } from "@/lib/cover-letter-audit/service";
 import { getCoverLetterCompositionContext } from "@/lib/cover-letter-composition/service";
+import { getCoverLetterRevisionContext } from "@/lib/cover-letter-revision/service";
 import { scoreRetrievedEvidenceAction } from "@/lib/evidence-scoring/actions";
 import { getEvidenceScoringContext } from "@/lib/evidence-scoring/service";
 import { generateMatchReportAction } from "@/lib/match-report/actions";
@@ -142,6 +145,18 @@ export default async function ApplicationDetailPage({
     : null;
   const coverLetterContext = application.currentJobDescriptionVersion
     ? await getCoverLetterCompositionContext(workspace.id, application.currentJobDescriptionVersion.id)
+    : null;
+  const coverLetterRevisionContext = application.currentJobDescriptionVersion
+    ? await getCoverLetterRevisionContext(workspace.id, application.currentJobDescriptionVersion.id)
+    : null;
+  const coverLetterAuditContext = application.currentJobDescriptionVersion
+    ? await getCoverLetterAuditContext(workspace.id, application.currentJobDescriptionVersion.id)
+    : null;
+  const coverLetterApprovalContext = application.currentJobDescriptionVersion
+    ? await getCoverLetterApprovalContext(workspace.id, {
+        jobDescriptionVersionId: application.currentJobDescriptionVersion.id,
+        applicationId: application.id
+      })
     : null;
   const resumeAuditContext = application.currentJobDescriptionVersion
     ? await getResumeAuditContext(workspace.id, application.currentJobDescriptionVersion.id)
@@ -286,6 +301,37 @@ export default async function ApplicationDetailPage({
     : resumeRenderingApproval
       ? "Resume PDF Rendering Ready"
       : "Resume PDF Rendering Not Ready";
+  const coverLetterCompositionStateLabel = coverLetterContext?.reusableCoverLetterCompositionVersion
+    ? "Cover Letter Composed"
+    : coverLetterContext?.compositionReady
+      ? "Cover Letter Ready"
+      : "Cover Letter Not Ready";
+  const coverLetterRevisionStateLabel = coverLetterRevisionContext?.latestDraft
+    ? "Draft In Progress"
+    : coverLetterRevisionContext?.latestFinalizedRevision
+      ? "Revision Available"
+      : coverLetterContext?.reusableCoverLetterCompositionVersion
+        ? "Studio Ready"
+        : "Studio Not Ready";
+  const coverLetterAuditSummary =
+    coverLetterAuditContext?.reusableAuditRun?.summary &&
+    typeof coverLetterAuditContext.reusableAuditRun.summary === "object"
+      ? (coverLetterAuditContext.reusableAuditRun.summary as {
+          errorCount?: number;
+          warningCount?: number;
+          infoCount?: number;
+        })
+      : null;
+  const coverLetterAuditStateLabel = coverLetterAuditContext?.reusableAuditRun
+    ? "Cover Letter Audit Complete"
+    : coverLetterAuditContext?.auditSource
+      ? "Cover Letter Audit Ready"
+      : "Cover Letter Audit Not Ready";
+  const coverLetterApprovalStateLabel = coverLetterApprovalContext?.activeApproval
+    ? "Active Approval"
+    : coverLetterAuditContext?.reusableAuditRun
+      ? "Ready for Approval"
+      : "No Active Approval";
 
   return (
     <div className="space-y-8">
@@ -480,6 +526,36 @@ export default async function ApplicationDetailPage({
                 href={`/job-descriptions/${application.currentJobDescriptionVersion?.id}/cover-letter?versionId=${coverLetterContext.reusableCoverLetterCompositionVersion.id}`}
               >
                 View Cover Letter
+              </Link>
+            ) : null}
+            {application.currentJobDescriptionVersion && coverLetterContext?.reusableCoverLetterCompositionVersion ? (
+              <Link
+                className="rounded-full border border-stone-300 px-5 py-3 text-sm font-semibold text-stone-700 transition hover:border-stone-950 hover:text-stone-950"
+                href={
+                  coverLetterRevisionContext?.latestDraft
+                    ? `/job-descriptions/${application.currentJobDescriptionVersion.id}/cover-letter/studio?revisionId=${coverLetterRevisionContext.latestDraft.id}`
+                    : coverLetterRevisionContext?.latestFinalizedRevision
+                      ? `/job-descriptions/${application.currentJobDescriptionVersion.id}/cover-letter/studio?revisionId=${coverLetterRevisionContext.latestFinalizedRevision.id}`
+                      : `/job-descriptions/${application.currentJobDescriptionVersion.id}/cover-letter/studio`
+                }
+              >
+                {coverLetterRevisionContext?.latestFinalizedRevision ? "View Cover Letter Revision" : "Open Cover Letter Studio"}
+              </Link>
+            ) : null}
+            {application.currentJobDescriptionVersion && coverLetterRevisionContext?.latestFinalizedRevision ? (
+              <Link
+                className="rounded-full border border-stone-300 px-5 py-3 text-sm font-semibold text-stone-700 transition hover:border-stone-950 hover:text-stone-950"
+                href={`/job-descriptions/${application.currentJobDescriptionVersion.id}/cover-letter/compare?revisionId=${coverLetterRevisionContext.latestFinalizedRevision.id}`}
+              >
+                View Cover Letter Comparison
+              </Link>
+            ) : null}
+            {application.currentJobDescriptionVersion && coverLetterAuditContext?.reusableAuditRun ? (
+              <Link
+                className="rounded-full border border-stone-300 px-5 py-3 text-sm font-semibold text-stone-700 transition hover:border-stone-950 hover:text-stone-950"
+                href={`/job-descriptions/${application.currentJobDescriptionVersion.id}/cover-letter/audit?runId=${coverLetterAuditContext.reusableAuditRun.id}`}
+              >
+                View Cover Letter Audit
               </Link>
             ) : null}
             {resumeAuditContext?.reusableResumeAuditRun ? (
@@ -848,6 +924,63 @@ export default async function ApplicationDetailPage({
               <p className="text-sm font-medium text-stone-500">Source URL</p>
               <p className="mt-2 break-all text-sm leading-6 text-stone-700">
                 {application.currentJobDescriptionVersion.sourceUrl ?? "Not set"}
+              </p>
+            </article>
+            <article className="rounded-2xl border border-stone-200 bg-stone-50 p-4">
+              <p className="text-sm font-medium text-stone-500">Cover letter composition</p>
+              <p className="mt-2 text-lg font-semibold text-stone-900">
+                {coverLetterCompositionStateLabel}
+              </p>
+              <p className="mt-1 text-sm text-stone-600">
+                {coverLetterContext?.reusableCoverLetterCompositionVersion
+                  ? "The deterministic base composition is available from the latest match report."
+                  : coverLetterContext?.compositionReady
+                    ? "Generate the cover letter from the current match report."
+                    : "Requires a successful match report before composition can begin."}
+              </p>
+            </article>
+            <article className="rounded-2xl border border-stone-200 bg-stone-50 p-4">
+              <p className="text-sm font-medium text-stone-500">Cover letter revision</p>
+              <p className="mt-2 text-lg font-semibold text-stone-900">
+                {coverLetterRevisionStateLabel}
+              </p>
+              <p className="mt-1 text-sm text-stone-600">
+                {coverLetterRevisionContext?.latestDraft
+                  ? "A mutable draft is available in Cover Letter Studio."
+                  : coverLetterRevisionContext?.latestFinalizedRevision
+                    ? `${coverLetterRevisionContext.latestFinalizedRevision.status.replace(/_/g, " ")} • latest finalized revision`
+                    : coverLetterContext?.reusableCoverLetterCompositionVersion
+                      ? "Open Cover Letter Studio to edit or finalize a revision."
+                      : "Requires a deterministic base composition first."}
+              </p>
+            </article>
+            <article className="rounded-2xl border border-stone-200 bg-stone-50 p-4">
+              <p className="text-sm font-medium text-stone-500">Cover letter audit</p>
+              <p className="mt-2 text-lg font-semibold text-stone-900">
+                {coverLetterAuditStateLabel}
+              </p>
+              <p className="mt-1 text-sm text-stone-600">
+                {coverLetterAuditContext?.reusableAuditRun
+                  ? `${coverLetterAuditContext.reusableAuditRun.sourceType.replace(/_/g, " ")} • ${coverLetterAuditSummary?.errorCount ?? 0} blocking findings • ${coverLetterAuditSummary?.warningCount ?? 0} warnings`
+                  : coverLetterAuditContext?.auditSource
+                    ? "Run the deterministic cover-letter audit from Preview or Studio."
+                    : "Requires a base composition or finalized revision before audit can run."}
+              </p>
+            </article>
+            <article className="rounded-2xl border border-stone-200 bg-stone-50 p-4">
+              <p className="text-sm font-medium text-stone-500">Cover letter approval</p>
+              <p className="mt-2 text-lg font-semibold text-stone-900">
+                {coverLetterApprovalStateLabel}
+              </p>
+              <p className="mt-1 text-sm text-stone-600">
+                {coverLetterApprovalContext?.activeApproval
+                  ? `${coverLetterApprovalContext.activeApproval.sourceType.replace(/_/g, " ")} • ${coverLetterApprovalContext.activeApproval.renderingReadiness.replace(/_/g, " ")}`
+                  : coverLetterAuditContext?.reusableAuditRun
+                    ? "Approve an audited base composition or finalized revision when ready."
+                    : "Requires a successful matching audit before approval can be recorded."}
+              </p>
+              <p className="mt-2 text-sm text-stone-700">
+                Approval history {coverLetterApprovalContext?.history.length ?? 0}
               </p>
             </article>
             <article className="rounded-2xl border border-stone-200 bg-stone-50 p-4">

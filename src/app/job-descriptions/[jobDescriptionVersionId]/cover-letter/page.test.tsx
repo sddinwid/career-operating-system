@@ -86,6 +86,26 @@ vi.mock("@/lib/cover-letter-composition/service", () => ({
   }))
 }));
 
+vi.mock("@/lib/cover-letter-revision/service", () => ({
+  getCoverLetterRevisionContext: vi.fn(async () => ({
+    latestDraft: null,
+    latestFinalizedRevision: null
+  }))
+}));
+
+vi.mock("@/lib/cover-letter-audit/service", () => ({
+  getCoverLetterAuditContext: vi.fn(async () => ({
+    reusableAuditRun: null
+  }))
+}));
+
+vi.mock("@/lib/cover-letter-approval/service", () => ({
+  getCoverLetterApprovalContext: vi.fn(async () => ({
+    activeApproval: null,
+    history: []
+  }))
+}));
+
 describe("CoverLetterPage", () => {
   it("renders the read-only preview, provenance, and diagnostics", async () => {
     const page = await CoverLetterPage({

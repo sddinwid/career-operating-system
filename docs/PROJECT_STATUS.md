@@ -1,6 +1,6 @@
 # Project Status
 
-Date: July 20, 2026
+Date: July 21, 2026
 
 ## Current Milestone
 
@@ -8,11 +8,11 @@ Current milestone: `Milestone 8 - Application Package Generation`
 
 Prompt 04D is not automatically next.
 
-The active implementation slice is `M8.1 - Deterministic Cover Letter Composition`.
+The active implementation slice is `M8.2 - Cover Letter Studio, Audit, and Approval`.
 
 ## Last Completed Implementation
 
-Last completed implementation: `M7.2 - Render Validation and PDF Output`.
+Last completed implementation: `M8.2 - Cover Letter Studio, Audit, and Approval`.
 
 Repository evidence:
 - `src/lib/job-descriptions/service.ts`
@@ -67,6 +67,8 @@ Repository evidence:
   - Evidence: `src/lib/resume-audit/config.ts`, `src/lib/resume-audit/contract.ts`, `src/lib/resume-audit/engine.ts`, `src/lib/resume-audit/service.ts`, `src/lib/resume-audit/actions.ts`, `src/app/job-descriptions/[jobDescriptionVersionId]/resume/audit/page.tsx`, `src/lib/resume-audit/engine.test.ts`, `src/lib/resume-audit/service.test.ts`, `tests/e2e/job-descriptions.spec.ts`
 - Resume Studio draft editing, immutable finalized revisions, revision-backed audit, and successor revision lineage
   - Evidence: `src/lib/resume-revision/config.ts`, `src/lib/resume-revision/contract.ts`, `src/lib/resume-revision/engine.ts`, `src/lib/resume-revision/service.ts`, `src/app/api/resume-studio/[revisionId]/route.ts`, `src/app/api/resume-studio/[revisionId]/finalize/route.ts`, `src/components/resume-studio/resume-studio-editor.tsx`, `src/app/job-descriptions/[jobDescriptionVersionId]/resume/studio/page.tsx`, `src/lib/resume-revision/engine.test.ts`, `src/lib/resume-revision/service.test.ts`, `src/app/api/resume-studio/[revisionId]/finalize/route.test.ts`, `tests/e2e/job-descriptions.spec.ts`
+- Cover-letter composition, studio revision lifecycle, deterministic audit, approval history, and comparison
+  - Evidence: `src/lib/cover-letter-composition/service.ts`, `src/lib/cover-letter-revision/service.ts`, `src/lib/cover-letter-audit/service.ts`, `src/lib/cover-letter-approval/service.ts`, `src/app/api/cover-letter-studio/[revisionId]/route.ts`, `src/app/api/cover-letter-studio/[revisionId]/finalize/route.ts`, `src/app/api/cover-letter-approvals/route.ts`, `src/app/job-descriptions/[jobDescriptionVersionId]/cover-letter/page.tsx`, `src/app/job-descriptions/[jobDescriptionVersionId]/cover-letter/studio/page.tsx`, `src/app/job-descriptions/[jobDescriptionVersionId]/cover-letter/audit/page.tsx`, `src/app/job-descriptions/[jobDescriptionVersionId]/cover-letter/compare/page.tsx`, `src/lib/cover-letter-audit/engine.test.ts`, `src/lib/cover-letter-approval/service.test.ts`, `tests/e2e/job-descriptions.spec.ts`
 
 ### Complete but not yet proven in daily use
 
@@ -125,7 +127,6 @@ These models exist in schema only. No deterministic generation workflows current
 - Interviews page
 - Documents workspace shell beyond the new rendered document detail view
 - Career profile inspection UI
-- Deterministic cover-letter composition
 - Application packages
 - Analytics
 - Authentication
@@ -197,7 +198,7 @@ See `docs/DECISIONS.md`.
 
 ## Current Active Priority
 
-The active product priority is now `M8.1 - Deterministic Cover Letter Composition`.
+The active product priority is now `M8.2 - Cover Letter Studio, Audit, and Approval`.
 
 ## Revised Progress Overview
 
@@ -209,7 +210,7 @@ The active product priority is now `M8.1 - Deterministic Cover Letter Compositio
 - `Milestone 5 - Resume Composition Engine`: `M5.1` complete, `M5.2` complete, `M5.3` complete
 - `Milestone 6 - Resume Studio and Review`: `M6.1` complete, `M6.2` complete
 - `Milestone 7 - Rendering and Packaging`: `M7.1` complete, `M7.2` complete, `M7.3` deferred
-- `Milestone 8 - Application Package Generation`: `M8.1` complete
+- `Milestone 8 - Application Package Generation`: `M8.1` complete, `M8.2` complete
 - `Milestones 9-12 - Remaining tracker ergonomics, analytics, generic ingestion, and commercialization`: deferred later
 ## Current Milestone
 
@@ -222,6 +223,7 @@ The active product priority is now `M8.1 - Deterministic Cover Letter Compositio
 - M7.1 - Complete
 - M7.2 - Complete
 - M8.1 - Complete
+- M8.2 - Complete
 ## Resume Workflow
 
 M7.2 adds direct deterministic PDF rendering, shared artifact validation, immutable `DocumentVersion` reuse by format, PDF browser verification, and shared download handling on top of the existing `M6.2` rendering gate. The required verification suite now passes on the current repository state.
