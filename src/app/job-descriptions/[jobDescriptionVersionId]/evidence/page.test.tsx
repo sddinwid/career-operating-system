@@ -1,5 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import EvidenceRetrievalPage from "@/app/job-descriptions/[jobDescriptionVersionId]/evidence/page";
+import { getEvidenceRetrievalContext } from "@/lib/evidence-retrieval/service";
 
 vi.mock("@/lib/workspace", () => ({
   getDefaultWorkspace: vi.fn(async () => ({ id: "workspace-1" }))
@@ -312,4 +313,46 @@ describe("EvidenceRetrievalPage", () => {
     expect(screen.getByText("run-1")).toBeVisible();
     expect(screen.getByText("career-version-1")).toBeVisible();
   });
+
+  it("keeps explorer props serializable and shows the unavailable state warnings", async () => {
+    vi.mocked(getEvidenceRetrievalContext).mockResolvedValueOnce({
+      jobDescriptionVersion: {
+        opportunity: {
+          title: "Senior Platform Engineer",
+          company: {
+            name: "Acme"
+          }
+        }
+      },
+      latestCareerProfileVersion: null,
+      careerProfileSelectionIssue: "CURRENT_PROFILE_MISSING",
+      latestConfirmedRequirementAnalysis: {
+        id: "analysis-1"
+      },
+      downstreamReadyRequirementAnalysis: null,
+      requirementAnalysisDownstreamReadiness: "NOT_READY",
+      activeApplication: null,
+      reusableRun: null
+    } as unknown as Awaited<ReturnType<typeof getEvidenceRetrievalContext>>);
+
+    const page = await EvidenceRetrievalPage({
+      params: Promise.resolve({ jobDescriptionVersionId: "job-description-1" }),
+      searchParams: Promise.resolve({})
+    });
+
+    render(page);
+
+    expect(screen.getByRole("heading", { name: "Candidate evidence unavailable" })).toBeVisible();
+    expect(
+      screen.getByText(
+        "Select a current real Career Knowledge profile before retrieving evidence."
+      )
+    ).toBeVisible();
+    expect(
+      screen.getByText(
+        "The current confirmed requirement analysis is not ready for downstream automation yet. Return to requirement review to address extraction coverage before retrieving evidence."
+      )
+    ).toBeVisible();
+  });
+
 });

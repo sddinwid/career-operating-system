@@ -240,6 +240,10 @@ test("parses and reviews the Fieldguide fixture as atomic, level-aware requireme
   page
 }) => {
   test.setTimeout(65_000);
+  const pageErrors: string[] = [];
+  page.on("pageerror", (error) => {
+    pageErrors.push(error.message);
+  });
   await cleanupFieldguideStandaloneFixture();
   const fieldguideDescription = await fs.readFile(
     path.join(process.cwd(), "fixtures", "fieldguide-software-engineer-all-levels.txt"),
@@ -549,6 +553,10 @@ test("captures, versions, and reuses job descriptions without changing applicati
   page
 }) => {
   test.setTimeout(120_000);
+  const pageErrors: string[] = [];
+  page.on("pageerror", (error) => {
+    pageErrors.push(error.message);
+  });
   await resetE2EApplicationFixture(prisma);
   await setCurrentCareerProfileByPurpose("FIXTURE");
 
@@ -759,7 +767,10 @@ Preferred Qualifications
     }),
     page.getByRole("link", { name: "View Candidate Evidence" }).click()
   ]);
+  const evidenceUrl = page.url();
   await expect(page.getByRole("heading", { name: "Evidence Summary" })).toBeVisible();
+  await expect(page.getByText("Runtime TypeError")).toHaveCount(0);
+  await expect(page.getByText("Application error: a server-side exception has occurred")).toHaveCount(0);
   await expect(
     page.getByText(
       "This retrieval used fixture Career Knowledge and should not be used for a real application decision."
@@ -781,9 +792,36 @@ Preferred Qualifications
   await expect(page.getByText("Why this matched").first()).toBeVisible();
   await expect(page.getByText("Restrictions").first()).toBeVisible();
   await expect(page.getByText(/Project evidence|Date not recorded|Older experience/).first()).toBeVisible();
+  const showAllCandidatesButton = page.getByRole("button", { name: /Show all \d+ candidates/ });
+  if ((await showAllCandidatesButton.count()) > 0) {
+    await showAllCandidatesButton.click();
+    await expect(page.getByRole("button", { name: "Show fewer candidates" })).toBeVisible();
+  }
+  await page
+    .locator("article")
+    .filter({ hasText: "PostgreSQL and AWS experience required" })
+    .getByRole("button", { name: "Collapse details" })
+    .click();
+  await expect(page.getByText("Why this matched")).toHaveCount(0);
   await page.getByRole("button", { name: "Show technical details" }).click();
   await expect(page.getByText("Career Profile Version ID")).toBeVisible();
   await expect(page.getByText(/match percentage/i)).toHaveCount(0);
+  await Promise.all([
+    page.waitForURL(/\/job-descriptions\/[^/]+\/requirements(?:\?.*)?$/, {
+      timeout: 15_000
+    }),
+    page.getByRole("link", { name: "Back to Requirement Review" }).click()
+  ]);
+  await expect(page.getByText("Requirement review")).toBeVisible();
+  await Promise.all([
+    page.waitForURL(evidenceUrl, { timeout: 15_000 }),
+    page.goBack()
+  ]);
+  await expect(page.getByRole("heading", { name: "Evidence Summary" })).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "Evidence Summary" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Score Retrieved Evidence" })).toBeVisible();
+  expect(pageErrors).toEqual([]);
   await expect(page.getByRole("button", { name: "Score Retrieved Evidence" })).toBeVisible();
   await page.getByRole("button", { name: "Score Retrieved Evidence" }).click();
   await expect(page.getByText("Evidence scoring completed successfully.")).toBeVisible();

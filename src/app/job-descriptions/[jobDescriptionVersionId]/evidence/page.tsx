@@ -188,38 +188,6 @@ export default async function EvidenceRetrievalPage({
   const allowFixtureScoring = process.env.ALLOW_FIXTURE_CAREER_PROFILE_SELECTION === "1";
   const isActiveUserProfile = context.latestCareerProfileVersion?.id === run.careerProfileVersionId;
   const pageModel = buildEvidenceRetrievalPageViewModel(result);
-  const sections = [
-    {
-      id: "required",
-      title: "Required",
-      description: "Highest-priority required requirements, ranked with the strongest evidence first.",
-      items: pageModel.required
-    },
-    {
-      id: "preferred",
-      title: "Preferred",
-      description: "Preferred requirements with direct, related, or restricted support called out explicitly.",
-      items: pageModel.preferred
-    },
-    {
-      id: "contextual",
-      title: "Contextual",
-      description: "Contextual expectations and guidance from the reviewed requirement set.",
-      items: pageModel.contextual
-    },
-    {
-      id: "responsibilities",
-      title: "Responsibilities",
-      description: "Responsibility statements and the strongest retrieved evidence for each one.",
-      items: pageModel.responsibilities
-    },
-    {
-      id: "excluded",
-      title: "Excluded",
-      description: "Traceability for items intentionally kept out of downstream retrieval.",
-      items: pageModel.excluded
-    }
-  ];
 
   const nextAction = currentScoringRun
     ? "Review the scored evidence and decide whether the current support is strong enough for this role."
@@ -371,7 +339,10 @@ export default async function EvidenceRetrievalPage({
         />
       </div>
 
-      <EvidenceRequirementExplorer sections={sections} technicalDetails={pageModel.technicalDetails} />
+      <EvidenceRequirementExplorer
+        sections={pageModel.sections}
+        technicalDetails={pageModel.technicalDetails}
+      />
     </div>
   );
 }

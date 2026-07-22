@@ -287,6 +287,7 @@ July 22, 2026 corrective note:
 
 - immutable retrieval storage remains unchanged
 - a presentation-layer evidence view model now derives summary cards, support states, bundle coverage, duplicate clustering, and disclosure behavior without mutating stored runs
+- browser-facing evidence explorer props are isolated in a serializable `presentation-types` module so the Server Component page can keep aggregation server-side while the Client Component stays free of server-only imports and mixed builder modules
 - deterministic retrieval matching was tightened with boundary-aware concept and domain matching plus additional kind-aware concept bridges for communication, collaboration, data, and AI or ML requirements
 
 ## Layering

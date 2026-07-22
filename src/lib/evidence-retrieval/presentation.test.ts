@@ -269,4 +269,73 @@ describe("buildEvidenceRetrievalPageViewModel", () => {
       "Direct project evidence exists, but no qualifying professional evidence was found."
     );
   });
+
+  it("returns a serializable section model for the client explorer", () => {
+    const result = createResult({
+      requirementResults: [
+        {
+          requirementId: "requirement-3",
+          itemType: "REQUIREMENT",
+          category: "REQUIRED",
+          reviewStatus: "CONFIRMED",
+          kinds: ["TECHNOLOGY"],
+          originalText: "PostgreSQL experience",
+          correctedDisplayText: null,
+          technologies: ["PostgreSQL"],
+          experienceText: null,
+          sourceProvenance: {
+            sourceSectionId: "section-3",
+            parserStatementId: "statement-3",
+            parserResponsibilityId: null
+          },
+          retrievalStatus: "ELIGIBLE",
+          candidateEvidence: [],
+          excludedEvidence: [],
+          diagnostics: [],
+          coverageState: "NO_CANDIDATES"
+        }
+      ]
+    });
+
+    const viewModel = buildEvidenceRetrievalPageViewModel(result);
+    const serialized = JSON.parse(JSON.stringify(viewModel));
+
+    expect(serialized.sections).toEqual([
+      {
+        id: "required",
+        title: "Required",
+        description:
+          "Highest-priority required requirements, ranked with the strongest evidence first.",
+        items: serialized.required
+      },
+      {
+        id: "preferred",
+        title: "Preferred",
+        description:
+          "Preferred requirements with direct, related, or restricted support called out explicitly.",
+        items: []
+      },
+      {
+        id: "contextual",
+        title: "Contextual",
+        description: "Contextual expectations and guidance from the reviewed requirement set.",
+        items: []
+      },
+      {
+        id: "responsibilities",
+        title: "Responsibilities",
+        description: "Responsibility statements and the strongest retrieved evidence for each one.",
+        items: []
+      },
+      {
+        id: "excluded",
+        title: "Excluded",
+        description: "Traceability for items intentionally kept out of downstream retrieval.",
+        items: []
+      }
+    ]);
+    expect(serialized.technicalDetails.recencyPolicyLabel).toBe(
+      "1/3/5 year bands as of 2026-07-22"
+    );
+  });
 });

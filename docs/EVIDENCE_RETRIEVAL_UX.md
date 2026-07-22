@@ -50,6 +50,7 @@ The page does not imply that Scott lacks a skill when the system only lacks qual
 - each expanded requirement shows the strongest candidate set first
 - candidate details preserve retrieved-because explanations, restrictions, and provenance
 - technical ids and checksums remain hidden until the technical-details disclosure is expanded
+- the interactive explorer is a Client Component, but it receives only a serializable section model and technical-details view from a browser-safe presentation-types module
 
 ## Candidate ordering
 

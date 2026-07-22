@@ -3,18 +3,13 @@
 import { useState } from "react";
 import { buttonSecondaryClassName, cardClassName, cx, mutedCardClassName } from "@/lib/ui";
 import type {
-  EvidenceRequirementView,
+  EvidenceRequirementSectionView,
   EvidenceTechnicalDetailsView
-} from "@/lib/evidence-retrieval/presentation";
+} from "@/lib/evidence-retrieval/presentation-types";
 
 type EvidenceRequirementExplorerProps = {
-  sections: Array<{
-    id: string;
-    title: string;
-    description: string;
-    items: EvidenceRequirementView[];
-  }>;
-  technicalDetails: EvidenceTechnicalDetailsView;
+  sections?: EvidenceRequirementSectionView[];
+  technicalDetails?: EvidenceTechnicalDetailsView;
 };
 
 function StatusBadge({ label, tone }: { label: string; tone: "good" | "warn" | "muted" }) {
@@ -43,7 +38,7 @@ function toneForSupportState(label: string) {
 }
 
 export function EvidenceRequirementExplorer({
-  sections,
+  sections = [],
   technicalDetails
 }: EvidenceRequirementExplorerProps) {
   const allRequirementIds = sections.flatMap((section) => section.items.map((item) => item.requirementId));
@@ -298,7 +293,7 @@ export function EvidenceRequirementExplorer({
           </button>
         </div>
 
-        {technicalExpanded ? (
+        {technicalExpanded && technicalDetails ? (
           <div id="technical-details-panel" className="mt-6 grid gap-3 md:grid-cols-2">
             <div className={mutedCardClassName}>
               <p className="text-sm font-medium text-stone-500">Run ID</p>
@@ -345,6 +340,10 @@ export function EvidenceRequirementExplorer({
               <p className="text-sm font-medium text-stone-500">Recency Policy</p>
               <p className="mt-2 text-sm text-stone-900">{technicalDetails.recencyPolicyLabel}</p>
             </div>
+          </div>
+        ) : technicalExpanded ? (
+          <div id="technical-details-panel" className={mutedCardClassName}>
+            <p className="text-sm text-stone-600">Technical details are not available for this run.</p>
           </div>
         ) : null}
       </section>
