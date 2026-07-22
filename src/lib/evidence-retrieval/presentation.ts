@@ -4,9 +4,11 @@ import type {
   RetrievedRequirementRecord
 } from "@/lib/evidence-retrieval/contract";
 import type {
+  CareerKnowledgeOpportunityView,
   EvidenceCandidateClusterView,
   EvidenceOverviewItem,
   EvidencePageViewModel,
+  EvidenceRestrictionBreakdownItem,
   EvidenceRequirementSectionView,
   EvidenceRequirementView,
   EvidenceSummaryView,
@@ -249,15 +251,7 @@ function rankCandidates(item: RetrievedRequirementRecord) {
 }
 
 function buildClusterKey(candidate: CandidateEvidence) {
-  return [
-    candidate.displayTitle,
-    candidate.claimText,
-    candidate.context,
-    candidate.employer ?? "",
-    candidate.role ?? "",
-    candidate.project ?? "",
-    [...candidate.matchedTechnologies].sort().join("|")
-  ].join("::");
+  return candidate.evidenceClusterId ?? candidate.candidateId;
 }
 
 function buildSummaryLabel(candidate: CandidateEvidence) {
@@ -287,6 +281,9 @@ function buildClusterView(rankedCandidates: RankedCandidate[]) {
         claimText: candidate.claimText,
         technologies: candidate.technologies,
         matchedTechnologies: candidate.matchedTechnologies,
+        competencyLabels: (candidate.matchedCompetencies ?? []).map(
+          (competency) => competency.competencyName
+        ),
         whyMatched: candidate.retrievalReasons.map((reason) => reason.explanation),
         restrictionLabels: candidate.restrictions.map((restriction) => getRestrictionLabel(restriction.code)),
         restrictionCodes: candidate.restrictions.map((restriction) => restriction.code),
@@ -458,6 +455,9 @@ function buildRequirementView(item: RetrievedRequirementRecord): EvidenceRequire
     conciseExplanation: getConciseExplanation(supportState, clusters, item),
     kinds: item.kinds.map((kind) => humanizeCode(kind)),
     technologies: item.technologies,
+    competencyLabels: (item.mappedCompetencies ?? []).map(
+      (competency) => competency.competencyName
+    ),
     primaryTechnologies: item.technologies.slice(0, 4),
     strongestEvidenceCount: clusters.filter((cluster) => cluster.restrictionCodes.length === 0).length,
     restrictedEvidenceCount: clusters.filter((cluster) => cluster.restrictionCodes.length > 0).length,
@@ -467,7 +467,17 @@ function buildRequirementView(item: RetrievedRequirementRecord): EvidenceRequire
     defaultVisibleCount,
     diagnostics: item.diagnostics.map((diagnostic) => diagnostic.message),
     bundleCoverage,
-    retrievalStatusLabel: humanizeCode(item.coverageState)
+    retrievalStatusLabel: humanizeCode(item.coverageState),
+    gapExplanation:
+      supportState === "NO_QUALIFYING_EVIDENCE"
+        ? "No direct or related retrievable evidence was found."
+        : supportState === "RESTRICTED_SUPPORT_ONLY"
+          ? "Only restricted evidence was retrieved, so this remains qualified rather than directly supported."
+          : supportState === "RELATED_EVIDENCE_ONLY"
+            ? "Related evidence exists, but the system did not find enough direct qualifying support."
+            : supportState === "LIMITED_SUPPORT"
+              ? "Some components or evidence families are only partially covered."
+              : "Direct qualifying evidence was retrieved."
   };
 }
 
@@ -515,6 +525,48 @@ function buildOverviewItems(
       label: item.title,
       detail: item.conciseExplanation
     }));
+}
+
+function buildRestrictedEvidenceBreakdown(
+  requirementViews: EvidenceRequirementView[]
+): EvidenceRestrictionBreakdownItem[] {
+  const aggregate = new Map<string, EvidenceRestrictionBreakdownItem>();
+  for (const item of requirementViews) {
+    for (const candidate of [...item.topCandidates, ...item.remainingCandidates]) {
+      for (const code of candidate.restrictionCodes) {
+        const existing = aggregate.get(code) ?? {
+          code,
+          label: getRestrictionLabel(code),
+          count: 0,
+          affectedRequirementIds: [],
+          affectedCandidateIds: []
+        };
+        existing.count += 1;
+        if (!existing.affectedRequirementIds.includes(item.requirementId)) {
+          existing.affectedRequirementIds.push(item.requirementId);
+        }
+        if (!existing.affectedCandidateIds.includes(candidate.primaryCandidateId)) {
+          existing.affectedCandidateIds.push(candidate.primaryCandidateId);
+        }
+        aggregate.set(code, existing);
+      }
+    }
+  }
+
+  return [...aggregate.values()].sort((left, right) => right.count - left.count || left.label.localeCompare(right.label));
+}
+
+function buildCareerKnowledgeOpportunityViews(
+  result: EvidenceRetrievalResult
+): CareerKnowledgeOpportunityView[] {
+  return (result.careerKnowledgeOpportunities ?? []).map((opportunity) => ({
+    requirementId: opportunity.requirementId,
+    requirementTitle: opportunity.requirementTitle,
+    competencyLabel: opportunity.competencyName ?? "Unmapped competency",
+    currentEvidence: opportunity.currentEvidence,
+    insufficiencyReason: opportunity.insufficiencyReason,
+    suggestedReviewAction: opportunity.suggestedReviewAction
+  }));
 }
 
 function buildSections(viewModel: Omit<EvidencePageViewModel, "sections">): EvidenceRequirementSectionView[] {
@@ -571,6 +623,8 @@ export function buildEvidenceRetrievalPageViewModel(
         ),
       6
     ),
+    restrictedEvidenceBreakdown: buildRestrictedEvidenceBreakdown(requirementViews),
+    careerKnowledgeOpportunities: buildCareerKnowledgeOpportunityViews(result),
     required: requirementViews.filter((item) => item.categoryLabel === "Required"),
     preferred: requirementViews.filter((item) => item.categoryLabel === "Preferred"),
     contextual: requirementViews.filter((item) => item.categoryLabel === "Contextual"),
@@ -582,6 +636,9 @@ export function buildEvidenceRetrievalPageViewModel(
       requirementAnalysisId: result.requirementAnalysisId,
       retrievalEngineVersion: result.retrievalEngineVersion,
       retrievalContractVersion: result.retrievalContractVersion,
+      competencyCatalogVersion: result.competencyCatalogVersion,
+      competencyCatalogChecksum: result.competencyCatalogChecksum,
+      competencyMappingEngineVersion: result.competencyMappingEngineVersion,
       careerSourceChecksum: result.careerSourceChecksum,
       requirementSourceChecksum: result.requirementSourceChecksum,
       inputChecksum: result.inputChecksum,

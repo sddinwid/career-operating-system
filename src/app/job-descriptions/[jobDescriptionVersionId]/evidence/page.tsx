@@ -342,6 +342,8 @@ export default async function EvidenceRetrievalPage({
       <EvidenceRequirementExplorer
         sections={pageModel.sections}
         technicalDetails={pageModel.technicalDetails}
+        restrictedEvidenceBreakdown={pageModel.restrictedEvidenceBreakdown}
+        careerKnowledgeOpportunities={pageModel.careerKnowledgeOpportunities}
       />
     </div>
   );

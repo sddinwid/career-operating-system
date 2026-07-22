@@ -1,5 +1,15 @@
 import type { CanonicalCareerKnowledgeContract } from "@/lib/career/contracts";
 import type { CareerProfileVersion, JobRequirementAnalysis } from "@prisma/client";
+import type { CareerKnowledgeOpportunity, MatchedCompetency } from "@/lib/competencies/contract";
+import {
+  buildEvidenceClusterId,
+  computeCompetencyCatalogChecksum,
+  mapEvidenceToCompetencies,
+  mapRequirementToCompetencies,
+  relationshipStrengthSortValue
+} from "@/lib/competencies/service";
+import { competencyCatalog } from "@/lib/competencies/catalog";
+import { COMPETENCY_MAPPING_ENGINE_VERSION } from "@/lib/competencies/contract";
 import { JOB_DESCRIPTION_TECHNOLOGY_DICTIONARY } from "@/lib/job-descriptions/technology-dictionary";
 import {
   jobRequirementAnalysisContractSchema,
@@ -29,6 +39,7 @@ type InternalCandidate = CandidateEvidence & {
   canonicalTechnologies: Set<string>;
   domainTags: Set<string>;
   evidenceReferences: string[];
+  matchedCompetencyRecords: MatchedCompetency[];
 };
 
 type RetrievalInput = {
@@ -58,6 +69,29 @@ type RequirementItem = {
   sourceSectionId: string | null;
   parserStatementId: string | null;
   parserResponsibilityId: string | null;
+};
+
+type CandidateBuildInput = Omit<
+  CandidateEvidence,
+  | "retrievalReasons"
+  | "matchedRequirementKinds"
+  | "matchedTechnologies"
+  | "matchedCompetencies"
+  | "evidenceClusterId"
+  | "evidenceClusterMemberIds"
+  | "eligibility"
+> & {
+  retrievalReasons?: RetrievalReason[];
+  matchedRequirementKinds?: RequirementKind[];
+  matchedTechnologies?: string[];
+  matchedCompetencies?: MatchedCompetency[];
+  evidenceClusterId?: string;
+  evidenceClusterMemberIds?: string[];
+  eligibility?: EvidenceEligibilityState;
+  searchParts: string[];
+  evidenceReferences?: string[];
+  domainParts?: string[];
+  conceptParts?: string[];
 };
 
 const RECENCY_POLICY = {
@@ -269,7 +303,10 @@ function pushUniqueRestriction(
 }
 
 function getEligibility(
-  candidate: Omit<InternalCandidate, "eligibility"> & { restrictions: EvidenceRestriction[] }
+  candidate: {
+    recordKind: string;
+    restrictions: EvidenceRestriction[];
+  }
 ): EvidenceEligibilityState {
   if (candidate.recordKind === "AI_SUGGESTION") {
     return "INELIGIBLE";
@@ -334,14 +371,7 @@ function mapRawEvidenceType(value: string): EvidenceType {
   }
 }
 
-function buildInternalCandidate(
-  input: CandidateEvidence & {
-    searchParts: string[];
-    evidenceReferences?: string[];
-    domainParts?: string[];
-    conceptParts?: string[];
-  }
-): InternalCandidate {
+function buildInternalCandidate(input: CandidateBuildInput): InternalCandidate {
   const restrictions = [...input.restrictions];
 
   if (input.recordKind === "DERIVED") {
@@ -420,8 +450,35 @@ function buildInternalCandidate(
   };
 
   candidate.eligibility = getEligibility(candidate);
+  const matchedCompetencyRecords = mapEvidenceToCompetencies({
+    displayTitle: candidate.displayTitle,
+    claimText: candidate.claimText,
+    technologies: candidate.technologies,
+    context: candidate.context,
+    evidenceType: candidate.evidenceType,
+    recordKind: candidate.recordKind,
+    sourceProvenance: candidate.sourceProvenance,
+    restrictions
+  });
+  const evidenceClusterId =
+    input.evidenceClusterId ??
+    buildEvidenceClusterId({
+      sourceId: candidate.sourceProvenance.sourceId,
+      sourcePath: candidate.sourceProvenance.sourcePath,
+      matchedCompetencies: matchedCompetencyRecords,
+      matchedTechnologies: candidate.technologies,
+      employer: candidate.employer,
+      role: candidate.role,
+      project: candidate.project
+    });
   const parsed = candidateEvidenceSchema.parse({
     ...candidate,
+    retrievalReasons: input.retrievalReasons ?? [],
+    matchedRequirementKinds: input.matchedRequirementKinds ?? [],
+    matchedTechnologies: input.matchedTechnologies ?? [],
+    matchedCompetencies: input.matchedCompetencies ?? matchedCompetencyRecords,
+    evidenceClusterId,
+    evidenceClusterMemberIds: input.evidenceClusterMemberIds ?? [candidate.candidateId],
     searchBlob: undefined,
     matchedConcepts: undefined,
     canonicalTechnologies: undefined,
@@ -438,7 +495,8 @@ function buildInternalCandidate(
     matchedConcepts: candidate.matchedConcepts,
     canonicalTechnologies: candidate.canonicalTechnologies,
     domainTags: candidate.domainTags,
-    evidenceReferences: candidate.evidenceReferences
+    evidenceReferences: candidate.evidenceReferences,
+    matchedCompetencyRecords
   };
 }
 
@@ -1129,13 +1187,18 @@ function buildReason(
   explanation: string,
   sourceRequirementConcept: string | null,
   sourceCareerField: string | null,
-  matchingRule: string
+  matchingRule: string,
+  competency?: MatchedCompetency | null
 ): RetrievalReason {
   return {
     code,
     explanation,
     sourceRequirementConcept,
     sourceCareerField,
+    competencyId: competency?.competencyId ?? null,
+    competencyName: competency?.competencyName ?? null,
+    relationshipStrength: competency?.relationshipStrength ?? null,
+    direct: competency?.direct ?? false,
     confidence: "HIGH",
     matchingRule
   };
@@ -1166,6 +1229,7 @@ function findMatchesForRequirement(
     { candidate: InternalCandidate; reasons: RetrievalReason[]; matchedTechnologies: Set<string> }
   >();
   const technologies = item.technologies.map((entry) => entry.trim()).filter(Boolean);
+  const requirementCompetencyMapping = mapRequirementToCompetencies(item);
   const requirementConcepts = collectRequirementConcepts(item);
   const textBlob = normalizeKey(
     [item.originalText, item.correctedDisplayText ?? "", item.experienceText ?? ""].join(" ")
@@ -1173,6 +1237,18 @@ function findMatchesForRequirement(
   const domainMatches = getDomainMatches([item.originalText, item.correctedDisplayText ?? ""]);
 
   for (const candidate of candidates.values()) {
+    const hasSharedTechnology =
+      technologies.length > 0 &&
+      technologies.some((technology) =>
+        candidate.canonicalTechnologies.has(normalizeTechnology(technology))
+      );
+    const isPrimarilyTechnologyRequirement =
+      technologies.length > 0 &&
+      item.kinds.every((kind) => ["TECHNOLOGY", "EXPERIENCE"].includes(kind));
+    if (isPrimarilyTechnologyRequirement && !hasSharedTechnology) {
+      continue;
+    }
+
     for (const requirementTechnology of technologies) {
       for (const candidateTechnology of candidate.technologies) {
         const matched = technologyMatchDetails(requirementTechnology, candidateTechnology);
@@ -1235,6 +1311,97 @@ function findMatchesForRequirement(
       }
     }
 
+    for (const requirementCompetency of requirementCompetencyMapping.competencies) {
+      const candidateCompetency = candidate.matchedCompetencyRecords.find(
+        (entry) => entry.competencyId === requirementCompetency.competencyId
+      );
+      if (!candidateCompetency) {
+        continue;
+      }
+
+      if (
+        relationshipStrengthSortValue(candidateCompetency.relationshipStrength) <
+        relationshipStrengthSortValue(requirementCompetency.relationshipStrength === "EXACT" ? "DIRECT" : "SUPPORTING")
+      ) {
+        continue;
+      }
+
+      const sharedTechnology =
+        technologies.find((technology) =>
+          candidate.canonicalTechnologies.has(normalizeTechnology(technology))
+        ) ?? undefined;
+      if (
+        technologies.length > 0 &&
+        item.kinds.includes("TECHNOLOGY") &&
+        sharedTechnology === undefined &&
+        relationshipStrengthSortValue(candidateCompetency.relationshipStrength) <
+          relationshipStrengthSortValue("EXACT")
+      ) {
+        continue;
+      }
+      const exactLike =
+        requirementCompetency.relationshipStrength === "EXACT" ||
+        candidateCompetency.relationshipStrength === "EXACT" ||
+        sharedTechnology !== undefined;
+      const competencyExplanation = exactLike
+        ? `${candidate.displayTitle} directly supports ${requirementCompetency.competencyName}.`
+        : `${candidate.displayTitle} provides related evidence for ${requirementCompetency.competencyName}.`;
+
+      let code: RetrievalReason["code"] = "USER_CONFIRMED_RELATIONSHIP";
+      let rule = "competency.related";
+      let field = "competencies";
+      if (item.kinds.includes("ARCHITECTURE")) {
+        code = "ARCHITECTURE_CONCEPT_MATCH";
+        rule = "competency.architecture";
+        field = "architecture";
+      } else if (item.kinds.includes("COMMUNICATION")) {
+        code = "COMMUNICATION_MATCH";
+        rule = "competency.communication";
+        field = "communication";
+      } else if (item.kinds.includes("COLLABORATION")) {
+        code = "COLLABORATION_MATCH";
+        rule = "competency.collaboration";
+        field = "collaboration";
+      } else if (item.kinds.includes("DATA")) {
+        code = "DATA_MATCH";
+        rule = "competency.data";
+        field = "data";
+      } else if (item.kinds.includes("AI_ML")) {
+        code = "AI_ML_MATCH";
+        rule = "competency.ai-ml";
+        field = "ai_ml";
+      } else if (item.kinds.includes("LEADERSHIP")) {
+        code = "LEADERSHIP_MATCH";
+        rule = "competency.leadership";
+        field = "leadership";
+      } else if (item.kinds.includes("RESPONSIBILITY")) {
+        code =
+          candidate.context === "PROJECT"
+            ? "PROJECT_RESPONSIBILITY_MATCH"
+            : "ROLE_RESPONSIBILITY_MATCH";
+        rule = "competency.responsibility";
+        field = "responsibilities";
+      } else if (item.kinds.includes("EXPERIENCE")) {
+        code = "EXPERIENCE_CONTEXT_MATCH";
+        rule = "competency.experience";
+        field = "employment";
+      }
+
+      mergeCandidateMatch(
+        candidateMatches,
+        candidate,
+        buildReason(
+          code,
+          competencyExplanation,
+          requirementCompetency.competencyName,
+          field,
+          rule,
+          candidateCompetency
+        ),
+        sharedTechnology
+      );
+    }
+
     const responsibilityConcept = findSharedConcept(
       candidate,
       requirementConcepts,
@@ -1248,7 +1415,7 @@ function findMatchesForRequirement(
           candidate.context === "PROJECT"
             ? "PROJECT_RESPONSIBILITY_MATCH"
             : "ROLE_RESPONSIBILITY_MATCH",
-          "Responsibility concepts overlap deterministically.",
+          `${titleCaseFromSlug(responsibilityConcept)} overlaps with the requirement responsibility.`,
           responsibilityConcept,
           "responsibilities",
           "responsibility.concept.dictionary"
@@ -1263,7 +1430,7 @@ function findMatchesForRequirement(
         candidate,
         buildReason(
           "ARCHITECTURE_CONCEPT_MATCH",
-          "Architecture-related concepts overlap deterministically.",
+          `${titleCaseFromSlug(architectureConcept)} directly aligns with the architecture requirement.`,
           architectureConcept,
           "architecture",
           "architecture.concept.dictionary"
@@ -1282,7 +1449,7 @@ function findMatchesForRequirement(
         candidate,
         buildReason(
           "COMMUNICATION_MATCH",
-          "Communication-oriented evidence overlaps deterministically.",
+          `${titleCaseFromSlug(communicationConcept)} directly supports the communication requirement.`,
           communicationConcept,
           "communication",
           "communication.concept.dictionary"
@@ -1304,7 +1471,7 @@ function findMatchesForRequirement(
         candidate,
         buildReason(
           "COLLABORATION_MATCH",
-          "Collaboration-oriented evidence overlaps deterministically.",
+          `${titleCaseFromSlug(collaborationConcept)} directly supports the collaboration requirement.`,
           collaborationConcept,
           "collaboration",
           "collaboration.concept.dictionary"
@@ -1319,7 +1486,7 @@ function findMatchesForRequirement(
         candidate,
         buildReason(
           "DATA_MATCH",
-          "Data, ingestion, or retrieval evidence overlaps deterministically.",
+          `${titleCaseFromSlug(dataConcept)} directly supports the data-oriented requirement.`,
           dataConcept,
           "data",
           "data.concept.dictionary"
@@ -1334,7 +1501,7 @@ function findMatchesForRequirement(
         candidate,
         buildReason(
           "AI_ML_MATCH",
-          "AI or ML evidence overlaps deterministically.",
+          `${titleCaseFromSlug(aiMlConcept)} directly supports the AI or search requirement.`,
           aiMlConcept,
           "ai_ml",
           "ai-ml.concept.dictionary"
@@ -1352,7 +1519,7 @@ function findMatchesForRequirement(
         candidate,
         buildReason(
           "DOMAIN_MATCH",
-          "Domain metadata overlaps deterministically.",
+          `${titleCaseFromSlug(matchingDomain)} domain evidence overlaps with the requirement.`,
           matchingDomain,
           "domainTags",
           "domain.alias.dictionary"
@@ -1448,7 +1615,7 @@ function findMatchesForRequirement(
         candidate,
         buildReason(
           "USER_CONFIRMED_RELATIONSHIP",
-          "An interview story references the same deterministic competency area.",
+          `Interview-story evidence supports ${[...requirementConcepts].find((concept) => candidate.matchedConcepts.has(concept)) ?? "the same competency area"}.`,
           [...requirementConcepts].find((concept) => candidate.matchedConcepts.has(concept)) ?? null,
           "interviewStories",
           "story.competency.overlap"
@@ -1489,11 +1656,28 @@ function toStoredCandidate(
   kinds: RequirementKind[],
   matchedTechnologies: Set<string>
 ): CandidateEvidence {
+  const matchedCompetencies = candidate.matchedCompetencyRecords
+    .filter((competency) =>
+      reasons.some(
+        (reason) =>
+          reason.competencyId === competency.competencyId ||
+          reason.sourceRequirementConcept === competency.competencyName
+      )
+    )
+    .sort(
+      (left, right) =>
+        relationshipStrengthSortValue(right.relationshipStrength) -
+          relationshipStrengthSortValue(left.relationshipStrength) ||
+        left.competencyName.localeCompare(right.competencyName)
+    );
+
   return candidateEvidenceSchema.parse({
     ...candidate,
     retrievalReasons: sortCandidateReasons(reasons),
+    matchedCompetencies,
     matchedRequirementKinds: [...kinds].sort(),
-    matchedTechnologies: [...matchedTechnologies].sort()
+    matchedTechnologies: [...matchedTechnologies].sort(),
+    evidenceClusterMemberIds: candidate.evidenceClusterMemberIds ?? [candidate.candidateId]
   });
 }
 
@@ -1502,9 +1686,11 @@ export function buildEvidenceRetrievalResult(input: RetrievalInput) {
   const parsedCareer = careerContract;
   const analysis = jobRequirementAnalysisContractSchema.parse(input.requirementAnalysisRecord.analysis);
   const today = input.today ?? input.createdAt.slice(0, 10);
+  const competencyCatalogChecksum = computeCompetencyCatalogChecksum(competencyCatalog);
   const candidates = buildCandidateIndex(parsedCareer, today);
   const diagnostics: EvidenceDiagnostic[] = [];
   const requirementResults = buildRequirementItems(analysis).map((item) => {
+    const requirementCompetencyMapping = mapRequirementToCompetencies(item);
     const isNoise = item.category === "NOISE";
     const retrievalStatus = item.excluded
       ? "EXCLUDED"
@@ -1551,7 +1737,14 @@ export function buildEvidenceRetrievalResult(input: RetrievalInput) {
       }
     }
 
-    if (retrievalStatus === "ELIGIBLE" && eligibleCandidates.length === 0 && excludedCandidates.length === 0) {
+    const cappedEligibleCandidates = sortCandidates(eligibleCandidates).slice(0, 12);
+    const cappedExcludedCandidates = sortCandidates(excludedCandidates).slice(0, 8);
+
+    if (
+      retrievalStatus === "ELIGIBLE" &&
+      cappedEligibleCandidates.length === 0 &&
+      cappedExcludedCandidates.length === 0
+    ) {
       itemDiagnostics.push({
         severity: "WARNING",
         code: "NO_CANDIDATES",
@@ -1562,8 +1755,8 @@ export function buildEvidenceRetrievalResult(input: RetrievalInput) {
     }
 
     if (
-      eligibleCandidates.length > 0 &&
-      eligibleCandidates.every((candidate) =>
+      cappedEligibleCandidates.length > 0 &&
+      cappedEligibleCandidates.every((candidate) =>
         candidate.restrictions.some((restriction) => restriction.code === "PROJECT_ONLY")
       )
     ) {
@@ -1577,8 +1770,8 @@ export function buildEvidenceRetrievalResult(input: RetrievalInput) {
     }
 
     if (
-      eligibleCandidates.length > 0 &&
-      eligibleCandidates.every((candidate) =>
+      cappedEligibleCandidates.length > 0 &&
+      cappedEligibleCandidates.every((candidate) =>
         candidate.restrictions.some((restriction) => restriction.code === "STALE_SKILL")
       )
     ) {
@@ -1593,7 +1786,7 @@ export function buildEvidenceRetrievalResult(input: RetrievalInput) {
 
     if (
       item.kinds.includes("CERTIFICATION") &&
-      eligibleCandidates.some((candidate) =>
+      cappedEligibleCandidates.some((candidate) =>
         candidate.restrictions.some((restriction) => restriction.code === "EXPIRED_CERTIFICATION")
       )
     ) {
@@ -1618,18 +1811,98 @@ export function buildEvidenceRetrievalResult(input: RetrievalInput) {
       correctedDisplayText: item.correctedDisplayText,
       technologies: [...item.technologies].sort(),
       experienceText: item.experienceText,
+      mappedCompetencies: requirementCompetencyMapping.competencies,
+      competencyComponents: requirementCompetencyMapping.components,
       sourceProvenance: {
         sourceSectionId: item.sourceSectionId,
         parserStatementId: item.parserStatementId,
         parserResponsibilityId: item.parserResponsibilityId
       },
       retrievalStatus,
-      candidateEvidence: sortCandidates(eligibleCandidates),
-      excludedEvidence: sortCandidates(excludedCandidates),
+      candidateEvidence: cappedEligibleCandidates,
+      excludedEvidence: cappedExcludedCandidates,
       diagnostics: itemDiagnostics,
-      coverageState: getCoverageState(eligibleCandidates, excludedCandidates, item)
+      coverageState: getCoverageState(cappedEligibleCandidates, cappedExcludedCandidates, item)
     };
   });
+
+  const careerKnowledgeOpportunities: CareerKnowledgeOpportunity[] = requirementResults
+    .filter((item) => item.retrievalStatus === "ELIGIBLE")
+    .flatMap((item) => {
+      const currentEvidence = [...item.candidateEvidence, ...item.excludedEvidence];
+      const relatedEvidence = currentEvidence
+        .filter((candidate) => (candidate.matchedCompetencies ?? []).length > 0)
+        .map((candidate) => candidate.displayTitle);
+      const hasOnlySkills =
+        currentEvidence.length > 0 &&
+        currentEvidence.every((candidate) => candidate.evidenceType === "SKILL");
+      const hasOnlyProjects =
+        currentEvidence.length > 0 &&
+        currentEvidence.every((candidate) =>
+          candidate.restrictions.some((restriction) => restriction.code === "PROJECT_ONLY")
+        );
+      const hasOnlyStale =
+        currentEvidence.length > 0 &&
+        currentEvidence.every((candidate) =>
+          candidate.restrictions.some((restriction) => restriction.code === "STALE_SKILL")
+        );
+      const hasInterviewStoryOnly =
+        currentEvidence.length > 0 &&
+        currentEvidence.some((candidate) => candidate.evidenceType === "INTERVIEW_STORY") &&
+        currentEvidence.every(
+          (candidate) =>
+            candidate.evidenceType === "INTERVIEW_STORY" ||
+            candidate.restrictions.some((restriction) => restriction.code === "PROJECT_ONLY")
+        );
+      const unsupportedComponents = item.competencyComponents.filter(
+        (component) => component.relationshipStrength === "NONE"
+      );
+
+      if (
+        relatedEvidence.length === 0 &&
+        !hasOnlySkills &&
+        !hasOnlyProjects &&
+        !hasOnlyStale &&
+        !hasInterviewStoryOnly &&
+        unsupportedComponents.length === 0
+      ) {
+        return [];
+      }
+
+      return [
+        {
+          requirementId: item.requirementId,
+          requirementTitle: item.correctedDisplayText ?? item.originalText,
+          competencyId: item.mappedCompetencies[0]?.competencyId ?? null,
+          competencyName: item.mappedCompetencies[0]?.competencyName ?? null,
+          currentEvidence: relatedEvidence.slice(0, 5),
+          insufficiencyReason: hasOnlySkills
+            ? "Only skill-declaration evidence is currently stored."
+            : hasOnlyProjects
+              ? "Only project-context evidence was retrieved."
+              : hasOnlyStale
+                ? "Only older or stale evidence was retrieved."
+                : hasInterviewStoryOnly
+                  ? "Interview-story evidence exists without enough direct professional evidence."
+                  : unsupportedComponents.length > 0
+                    ? `Compound coverage is incomplete for ${unsupportedComponents
+                        .map((component) => component.label)
+                        .join(", ")}.`
+                    : "Related evidence exists, but an explicit structured professional example may be missing.",
+          suggestedReviewAction: hasOnlySkills
+            ? "Review Career Knowledge for a verified structured example if one exists."
+            : hasOnlyProjects
+              ? "Review whether a professional production example exists and should be modeled explicitly."
+              : hasOnlyStale
+                ? "Review whether a more recent structured example exists."
+                : hasInterviewStoryOnly
+                  ? "Review whether a matching professional accomplishment or responsibility exists."
+                  : unsupportedComponents.length > 0
+                    ? "Review the partially covered components and confirm whether additional truthful examples exist."
+                    : "Confirm whether this is a genuine gap or a Career Knowledge modeling gap."
+        }
+      ];
+    });
 
   const summary = {
     totalRequirements: requirementResults.length,
@@ -1684,6 +1957,62 @@ export function buildEvidenceRetrievalResult(input: RetrievalInput) {
         item.candidateEvidence.filter((candidate) => candidate.context === "CERTIFICATION").length,
       0
     ),
+    projectRestrictionCount: requirementResults.reduce(
+      (count, item) =>
+        count +
+        item.candidateEvidence.filter((candidate) =>
+          candidate.restrictions.some((restriction) => restriction.code === "PROJECT_ONLY")
+        ).length,
+      0
+    ),
+    staleRestrictionCount: requirementResults.reduce(
+      (count, item) =>
+        count +
+        item.candidateEvidence.filter((candidate) =>
+          candidate.restrictions.some((restriction) => restriction.code === "STALE_SKILL")
+        ).length,
+      0
+    ),
+    missingDateRestrictionCount: requirementResults.reduce(
+      (count, item) =>
+        count +
+        item.candidateEvidence.filter((candidate) =>
+          candidate.restrictions.some((restriction) => restriction.code === "MISSING_DATE")
+        ).length,
+      0
+    ),
+    expiredCertificationRestrictionCount: requirementResults.reduce(
+      (count, item) =>
+        count +
+        item.candidateEvidence.filter((candidate) =>
+          candidate.restrictions.some((restriction) => restriction.code === "EXPIRED_CERTIFICATION")
+        ).length,
+      0
+    ),
+    unverifiedRestrictionCount: requirementResults.reduce(
+      (count, item) =>
+        count +
+        item.candidateEvidence.filter((candidate) =>
+          candidate.restrictions.some((restriction) => restriction.code === "UNVERIFIED_METRIC")
+        ).length,
+      0
+    ),
+    unconfirmedRestrictionCount: requirementResults.reduce(
+      (count, item) =>
+        count +
+        item.candidateEvidence.filter((candidate) =>
+          candidate.restrictions.some((restriction) => restriction.code === "UNCONFIRMED")
+        ).length,
+      0
+    ),
+    indirectRestrictionCount: requirementResults.reduce(
+      (count, item) =>
+        count +
+        item.candidateEvidence.filter((candidate) =>
+          candidate.restrictions.some((restriction) => restriction.code === "NO_DIRECT_REQUIREMENT_LINK")
+        ).length,
+      0
+    ),
     diagnosticErrorCount: diagnostics.filter((item) => item.severity === "ERROR").length,
     diagnosticWarningCount: diagnostics.filter((item) => item.severity === "WARNING").length,
     diagnosticInfoCount: diagnostics.filter((item) => item.severity === "INFO").length
@@ -1705,6 +2034,9 @@ export function buildEvidenceRetrievalResult(input: RetrievalInput) {
     applicationId: input.applicationId,
     retrievalContractVersion: EVIDENCE_RETRIEVAL_CONTRACT_VERSION,
     retrievalEngineVersion: EVIDENCE_RETRIEVAL_ENGINE_VERSION,
+    competencyCatalogVersion: competencyCatalog.catalogVersion,
+    competencyCatalogChecksum,
+    competencyMappingEngineVersion: COMPETENCY_MAPPING_ENGINE_VERSION,
     careerSourceChecksum: input.careerProfileVersion.checksum,
     requirementSourceChecksum: input.requirementAnalysisRecord.sourceChecksum,
     inputChecksum: input.inputChecksum,
@@ -1713,6 +2045,7 @@ export function buildEvidenceRetrievalResult(input: RetrievalInput) {
     diagnostics,
     summary,
     requirementResults,
+    careerKnowledgeOpportunities,
     recencyPolicy: {
       ...RECENCY_POLICY,
       evaluatedAt: today

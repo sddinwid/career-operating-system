@@ -295,3 +295,15 @@ See [docs/PDF_RENDERING.md](docs/PDF_RENDERING.md) and [docs/DOCX_RENDERING.md](
 ## Cover Letter Rendering
 
 Approved cover letters can now render to immutable DOCX and PDF artifacts through the same local-first `Document` and `DocumentVersion` pipeline used for resumes. Rendering is gated by an active `CoverLetterApproval`, persists exact approval and audit lineage, validates artifacts before persistence, and exposes the resulting downloads through Cover Letter Preview, Applications, Jobs, and the Documents workspace.
+
+## Competency Graph and Semantic Evidence Layer
+
+`M8.8` adds a deterministic competency layer between reviewed job requirements and immutable Career Knowledge evidence.
+
+- The competency catalog lives in source control under `src/lib/competencies/`
+- Retrieval records the exact competency catalog version, catalog checksum, and mapping engine version inside immutable retrieval results
+- Exact technology matching remains the strongest retrieval path, but bounded competency mappings now connect equivalent wording such as REST API work, performance engineering, collaboration, and delivery practices
+- Evidence Retrieval now surfaces competency labels, gap explanations, restricted-evidence breakdowns, clustered evidence, and read-only Career Knowledge Opportunities
+- The implementation does not use embeddings, vector search, LLM matching, or auto-generated evidence
+
+See [docs/COMPETENCY_GRAPH.md](docs/COMPETENCY_GRAPH.md) and [docs/EVIDENCE_RETRIEVAL.md](docs/EVIDENCE_RETRIEVAL.md).

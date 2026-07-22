@@ -257,3 +257,13 @@ The repository is currently implementing a corrective usability-and-intake slice
 - browser flows are being aligned so the implemented pipeline is reachable without manual deep-link entry
 - public URL job-description retrieval is being added as a server-side editable-preview intake path
 - immutable `JobDescriptionVersion`, parser, evidence, resume, cover-letter, and document pipelines remain the authoritative downstream models
+
+## M8.8 Status
+
+The repository now includes a deterministic competency graph and semantic evidence layer on top of immutable reviewed requirements and immutable Career Knowledge snapshots.
+
+- exact technology retrieval remains intact
+- retrieval now maps requirement wording and evidence wording through a bounded source-controlled competency catalog
+- retrieval output now includes competency lineage, compound component coverage, clustered evidence, gap explanations, restricted-evidence breakdowns, and read-only Career Knowledge Opportunities
+- scoring now preserves competency lineage from retrieval runs
+- no Prisma migration was required for this milestone because lineage fits inside existing immutable JSON result contracts

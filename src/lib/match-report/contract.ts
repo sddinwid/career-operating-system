@@ -84,6 +84,50 @@ export const claimHandlingCategorySchema = z.enum([
   "NEEDS_USER_CONFIRMATION"
 ]);
 
+export const componentSupportStateSchema = z.enum([
+  "STRONG_DIRECT_SUPPORT",
+  "GOOD_DIRECT_SUPPORT",
+  "LIMITED_DIRECT_SUPPORT",
+  "RESTRICTED_DIRECT_SUPPORT",
+  "RELATED_SUPPORT",
+  "RESTRICTED_RELATED_SUPPORT",
+  "NO_QUALIFYING_EVIDENCE",
+  "NO_RETRIEVABLE_EVIDENCE"
+]);
+export type ComponentSupportState = z.infer<typeof componentSupportStateSchema>;
+
+export const reportComponentConclusionSchema = z.object({
+  componentId: z.string().min(1),
+  label: z.string().min(1),
+  competencyId: z.string().min(1).nullable(),
+  competencyName: z.string().min(1).nullable(),
+  supportState: componentSupportStateSchema,
+  gapStatus: z.enum(["SUPPORTED", "PARTIAL", "UNSUPPORTED", "RESTRICTED"]),
+  strongestEvidenceLabel: z.string().min(1).nullable(),
+  strongestEvidenceClusterId: z.string().min(1).nullable(),
+  strongestEvidenceCandidateId: z.string().min(1).nullable(),
+  restrictionLabels: z.array(z.string().min(1)),
+  resumeGuidance: z.string().min(1)
+});
+export type ReportComponentConclusion = z.infer<typeof reportComponentConclusionSchema>;
+
+export const reportEvidenceClusterSchema = z.object({
+  clusterId: z.string().min(1),
+  primaryCandidateId: z.string().min(1),
+  primaryLabel: z.string().min(1),
+  evidenceType: z.string().min(1),
+  context: z.enum(["PROFESSIONAL", "PROJECT", "EDUCATION", "CERTIFICATION", "OTHER"]),
+  employer: z.string().nullable(),
+  role: z.string().nullable(),
+  project: z.string().nullable(),
+  recency: z.enum(["CURRENT", "RECENT", "OLDER", "STALE", "UNKNOWN"]),
+  technologies: z.array(z.string().min(1)),
+  relatedRepresentationIds: z.array(z.string().min(1)),
+  relatedRepresentationLabels: z.array(z.string().min(1)),
+  restrictionLabels: z.array(z.string().min(1))
+});
+export type ReportEvidenceCluster = z.infer<typeof reportEvidenceClusterSchema>;
+
 export const requirementConclusionSchema = z.object({
   requirementId: z.string().min(1),
   requirementText: z.string().min(1),
@@ -99,6 +143,9 @@ export const requirementConclusionSchema = z.object({
   gapTypes: z.array(gapTypeSchema),
   criticality: criticalitySchema,
   conclusionCode: conclusionCodeSchema,
+  strongestAlignmentLabel: z.string().min(1).nullable().optional(),
+  componentConclusions: z.array(reportComponentConclusionSchema).optional(),
+  topEvidenceClusters: z.array(reportEvidenceClusterSchema).optional(),
   explanation: z.string().min(1),
   resumeUseGuidance: z.string().min(1),
   provenance: z.object({
@@ -114,6 +161,8 @@ export const reportStrengthSchema = z.object({
   strengthCategory: z.string().min(1),
   explanation: z.string().min(1),
   supportingEvidenceIds: z.array(z.string().min(1)),
+  supportingEvidenceLabels: z.array(z.string().min(1)).optional(),
+  supportingEvidenceClusterIds: z.array(z.string().min(1)).optional(),
   evidenceContext: z.enum(["PROFESSIONAL", "PROJECT", "MIXED"]),
   technologies: z.array(z.string().min(1)),
   confidence: z.enum(["HIGH", "MEDIUM", "LOW"]),
@@ -123,9 +172,12 @@ export const reportStrengthSchema = z.object({
 export const reportRiskSchema = z.object({
   riskId: z.string().min(1),
   requirementIds: z.array(z.string().min(1)),
+  requirementText: z.string().min(1).optional(),
   gapType: gapTypeSchema,
   severity: criticalitySchema,
   explanation: z.string().min(1),
+  strongestRelatedEvidenceLabels: z.array(z.string().min(1)).optional(),
+  componentConclusions: z.array(reportComponentConclusionSchema).optional(),
   availableRestrictedEvidence: z.array(z.string().min(1)),
   availableProjectEvidence: z.array(z.string().min(1)),
   availableStaleEvidence: z.array(z.string().min(1)),
@@ -160,6 +212,8 @@ export const reportRoleEmphasisSchema = z.object({
   roleId: z.string().min(1),
   employer: z.string().nullable(),
   roleTitle: z.string().nullable(),
+  displayLabel: z.string().min(1).optional(),
+  recencyLabel: z.string().min(1).optional(),
   supportedRequirementIds: z.array(z.string().min(1)),
   strongEvidenceCount: z.number().int().nonnegative(),
   relevantTechnologies: z.array(z.string().min(1)),

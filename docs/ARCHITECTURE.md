@@ -59,6 +59,33 @@ The implementation remains inside the modular monolith:
 
 The canonical snapshot is intentionally stored as validated JSONB in M2.1 rather than decomposed relational tables. That keeps the slice narrowly scoped while preserving provenance and versioning for later inspection and deterministic generation work.
 
+## M8.8 competency reasoning layer
+
+Milestone `M8.8` adds a deterministic semantic layer without introducing a mutable competency CRUD system or a generic graph database.
+
+The implemented flow is:
+
+```text
+Confirmed requirement
+  -> deterministic competency mapping
+  -> bounded competency relationships
+  -> evidence-to-competency mapping
+  -> requirement-aware retrieval
+  -> clustering
+  -> scoring
+  -> read-only explanation
+```
+
+Architecture choices:
+
+- the competency catalog is source-controlled in `src/lib/competencies/catalog.ts`
+- contract and mapping types live in `src/lib/competencies/contract.ts`
+- checksum, validation, requirement mapping, evidence mapping, and cluster identity live in `src/lib/competencies/service.ts`
+- immutable `CareerProfileVersion` snapshots remain the source of evidence truth
+- immutable `EvidenceRetrievalRun` and `EvidenceScoringRun` JSON results preserve competency lineage through catalog version, checksum, and mapping engine version fields
+
+This keeps the new reasoning layer reviewable and replayable without adding new mutable repository state.
+
 ## Applications grid foundation
 
 The Prompt 04A Applications Grid is a read-only client component layered on top of the existing server-side `listApplications` query. The page still loads data in a server component and hydrates AG Grid Community with a flattened row model for client-side search, sort, filter, resize, selection, and keyboard navigation.

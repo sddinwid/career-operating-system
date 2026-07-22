@@ -1,5 +1,9 @@
 import { z } from "zod";
 import {
+  matchedCompetencySchema,
+  requirementCompetencyComponentSchema
+} from "@/lib/competencies/contract";
+import {
   candidateEvidenceSchema,
   evidenceDiagnosticSchema,
   evidenceEligibilityStateSchema,
@@ -70,7 +74,10 @@ export const rankedCandidateScoreSchema = z.object({
   matchedRequirementKinds: z.array(requirementKindSchema),
   dateMetadata: candidateEvidenceSchema.shape.dateMetadata,
   sourceProvenance: candidateEvidenceSchema.shape.sourceProvenance,
+  evidenceClusterId: z.string().min(1).optional(),
+  evidenceClusterMemberIds: z.array(z.string().min(1)).optional(),
   retrievalReasons: z.array(retrievalReasonSchema),
+  matchedCompetencies: z.array(matchedCompetencySchema).optional(),
   restrictions: z.array(evidenceRestrictionSchema),
   eligibility: evidenceEligibilityStateSchema,
   visibleForDiagnostics: z.boolean(),
@@ -93,6 +100,8 @@ export const scoredRequirementRecordSchema = z.object({
   kinds: z.array(requirementKindSchema),
   originalText: z.string().min(1),
   correctedDisplayText: z.string().nullable(),
+  mappedCompetencies: z.array(matchedCompetencySchema).optional(),
+  competencyComponents: z.array(requirementCompetencyComponentSchema).optional(),
   evidenceStrengthState: requirementEvidenceStrengthStateSchema,
   highestCandidateScore: z.number().int().nullable(),
   eligibleCandidateCount: z.number().int().nonnegative(),
@@ -124,6 +133,9 @@ export const evidenceScoringResultSchema = z.object({
   workspaceId: z.string().min(1),
   evidenceRetrievalRunId: z.string().min(1),
   evidenceRetrievalInputChecksum: z.string().min(1),
+  competencyCatalogVersion: semanticVersionSchema.optional(),
+  competencyCatalogChecksum: z.string().min(1).optional(),
+  competencyMappingEngineVersion: semanticVersionSchema.optional(),
   careerProfileVersionId: z.string().min(1),
   requirementAnalysisId: z.string().min(1),
   jobDescriptionVersionId: z.string().min(1),
@@ -152,4 +164,3 @@ export const evidenceScoringInputSchema = z.object({
   inputChecksum: z.string().min(1)
 });
 export type EvidenceScoringInput = z.infer<typeof evidenceScoringInputSchema>;
-

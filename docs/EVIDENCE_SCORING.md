@@ -119,4 +119,17 @@ The Evidence Retrieval page now uses a lighter retrieval-level display ranking b
 `M4.3 - Explainable Match Report`
 ## Downstream Match Reports
 
+## M8.8 competency scoring extensions
+
+`M8.8` preserves the immutable scoring contract while extending scored candidates with competency lineage from retrieval.
+
+The scoring engine now benefits from:
+
+- direct competency support versus related competency support
+- competency-aware retrieval reasons
+- cluster-aware candidate identity from retrieval
+- preserved project-only, stale, missing-date, and other restriction penalties
+
+The implementation still avoids double-counting duplicate representations by relying on retrieval-side clustering and bounded supporting factors instead of treating every related record as an independent strong proof.
+
 Successful evidence scoring runs are now authoritative inputs to M4.3 explainable match reports. Match-report generation is deterministic, idempotent, and read-only, and it must not rescore evidence or infer hiring probability.

@@ -13,6 +13,9 @@ function createTechnicalDetails(): EvidenceTechnicalDetailsView {
     requirementAnalysisId: "analysis-1",
     retrievalEngineVersion: "m4.1.0",
     retrievalContractVersion: "1.0.0",
+    competencyCatalogVersion: "m8.8.0",
+    competencyCatalogChecksum: "catalog-checksum-1",
+    competencyMappingEngineVersion: "m8.8.0",
     careerSourceChecksum: "career-checksum-1",
     requirementSourceChecksum: "requirement-checksum-1",
     inputChecksum: "input-checksum-1",
@@ -37,6 +40,7 @@ function createSections(): EvidenceRequirementSectionView[] {
           conciseExplanation: "PostgreSQL appears in the strongest evidence for this requirement.",
           kinds: ["Technology", "Experience"],
           technologies: ["PostgreSQL", "AWS"],
+          competencyLabels: ["PostgreSQL", "AWS"],
           primaryTechnologies: ["PostgreSQL", "AWS"],
           strongestEvidenceCount: 1,
           restrictedEvidenceCount: 1,
@@ -53,6 +57,7 @@ function createSections(): EvidenceRequirementSectionView[] {
               claimText: "Owned PostgreSQL-backed services in AWS.",
               technologies: ["PostgreSQL", "AWS"],
               matchedTechnologies: ["PostgreSQL", "AWS"],
+              competencyLabels: ["PostgreSQL", "AWS"],
               whyMatched: ["PostgreSQL and AWS match exactly."],
               restrictionLabels: [],
               restrictionCodes: [],
@@ -74,6 +79,7 @@ function createSections(): EvidenceRequirementSectionView[] {
               claimText: "Built project infrastructure in AWS.",
               technologies: ["AWS"],
               matchedTechnologies: ["AWS"],
+              competencyLabels: ["AWS"],
               whyMatched: ["AWS overlaps with the requirement."],
               restrictionLabels: ["Project evidence"],
               restrictionCodes: ["PROJECT_ONLY"],
@@ -89,7 +95,8 @@ function createSections(): EvidenceRequirementSectionView[] {
             { technology: "PostgreSQL", status: "SUPPORTED" },
             { technology: "AWS", status: "RESTRICTED" }
           ],
-          retrievalStatusLabel: "Candidates Found"
+          retrievalStatusLabel: "Candidates Found",
+          gapExplanation: "Direct qualifying evidence was retrieved."
         }
       ]
     },
@@ -130,10 +137,30 @@ describe("EvidenceRequirementExplorer", () => {
       <EvidenceRequirementExplorer
         sections={createSections()}
         technicalDetails={createTechnicalDetails()}
+        restrictedEvidenceBreakdown={[
+          {
+            code: "PROJECT_ONLY",
+            label: "Project evidence",
+            count: 1,
+            affectedRequirementIds: ["requirement-1"],
+            affectedCandidateIds: ["candidate-2"]
+          }
+        ]}
+        careerKnowledgeOpportunities={[
+          {
+            requirementId: "requirement-1",
+            requirementTitle: "Production PostgreSQL experience",
+            competencyLabel: "AWS",
+            currentEvidence: ["AI Search Project"],
+            insufficiencyReason: "Only project-context evidence was retrieved.",
+            suggestedReviewAction:
+              "Review whether a professional production example exists and should be modeled explicitly."
+          }
+        ]}
       />
     );
 
-    expect(screen.getByText("Production PostgreSQL experience")).toBeVisible();
+    expect(screen.getAllByText("Production PostgreSQL experience").length).toBeGreaterThan(0);
     expect(screen.getByText("PostgreSQL: supported")).toBeVisible();
     expect(screen.getByText("AWS: restricted")).toBeVisible();
     expect(screen.queryByText("Senior Platform Engineer")).not.toBeInTheDocument();
@@ -147,7 +174,7 @@ describe("EvidenceRequirementExplorer", () => {
     fireEvent.click(screen.getByRole("button", { name: "Show all 2 candidates" }));
 
     expect(screen.getAllByText("AI Search Project").length).toBeGreaterThan(0);
-    expect(screen.getByText("Project evidence")).toBeVisible();
+    expect(screen.getAllByText("Project evidence").length).toBeGreaterThan(0);
     expect(screen.getByText("A project-only fallback also exists.")).toBeVisible();
 
     fireEvent.click(screen.getByRole("button", { name: "Show technical details" }));

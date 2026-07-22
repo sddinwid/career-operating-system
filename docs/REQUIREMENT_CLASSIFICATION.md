@@ -124,3 +124,11 @@ Successful normalization signals now include parser-side or classifier-side info
 ## Next milestone
 
 - `M4.1 - Evidence Retrieval Contract` is complete. See [docs/EVIDENCE_RETRIEVAL.md](docs/EVIDENCE_RETRIEVAL.md).
+
+## M8.8 downstream competency mapping
+
+Confirmed requirement analyses remain the authoritative reviewed input. `M8.8` does not rewrite them.
+
+- retrieval derives competency mappings from requirement text, requirement kind, technologies, and bounded concept signals
+- compound requirements may produce multiple competency components with separate support evaluation
+- one-of requirement semantics remain intact, so one supported language or cloud platform can satisfy the minimum while unsupported alternatives still remain visible

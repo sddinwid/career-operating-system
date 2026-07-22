@@ -338,3 +338,13 @@ Consequence:
 - browser code never fetches arbitrary job-posting URLs directly
 - loopback, private, link-local, credential-bearing, and unsafe redirect targets are rejected before content extraction
 - HTML and plain-text retrieval are supported, but JavaScript-only or authenticated pages remain an understood limitation rather than a silently partial scrape
+
+## D029 - Competency reasoning uses a source-controlled catalog with immutable run lineage
+
+Milestone `M8.8` introduces deterministic competency reasoning through a source-controlled catalog instead of a new mutable database graph.
+
+Consequence:
+- competencies are reviewable in code and validated by unit tests for duplicate ids, bad references, cycles, alias collisions, and deterministic checksum stability
+- immutable retrieval and scoring runs store the exact catalog version, checksum, and mapping engine version used for that run
+- historical runs remain viewable even after the competency catalog evolves
+- the implementation improves semantic evidence matching without introducing embeddings, vector search, probabilistic similarity, or fabricated evidence

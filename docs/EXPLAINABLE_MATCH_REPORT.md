@@ -109,3 +109,7 @@ Each report conclusion links back to reviewed requirements and scored evidence i
 ## Known Limitations
 
 M4.3 does not generate resume prose, resume bullets, cover letters, DOCX output, PDFs, or AI summaries. M5.1 consumes match-report guidance to build an immutable structured resume plan, and final composition remains future work beginning with M5.2.
+
+## M8.8 downstream effect
+
+Match reports continue to consume immutable scoring runs, but those scoring runs can now carry competency-aware retrieval lineage. That improves traceability for requirement support without changing the rule that reports remain read-only, deterministic, and grounded in stored evidence rather than generated claims.

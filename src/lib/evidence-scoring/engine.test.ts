@@ -465,8 +465,8 @@ describe("evidence scoring engine", () => {
       (item) => item.requirementId === "responsibility-1"
     );
 
-    expect(result.scoringConfigurationVersion).toBe("scott-v1");
-    expect(result.scoringEngineVersion).toBe("m4.2.0");
+    expect(result.scoringConfigurationVersion).toBe("scott-v2");
+    expect(result.scoringEngineVersion).toBe("m4.2.1");
     expect(required?.rankedCandidates).toHaveLength(3);
     expect(required?.rankedCandidates[0]?.candidateId).toBe("candidate-pro");
     expect(required?.rankedCandidates[0]?.finalScore).toBeGreaterThan(
@@ -487,7 +487,7 @@ describe("evidence scoring engine", () => {
         (item) => item.factorCode === "LEADERSHIP_MATCH" || item.factorCode === "DOMAIN_MATCH"
       )
     ).toBe(false);
-    expect(result.diagnostics.some((item) => item.code === "DUPLICATE_CANDIDATE_MERGED")).toBe(true);
+    expect(result.diagnostics.some((item) => item.code === "CLUSTERED_CANDIDATE_MERGED")).toBe(true);
     expect(result.diagnostics.some((item) => item.code === "FACTOR_FAMILY_CAP_APPLIED")).toBe(true);
     expect(result.summary.averageEligibleCandidateScore).not.toBeNull();
     expect(result.summary.requiredStrongEvidenceCount).toBe(1);

@@ -28,6 +28,7 @@ export type EvidenceCandidateClusterView = {
   claimText: string;
   technologies: string[];
   matchedTechnologies: string[];
+  competencyLabels?: string[];
   whyMatched: string[];
   restrictionLabels: string[];
   restrictionCodes: string[];
@@ -47,6 +48,7 @@ export type EvidenceRequirementView = {
   conciseExplanation: string;
   kinds: string[];
   technologies: string[];
+  competencyLabels?: string[];
   primaryTechnologies: string[];
   strongestEvidenceCount: number;
   restrictedEvidenceCount: number;
@@ -57,6 +59,7 @@ export type EvidenceRequirementView = {
   diagnostics: string[];
   bundleCoverage: TechnologyCoverageView[];
   retrievalStatusLabel: string;
+  gapExplanation?: string;
 };
 
 export type EvidenceRequirementSectionView = {
@@ -86,22 +89,44 @@ export type EvidenceOverviewItem = {
   detail: string;
 };
 
+export type EvidenceRestrictionBreakdownItem = {
+  code: string;
+  label: string;
+  count: number;
+  affectedRequirementIds: string[];
+  affectedCandidateIds: string[];
+};
+
 export type EvidenceTechnicalDetailsView = {
   runId: string;
   careerProfileVersionId: string;
   requirementAnalysisId: string;
   retrievalEngineVersion: string;
   retrievalContractVersion: string;
+  competencyCatalogVersion?: string;
+  competencyCatalogChecksum?: string;
+  competencyMappingEngineVersion?: string;
   careerSourceChecksum: string;
   requirementSourceChecksum: string;
   inputChecksum: string;
   recencyPolicyLabel: string;
 };
 
+export type CareerKnowledgeOpportunityView = {
+  requirementId: string;
+  requirementTitle: string;
+  competencyLabel: string;
+  currentEvidence: string[];
+  insufficiencyReason: string;
+  suggestedReviewAction: string;
+};
+
 export type EvidencePageViewModel = {
   summary: EvidenceSummaryView;
   strongestAreas: EvidenceOverviewItem[];
   largestGaps: EvidenceOverviewItem[];
+  restrictedEvidenceBreakdown: EvidenceRestrictionBreakdownItem[];
+  careerKnowledgeOpportunities: CareerKnowledgeOpportunityView[];
   required: EvidenceRequirementView[];
   preferred: EvidenceRequirementView[];
   contextual: EvidenceRequirementView[];

@@ -41,6 +41,10 @@ function matchesLinkedId(candidateId: string, targetId: string) {
   return normalizeLinkId(candidateId) === normalizeLinkId(targetId);
 }
 
+function normalizeLabel(value: string | null | undefined) {
+  return (value ?? "").trim().toLowerCase();
+}
+
 function hasAnyHint(values: string[], hints: string[]) {
   const normalized = values.join(" ").toLowerCase();
   return hints.some((hint) => normalized.includes(hint));
@@ -359,7 +363,9 @@ export function buildStructuredResumePlan(input: StructuredResumePlanningInput) 
 
   const rolePlans = parsed.careerProfileContent.employment.map((role) => {
     const linkedRole = parsed.matchReportResult.resumeGuidance.rolesToEmphasize.find((item) =>
-      matchesLinkedId(item.roleId, role.id)
+      matchesLinkedId(item.roleId, role.id) ||
+      (normalizeLabel(item.employer) === normalizeLabel(role.employer) &&
+        normalizeLabel(item.roleTitle) === normalizeLabel(role.roleTitle))
     );
     const recency = inferRecencyFromDates(
       role.startDate?.normalized ?? null,

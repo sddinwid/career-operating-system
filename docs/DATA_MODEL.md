@@ -385,3 +385,14 @@ Behavior:
 - `coverLetterRevisionVersionId`
 
 Resume lineage remains intact on the same table, and successful renders continue to use relative local storage paths plus persisted checksums, MIME type, render checksum, template version, and validation summary metadata.
+
+## M8.8 data model notes
+
+Milestone `M8.8` does not add a new Prisma model for competencies.
+
+- competency definitions remain source-controlled and versioned in TypeScript
+- competency lineage is preserved inside immutable retrieval and scoring JSON payloads
+- `EvidenceRetrievalRun.result` now carries competency catalog version, competency catalog checksum, competency mapping engine version, mapped requirement competencies, competency components, evidence cluster ids, matched competencies, restricted-evidence summary counts, and Career Knowledge Opportunities
+- `EvidenceScoringRun.result` now carries competency lineage and scored candidate competency metadata so historical runs stay viewable without schema rewrites
+
+This keeps the competency layer narrow, replayable, and aligned with the repository rule that derived artifacts remain immutable snapshots.

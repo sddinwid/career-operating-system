@@ -98,6 +98,11 @@ Career Knowledge Base
 - Expose candidate evidence, restrictions, provenance, recency, and coverage gaps in a read-only inspection flow before scoring.
 - Present retrieval results in a decision-oriented summary-first layout with progressive disclosure instead of rendering every candidate fully expanded by default.
 - Distinguish strong support, limited support, restricted support, related-only evidence, and genuine no-qualifying-evidence gaps without inventing a single percentage score.
+- Normalize reviewed requirements into explicit deterministic competencies before broad evidence traversal.
+- Preserve exact technology matching as the strongest retrieval path while allowing bounded competency relationships to connect equivalent wording.
+- Record exact competency catalog version, checksum, and mapping engine version in immutable derived runs.
+- Support compound requirement components, one-of technology semantics, evidence clustering, gap explanations, and restricted-evidence summaries without mutating the reviewed requirement analysis.
+- Keep Career Knowledge Opportunities read-only and phrase recommendations as review actions rather than automatically writing new evidence.
 - Preserve human-readable restriction labels, retrieved-because explanations, and technical lineage disclosure.
 - Treat compound technology bundles as partial when one or more listed technologies remain unsupported.
 - Prevent domain overretrieval from broad substring overlap or low-specificity metadata matches.

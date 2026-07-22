@@ -20,12 +20,20 @@ import type {
   RetrievedRequirementRecord,
   RetrievalReason
 } from "@/lib/evidence-retrieval/contract";
+import type { RequirementCompetencyComponent } from "@/lib/competencies/contract";
 
 type ContributionFamily =
   | "TECHNOLOGY"
   | "EXPLICIT_RELATIONSHIP"
   | "RESPONSIBILITY"
   | "CONCEPTUAL_ALIGNMENT";
+
+type ComponentCoverageSummary = {
+  totalComponentCount: number;
+  directComponentCount: number;
+  relatedComponentCount: number;
+  uncoveredComponentCount: number;
+};
 
 const DIRECT_REASON_CODES = new Set([
   "EXACT_TECHNOLOGY_MATCH",
@@ -40,7 +48,7 @@ const DIRECT_REASON_CODES = new Set([
 ]);
 
 const factorDefinitions: Record<
-  RetrievalReason["code"],
+  RetrievalReason["code"] | "COMPONENT_DIRECT_SUPPORT" | "COMPONENT_RELATED_SUPPORT",
   {
     label: string;
     ruleIdentifier: string;
@@ -161,6 +169,16 @@ const factorDefinitions: Record<
     sourceRelationship: "relationship.user-confirmed",
     family: "EXPLICIT_RELATIONSHIP",
     familyCapKey: "EXPLICIT_RELATIONSHIP"
+  },
+  COMPONENT_DIRECT_SUPPORT: {
+    label: "Direct component coverage",
+    ruleIdentifier: "factor.component-direct-support",
+    sourceRelationship: "requirement.components.direct"
+  },
+  COMPONENT_RELATED_SUPPORT: {
+    label: "Related component coverage",
+    ruleIdentifier: "factor.component-related-support",
+    sourceRelationship: "requirement.components.related"
   }
 };
 
@@ -173,6 +191,26 @@ function pushDiagnostic(
 
 function makeContribution(input: ScoreContribution): ScoreContribution {
   return input;
+}
+
+function normalizeKey(value: string) {
+  return value.trim().toLowerCase();
+}
+
+function dedupeStrings(values: string[]) {
+  const seen = new Set<string>();
+  const result: string[] = [];
+
+  for (const value of values) {
+    const key = normalizeKey(value);
+    if (!key || seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    result.push(value);
+  }
+
+  return result;
 }
 
 function hasRequirementKind(requirement: RetrievedRequirementRecord, kind: string) {
@@ -331,26 +369,54 @@ function mergeCandidates(
   const merged = new Map<string, CandidateEvidence>();
 
   for (const candidate of candidates) {
-    const existing = merged.get(candidate.candidateId);
+    const clusterKey = candidate.evidenceClusterId ?? candidate.candidateId;
+    const existing = merged.get(clusterKey);
     if (!existing) {
-      merged.set(candidate.candidateId, candidate);
+      merged.set(clusterKey, {
+        ...candidate,
+        technologies: dedupeStrings(candidate.technologies).sort(),
+        matchedTechnologies: dedupeStrings(candidate.matchedTechnologies).sort(),
+        evidenceClusterMemberIds: dedupeStrings(
+          candidate.evidenceClusterMemberIds ?? [candidate.candidateId]
+        ).sort()
+      });
       continue;
     }
 
     pushDiagnostic(diagnostics, {
       severity: "INFO",
-      code: "DUPLICATE_CANDIDATE_MERGED",
-      message: "Duplicate candidate evidence was merged before scoring.",
+      code: "CLUSTERED_CANDIDATE_MERGED",
+      message: "Clustered candidate evidence was merged before scoring.",
       relatedRequirementId: requirementId,
-      relatedCandidateId: candidate.candidateId
+      relatedCandidateId: existing.candidateId
     });
 
-    merged.set(candidate.candidateId, {
-      ...existing,
+    const primary = comparePrimaryCandidate(candidate, existing) < 0 ? candidate : existing;
+
+    merged.set(clusterKey, {
+      ...primary,
       retrievalReasons: mergeReasons([...existing.retrievalReasons, ...candidate.retrievalReasons]),
       restrictions: mergeRestrictions([...existing.restrictions, ...candidate.restrictions]),
-      matchedRequirementKinds: [...new Set([...existing.matchedRequirementKinds, ...candidate.matchedRequirementKinds])].sort(),
-      matchedTechnologies: [...new Set([...existing.matchedTechnologies, ...candidate.matchedTechnologies])].sort()
+      matchedRequirementKinds: [
+        ...new Set([...existing.matchedRequirementKinds, ...candidate.matchedRequirementKinds])
+      ].sort(),
+      matchedTechnologies: dedupeStrings([
+        ...existing.matchedTechnologies,
+        ...candidate.matchedTechnologies
+      ]).sort(),
+      technologies: dedupeStrings([...existing.technologies, ...candidate.technologies]).sort(),
+      evidenceClusterId: existing.evidenceClusterId ?? candidate.evidenceClusterId,
+      evidenceClusterMemberIds: dedupeStrings([
+        ...(existing.evidenceClusterMemberIds ?? [existing.candidateId]),
+        ...(candidate.evidenceClusterMemberIds ?? [candidate.candidateId])
+      ]).sort(),
+      matchedCompetencies: dedupeStrings(
+        [...(existing.matchedCompetencies ?? []), ...(candidate.matchedCompetencies ?? [])].map(
+          (item) => JSON.stringify(item)
+        )
+      )
+        .map((item) => JSON.parse(item) as NonNullable<CandidateEvidence["matchedCompetencies"]>[number])
+        .sort((left, right) => left.competencyName.localeCompare(right.competencyName))
     });
   }
 
@@ -401,6 +467,135 @@ function getDirectRelationshipStrength(reasons: RetrievalReason[]) {
   return strength;
 }
 
+function componentMatchForCandidate(
+  component: RequirementCompetencyComponent,
+  candidate: CandidateEvidence
+) {
+  const competencyMatch = (candidate.matchedCompetencies ?? []).find(
+    (item) => component.competencyId && item.competencyId === component.competencyId
+  );
+  if (competencyMatch) {
+    return {
+      direct:
+        competencyMatch.direct || ["EXACT", "DIRECT"].includes(competencyMatch.relationshipStrength)
+    };
+  }
+
+  const normalizedLabel = normalizeKey(component.label);
+  if (candidate.matchedTechnologies.some((technology) => normalizeKey(technology) === normalizedLabel)) {
+    return { direct: true };
+  }
+
+  const reasonMatch = candidate.retrievalReasons.find(
+    (reason) =>
+      (reason.competencyId && component.competencyId && reason.competencyId === component.competencyId) ||
+      normalizeKey(reason.sourceRequirementConcept ?? "") === normalizedLabel
+  );
+  if (reasonMatch) {
+    return {
+      direct: reasonMatch.direct ?? DIRECT_REASON_CODES.has(reasonMatch.code)
+    };
+  }
+
+  return null;
+}
+
+function summarizeComponentCoverage(
+  requirement: RetrievedRequirementRecord,
+  candidate: CandidateEvidence
+): ComponentCoverageSummary | null {
+  const components = requirement.competencyComponents ?? [];
+  if (components.length === 0) {
+    return null;
+  }
+
+  const matchedOneOfGroups = new Set<string>();
+  let directComponentCount = 0;
+  let relatedComponentCount = 0;
+
+  for (const component of components) {
+    if (component.oneOfGroup && matchedOneOfGroups.has(component.oneOfGroup)) {
+      continue;
+    }
+
+    const match = componentMatchForCandidate(component, candidate);
+    if (!match) {
+      continue;
+    }
+
+    if (component.oneOfGroup) {
+      matchedOneOfGroups.add(component.oneOfGroup);
+    }
+
+    if (match.direct) {
+      directComponentCount += 1;
+    } else {
+      relatedComponentCount += 1;
+    }
+  }
+
+  const distinctOneOfGroups = new Set(
+    components
+      .map((component) => component.oneOfGroup)
+      .filter((group): group is string => Boolean(group))
+  ).size;
+  const standaloneComponents = components.filter((component) => component.oneOfGroup === null).length;
+  const totalComponentCount = standaloneComponents + distinctOneOfGroups;
+  const coveredComponentCount = Math.min(
+    totalComponentCount,
+    directComponentCount + relatedComponentCount
+  );
+
+  return {
+    totalComponentCount,
+    directComponentCount,
+    relatedComponentCount,
+    uncoveredComponentCount: Math.max(0, totalComponentCount - coveredComponentCount)
+  };
+}
+
+function getPrimaryEvidenceTypeRank(candidate: CandidateEvidence) {
+  return {
+    ACCOMPLISHMENT: 10,
+    METRIC: 9,
+    RESPONSIBILITY: 8,
+    LEADERSHIP: 7,
+    ARCHITECTURE: 6,
+    ROLE: 5,
+    PROJECT_ACCOMPLISHMENT: 4,
+    PROJECT_RESPONSIBILITY: 3,
+    PROJECT: 2,
+    INTERVIEW_STORY: 1,
+    SKILL: 0,
+    CERTIFICATION: -1,
+    EDUCATION: -2,
+    DOMAIN: -3,
+    OTHER: -4,
+    TECHNOLOGY_USAGE: -5
+  }[candidate.evidenceType];
+}
+
+function comparePrimaryCandidate(left: CandidateEvidence, right: CandidateEvidence) {
+  if (getPrimaryEvidenceTypeRank(left) !== getPrimaryEvidenceTypeRank(right)) {
+    return getPrimaryEvidenceTypeRank(right) - getPrimaryEvidenceTypeRank(left);
+  }
+
+  if (left.context !== right.context) {
+    if (left.context === "PROFESSIONAL") {
+      return -1;
+    }
+    if (right.context === "PROFESSIONAL") {
+      return 1;
+    }
+  }
+
+  if (getRecencySortValue(left.recency) !== getRecencySortValue(right.recency)) {
+    return getRecencySortValue(right.recency) - getRecencySortValue(left.recency);
+  }
+
+  return left.candidateId.localeCompare(right.candidateId);
+}
+
 function scoreCandidate(
   requirement: RetrievedRequirementRecord,
   candidate: CandidateEvidence,
@@ -409,6 +604,7 @@ function scoreCandidate(
   const factorContributions: ScoreContribution[] = [];
   const penaltyContributions: ScoreContribution[] = [];
   const exclusionReasons: string[] = [];
+  const componentCoverage = summarizeComponentCoverage(requirement, candidate);
 
   for (const restriction of mergeRestrictions(candidate.restrictions)) {
     const weight =
@@ -639,6 +835,80 @@ function scoreCandidate(
     });
   }
 
+  if (componentCoverage) {
+    if (componentCoverage.directComponentCount > 0) {
+      factorContributions.push(
+        makeContribution({
+          factorCode: "COMPONENT_DIRECT_SUPPORT",
+          label: "Direct component coverage",
+          value:
+            evidenceScoringConfiguration.factorWeights.COMPONENT_DIRECT_SUPPORT +
+            Math.max(0, componentCoverage.directComponentCount - 1) * 2,
+          explanation: `Candidate directly supports ${componentCoverage.directComponentCount} requirement component(s).`,
+          sourceRelationship: "requirement.components.direct",
+          configurationWeight: evidenceScoringConfiguration.factorWeights.COMPONENT_DIRECT_SUPPORT,
+          capped: false,
+          ruleIdentifier: "factor.component-direct-support"
+        })
+      );
+    } else if (componentCoverage.relatedComponentCount > 0) {
+      factorContributions.push(
+        makeContribution({
+          factorCode: "COMPONENT_RELATED_SUPPORT",
+          label: "Related component coverage",
+          value: evidenceScoringConfiguration.factorWeights.COMPONENT_RELATED_SUPPORT,
+          explanation: "Candidate only supports requirement components indirectly.",
+          sourceRelationship: "requirement.components.related",
+          configurationWeight: evidenceScoringConfiguration.factorWeights.COMPONENT_RELATED_SUPPORT,
+          capped: false,
+          ruleIdentifier: "factor.component-related-support"
+        })
+      );
+    }
+
+    if (
+      componentCoverage.totalComponentCount > 1 &&
+      componentCoverage.uncoveredComponentCount > 0 &&
+      componentCoverage.directComponentCount + componentCoverage.relatedComponentCount > 0
+    ) {
+      penaltyContributions.push(
+        makeContribution({
+          factorCode: "PARTIAL_COMPONENT_COVERAGE",
+          label: "Partial component coverage",
+          value: evidenceScoringConfiguration.penaltyWeights.PARTIAL_COMPONENT_COVERAGE,
+          explanation: `Candidate leaves ${componentCoverage.uncoveredComponentCount} requirement component(s) unsupported.`,
+          sourceRelationship: "requirement.components",
+          configurationWeight:
+            evidenceScoringConfiguration.penaltyWeights.PARTIAL_COMPONENT_COVERAGE,
+          capped: false,
+          ruleIdentifier: "penalty.partial-component-coverage"
+        })
+      );
+    }
+
+    if (
+      componentCoverage.totalComponentCount > 0 &&
+      componentCoverage.directComponentCount === 0 &&
+      componentCoverage.relatedComponentCount === 0 &&
+      (candidate.matchedCompetencies ?? []).length > 0
+    ) {
+      penaltyContributions.push(
+        makeContribution({
+          factorCode: "COMPONENT_RELATION_MISMATCH",
+          label: "Component mismatch",
+          value: evidenceScoringConfiguration.penaltyWeights.COMPONENT_RELATION_MISMATCH,
+          explanation:
+            "Candidate evidence aligns to nearby concepts but not the requirement components themselves.",
+          sourceRelationship: "requirement.components",
+          configurationWeight:
+            evidenceScoringConfiguration.penaltyWeights.COMPONENT_RELATION_MISMATCH,
+          capped: false,
+          ruleIdentifier: "penalty.component-relation-mismatch"
+        })
+      );
+    }
+  }
+
   if (
     candidate.dateMetadata.lastUsedDate === null &&
     candidate.dateMetadata.endDate === null &&
@@ -867,6 +1137,8 @@ export function buildEvidenceScoringResult(input: EvidenceScoringInput) {
         kinds: requirement.kinds,
         originalText: requirement.originalText,
         correctedDisplayText: requirement.correctedDisplayText,
+        mappedCompetencies: requirement.mappedCompetencies,
+        competencyComponents: requirement.competencyComponents,
         evidenceStrengthState,
         highestCandidateScore: eligibleCandidates[0]?.finalScore ?? null,
         eligibleCandidateCount: eligibleCandidates.length,
@@ -937,6 +1209,9 @@ export function buildEvidenceScoringResult(input: EvidenceScoringInput) {
     workspaceId: parsed.workspaceId,
     evidenceRetrievalRunId: parsed.evidenceRetrievalRunId,
     evidenceRetrievalInputChecksum: parsed.retrievalResult.inputChecksum,
+    competencyCatalogVersion: parsed.retrievalResult.competencyCatalogVersion,
+    competencyCatalogChecksum: parsed.retrievalResult.competencyCatalogChecksum,
+    competencyMappingEngineVersion: parsed.retrievalResult.competencyMappingEngineVersion,
     careerProfileVersionId: parsed.retrievalResult.careerProfileVersionId,
     requirementAnalysisId: parsed.retrievalResult.requirementAnalysisId,
     jobDescriptionVersionId: parsed.retrievalResult.jobDescriptionVersionId,

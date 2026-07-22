@@ -1,6 +1,12 @@
 import { z } from "zod";
 import { jsonValueSchema } from "@/lib/career/contracts";
 import {
+  careerKnowledgeOpportunitySchema,
+  competencyRelationshipStrengthSchema,
+  matchedCompetencySchema,
+  requirementCompetencyComponentSchema
+} from "@/lib/competencies/contract";
+import {
   requirementAnalysisReviewStatusSchema,
   requirementCategorySchema,
   requirementKindSchema
@@ -9,7 +15,7 @@ import {
 const semanticVersionSchema = z.string().regex(/^[A-Za-z0-9.-]+$/);
 
 export const EVIDENCE_RETRIEVAL_CONTRACT_VERSION = "1.0.0";
-export const EVIDENCE_RETRIEVAL_ENGINE_VERSION = "m4.1.0";
+export const EVIDENCE_RETRIEVAL_ENGINE_VERSION = "m8.8.0";
 
 export const evidenceRetrievalRunStatusSchema = z.enum([
   "PENDING",
@@ -116,6 +122,10 @@ export const retrievalReasonSchema = z.object({
   explanation: z.string().min(1),
   sourceRequirementConcept: z.string().nullable(),
   sourceCareerField: z.string().nullable(),
+  competencyId: z.string().min(1).nullable().optional(),
+  competencyName: z.string().min(1).nullable().optional(),
+  relationshipStrength: competencyRelationshipStrengthSchema.nullable().optional(),
+  direct: z.boolean().optional(),
   confidence: z.enum(["HIGH", "MEDIUM", "LOW"]),
   matchingRule: z.string().min(1)
 });
@@ -167,7 +177,10 @@ export const candidateEvidenceSchema = z.object({
     sourceId: z.string().nullable(),
     sourcePath: z.string().min(1)
   }),
+  evidenceClusterId: z.string().min(1).optional(),
+  evidenceClusterMemberIds: z.array(z.string().min(1)).optional(),
   retrievalReasons: z.array(retrievalReasonSchema),
+  matchedCompetencies: z.array(matchedCompetencySchema).optional(),
   matchedRequirementKinds: z.array(requirementKindSchema),
   matchedTechnologies: z.array(z.string().min(1)),
   restrictions: z.array(evidenceRestrictionSchema),
@@ -185,6 +198,8 @@ export const retrievedRequirementRecordSchema = z.object({
   correctedDisplayText: z.string().nullable(),
   technologies: z.array(z.string().min(1)),
   experienceText: z.string().nullable(),
+  mappedCompetencies: z.array(matchedCompetencySchema).optional(),
+  competencyComponents: z.array(requirementCompetencyComponentSchema).optional(),
   sourceProvenance: z.object({
     sourceSectionId: z.string().nullable(),
     parserStatementId: z.string().nullable(),
@@ -219,6 +234,13 @@ export const evidenceRetrievalSummarySchema = z.object({
   projectCandidateCount: z.number().int().nonnegative(),
   educationCandidateCount: z.number().int().nonnegative(),
   certificationCandidateCount: z.number().int().nonnegative(),
+  projectRestrictionCount: z.number().int().nonnegative().optional(),
+  staleRestrictionCount: z.number().int().nonnegative().optional(),
+  missingDateRestrictionCount: z.number().int().nonnegative().optional(),
+  expiredCertificationRestrictionCount: z.number().int().nonnegative().optional(),
+  unverifiedRestrictionCount: z.number().int().nonnegative().optional(),
+  unconfirmedRestrictionCount: z.number().int().nonnegative().optional(),
+  indirectRestrictionCount: z.number().int().nonnegative().optional(),
   diagnosticErrorCount: z.number().int().nonnegative(),
   diagnosticWarningCount: z.number().int().nonnegative(),
   diagnosticInfoCount: z.number().int().nonnegative()
@@ -234,6 +256,9 @@ export const evidenceRetrievalResultSchema = z.object({
   applicationId: z.string().nullable(),
   retrievalContractVersion: semanticVersionSchema,
   retrievalEngineVersion: semanticVersionSchema,
+  competencyCatalogVersion: semanticVersionSchema.optional(),
+  competencyCatalogChecksum: z.string().min(1).optional(),
+  competencyMappingEngineVersion: semanticVersionSchema.optional(),
   careerSourceChecksum: z.string().min(1),
   requirementSourceChecksum: z.string().min(1),
   inputChecksum: z.string().min(1),
@@ -242,6 +267,7 @@ export const evidenceRetrievalResultSchema = z.object({
   diagnostics: z.array(evidenceDiagnosticSchema),
   summary: evidenceRetrievalSummarySchema,
   requirementResults: z.array(retrievedRequirementRecordSchema),
+  careerKnowledgeOpportunities: z.array(careerKnowledgeOpportunitySchema).optional(),
   recencyPolicy: z.object({
     currentYears: z.number().positive(),
     recentYears: z.number().positive(),

@@ -581,10 +581,10 @@ describe("requirement analysis service", () => {
     const draft = await ensureRequirementAnalysisDraft(workspace.id, saved.version!.id, prisma);
     const analysis = parseStoredJobRequirementAnalysis(draft.analysis!.analysis as Prisma.JsonValue);
 
-    expect(parsed.parse.parserVersion).toBe("m3.2.6");
+    expect(parsed.parse.parserVersion).toBe("m3.2.7");
     expect(analysis.summary.downstreamReadiness).toBe("READY");
-    expect(analysis.responsibilities.length).toBeGreaterThanOrEqual(6);
-    expect(analysis.requirements.filter((item) => !item.userAdded).length).toBeGreaterThanOrEqual(8);
+    expect(analysis.responsibilities).toHaveLength(6);
+    expect(analysis.requirements.filter((item) => !item.userAdded)).toHaveLength(8);
     expect(
       analysis.requirements.some(
         (item) =>
@@ -597,11 +597,26 @@ describe("requirement analysis service", () => {
     expect(
       analysis.requirements.some(
         (item) =>
+          item.originalText === "Familiarity with data systems (e.g. Bigquery, Snowflake, Kafka)" &&
+          item.technologies.includes("BigQuery") &&
+          item.technologies.includes("Snowflake") &&
+          item.technologies.includes("Kafka")
+      )
+    ).toBe(true);
+    expect(
+      analysis.requirements.some(
+        (item) =>
           item.originalText.includes("RESTful design, event driven systems") &&
           item.technologies.includes("REST API") &&
           item.technologies.includes("Event-Driven Systems")
       )
     ).toBe(true);
+    expect(
+      analysis.requirements.some((item) => item.originalText === "Familiarity with data systems (e.g")
+    ).toBe(false);
+    expect(
+      analysis.requirements.some((item) => item.originalText === "Bigquery, Snowflake, Kafka)")
+    ).toBe(false);
     expect(
       analysis.responsibilities.some((item) =>
         item.originalText.includes("REST/GraphQL services, message queues")

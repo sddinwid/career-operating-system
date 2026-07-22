@@ -339,3 +339,9 @@ These remain intentionally deferred after the July 19, 2026 navigation/discovery
 
 - Application package composition and submission snapshot remain the next milestone.
 - Cover-letter hyperlink enrichment can be revisited later if direct OOXML hyperlink fields become important enough to justify broader renderer changes.
+
+## After M8.8
+
+- reviewed Career Knowledge enrichment remains future work; `Career Knowledge Opportunities` is read-only in `M8.8`
+- application package composition is still deferred and `M8.8` does not begin `M9`
+- embeddings, vector search, and AI-generated evidence remain explicit non-goals until deterministic gaps justify revisiting them

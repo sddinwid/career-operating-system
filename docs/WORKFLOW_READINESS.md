@@ -114,3 +114,7 @@ Historical fixture-backed retrieval runs remain inspectable by direct view route
 ## Relationship to Milestone 9
 
 `M8.4` is a corrective usability slice before application-package composition. It does not begin the `M9` Today-screen or spreadsheet-ergonomics milestones.
+
+## M8.8 workflow-readiness note
+
+Historical retrieval and scoring runs remain immutable even when a newer competency catalog or mapping engine exists. A newer retrieval must be created to use newer competency logic, but older runs remain viewable and can still satisfy read-only inspection routes.

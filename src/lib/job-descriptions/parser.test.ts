@@ -542,7 +542,7 @@ Requirements
       )
     ).toBe(true);
     expect(result.result?.responsibilities.length).toBeGreaterThanOrEqual(6);
-    expect(result.result?.qualifications.length).toBeGreaterThanOrEqual(8);
+    expect(result.result?.qualifications).toHaveLength(8);
     expect(
       result.result?.responsibilities.some((item) =>
         item.text.includes("Privacy APIs and backend infrastructure")
@@ -563,6 +563,22 @@ Requirements
         item.originalText.includes("RESTful design, event driven systems")
       )
     ).toBe(true);
+    expect(
+      result.result?.qualifications.some(
+        (item) =>
+          item.originalText === "Familiarity with data systems (e.g. Bigquery, Snowflake, Kafka)"
+      )
+    ).toBe(true);
+    expect(
+      result.result?.qualifications.some(
+        (item) => item.originalText === "Familiarity with data systems (e.g"
+      )
+    ).toBe(false);
+    expect(
+      result.result?.qualifications.some(
+        (item) => item.originalText === "Bigquery, Snowflake, Kafka)"
+      )
+    ).toBe(false);
     expect(result.result?.technologies.map((item) => item.canonicalName)).toEqual(
       expect.arrayContaining([
         "AWS",

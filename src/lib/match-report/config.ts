@@ -1,5 +1,5 @@
 export const MATCH_REPORT_CONTRACT_VERSION = "1.0.0";
-export const MATCH_REPORT_ENGINE_VERSION = "m4.3.0";
+export const MATCH_REPORT_ENGINE_VERSION = "m4.3.1";
 export const MATCH_REPORT_CONFIGURATION_VERSION = "scott-v1";
 
 export const matchReportConfiguration = {

@@ -967,10 +967,34 @@ function splitParagraphIntoStatements(text: string): string[] {
   return [text];
 }
 
-function splitIntoSentences(text: string) {
+const protectedSentenceDotToken = "__JD_DOT__";
+
+function protectSentenceBoundaryTokens(text: string) {
   return text
+    .replace(/\b(?:e\.g|i\.e|etc|No)\./gi, (match) =>
+      match.replaceAll(".", protectedSentenceDotToken)
+    )
+    .replace(/\bU\.S\.\b/g, (match) => match.replaceAll(".", protectedSentenceDotToken))
+    .replace(/\bU\.K\.\b/g, (match) => match.replaceAll(".", protectedSentenceDotToken))
+    .replace(/\bNode\.js\b/gi, (match) => match.replaceAll(".", protectedSentenceDotToken))
+    .replace(/\bASP\.NET\b/gi, (match) => match.replaceAll(".", protectedSentenceDotToken))
+    .replace(/(?<![A-Za-z0-9_])\.NET\b/g, (match) =>
+      match.replaceAll(".", protectedSentenceDotToken)
+    )
+    .replace(/\b(?:v(?:ersion)?\s*)?\d+(?:\.\d+)+\b/gi, (match) =>
+      match.replaceAll(".", protectedSentenceDotToken)
+    )
+    .replace(/(?<=\d)\.(?=\d)/g, protectedSentenceDotToken);
+}
+
+function restoreSentenceBoundaryTokens(text: string) {
+  return text.replaceAll(protectedSentenceDotToken, ".");
+}
+
+function splitIntoSentences(text: string) {
+  return protectSentenceBoundaryTokens(text)
     .split(/(?<=[.!?])\s+(?=[A-Z])/)
-    .map((part) => part.trim())
+    .map((part) => restoreSentenceBoundaryTokens(part).trim())
     .filter(Boolean);
 }
 

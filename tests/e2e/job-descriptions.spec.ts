@@ -45,8 +45,26 @@ async function cleanupFieldguideStandaloneFixture() {
     orderBy: [{ createdAt: "asc" }, { id: "asc" }]
   });
 
-  const jobDescriptionVersionIds = Array.from(new Set(matchingVersions.map((version) => version.id)));
   const opportunityIds = Array.from(new Set(matchingVersions.map((version) => version.opportunityId)));
+
+  const allOpportunityVersions =
+    opportunityIds.length === 0
+      ? []
+      : await prisma.jobDescriptionVersion.findMany({
+          where: {
+            workspaceId: "local-workspace",
+            opportunityId: {
+              in: opportunityIds
+            }
+          },
+          select: {
+            id: true
+          }
+        });
+
+  const jobDescriptionVersionIds = Array.from(
+    new Set(allOpportunityVersions.map((version) => version.id))
+  );
 
   if (jobDescriptionVersionIds.length === 0 && opportunityIds.length === 0) {
     return;
@@ -175,8 +193,26 @@ async function cleanupSkyflowStandaloneFixture() {
     orderBy: [{ createdAt: "asc" }, { id: "asc" }]
   });
 
-  const jobDescriptionVersionIds = Array.from(new Set(matchingVersions.map((version) => version.id)));
   const opportunityIds = Array.from(new Set(matchingVersions.map((version) => version.opportunityId)));
+
+  const allOpportunityVersions =
+    opportunityIds.length === 0
+      ? []
+      : await prisma.jobDescriptionVersion.findMany({
+          where: {
+            workspaceId: "local-workspace",
+            opportunityId: {
+              in: opportunityIds
+            }
+          },
+          select: {
+            id: true
+          }
+        });
+
+  const jobDescriptionVersionIds = Array.from(
+    new Set(allOpportunityVersions.map((version) => version.id))
+  );
 
   if (jobDescriptionVersionIds.length === 0 && opportunityIds.length === 0) {
     return;
@@ -755,7 +791,7 @@ test("captures, versions, and reuses job descriptions without changing applicati
   const expectedResumePdfFilename =
     "Scott_Dinwiddie_E2E_Grid_Company_E2E_Grid_Role_Resume_v1.pdf";
   const revisedSummaryText =
-    "Platform engineer focused on TypeScript, PostgreSQL, and reliable backend platform delivery.";
+    "Platform engineer focused on TypeScript, AWS Lambda, and reliable backend platform delivery.";
   const firstDescription = `${companyName}
 ${roleName}
 Hybrid role based in Chicago, IL. Full-time position.
@@ -1506,6 +1542,21 @@ Preferred Qualifications
   if ((await roleBulletUps.count()) > 0) {
     await roleBulletUps.first().click();
   }
+  const includeRoleToggles = experienceSection.getByRole("checkbox", { name: "Include role" });
+  const includedRoleCount = await includeRoleToggles.count();
+  if (includedRoleCount > 3) {
+    for (let index = includedRoleCount - 1; index >= includedRoleCount - 2; index -= 1) {
+      const toggle = includeRoleToggles.nth(index);
+      if (await toggle.isChecked()) {
+        await toggle.uncheck();
+      }
+    }
+  } else if (includedRoleCount > 2) {
+    const toggle = includeRoleToggles.last();
+    if (await toggle.isChecked()) {
+      await toggle.uncheck();
+    }
+  }
 
   const projectSection = page
     .locator("section")
@@ -1529,7 +1580,25 @@ Preferred Qualifications
   await expect(summarySection.getByRole("textbox", { name: "Revised" })).toHaveValue(
     revisedSummaryText
   );
-  await page.getByRole("button", { name: "Finalize for Audit" }).click();
+  const estimatedPagesCard = page
+    .locator("article")
+    .filter({ has: page.getByText("Estimated pages", { exact: true }) })
+    .first();
+  const readEstimatedPages = async () => {
+    const value = await estimatedPagesCard
+      .locator("p")
+      .nth(1)
+      .textContent();
+    return Number.parseFloat(value ?? "0");
+  };
+  await expect.poll(readEstimatedPages).toBeLessThanOrEqual(2.2);
+  await Promise.all([
+    page.waitForURL(
+      /\/job-descriptions\/[^/]+\/resume\/studio\?revisionId=[^&]+&success=revision-finalized(?:&.*)?$/,
+      { timeout: 15_000 }
+    ),
+    page.getByRole("button", { name: "Finalize for Audit" }).click()
+  ]);
   await expect(page.getByText("Revision actions")).toBeVisible();
   await expect(page.getByRole("button", { name: "Run Audit on Revised Resume" })).toBeVisible();
   await page.getByRole("button", { name: "Run Audit on Revised Resume" }).click();
@@ -1585,7 +1654,17 @@ Preferred Qualifications
     await approveForRendering(page, { required: true });
     await page.getByRole("link", { name: "Open application" }).click();
   }
-  await expect(page.getByText(/Resume PDF Rendering Ready|Immutable Resume PDF Ready/)).toBeVisible();
+  const resumePdfStage = page
+    .locator("article")
+    .filter({ has: page.getByRole("heading", { name: "Resume PDF", exact: true }) })
+    .first();
+  await expect(resumePdfStage.getByText("AVAILABLE")).toBeVisible();
+  await expect(
+    resumePdfStage.getByRole("button", {
+      name: /Render Resume PDF(?: Again)?/,
+      exact: false
+    })
+  ).toBeVisible();
   await expect(page.getByText(/Active Approval|No Active Approval/).first()).toBeVisible();
   await expect(page.getByRole("link", { name: "View Comparison" })).toBeVisible();
   await expect(page.getByText(/Resume Generation Ready|Match Report Generated|Match Report Has Critical Gaps|Resume Generation Ready With Limitations/).first()).toBeVisible();
@@ -1614,7 +1693,10 @@ Preferred Qualifications
   expect(renderedDocumentHref).toMatch(/^\/documents\/[^/]+$/);
   expect(renderedDocumentHref?.split("/").pop()).toBeTruthy();
 
-  await renderedDocumentLink.click();
+  await Promise.all([
+    page.waitForURL(/\/documents\/[^/]+$/, { timeout: 15_000 }),
+    renderedDocumentLink.click()
+  ]);
   await expect(page.getByRole("heading", { name: `${companyName} ${roleName} Resume` })).toBeVisible();
   await expect(page.getByText(/Version 1/i).first()).toBeVisible();
   await expect(page.getByText(/Filename/i)).toBeVisible();
@@ -1801,8 +1883,8 @@ Preferred Qualifications
   await expect(page.getByRole("link", { name: "View Evidence Scores" })).toBeVisible();
   await page.getByRole("link", { name: "Open application" }).click();
   await expect(page.getByText("Evidence Scored")).toBeVisible();
-  await expect(page.getByText(/scott-v1/)).toBeVisible();
-  await expect(page.getByText(/scott-v1 .* strong required/i)).toBeVisible();
+  await expect(page.getByText(/scott-v2/)).toBeVisible();
+  await expect(page.getByText(/scott-v2 .* strong required/i)).toBeVisible();
   await expect(page.getByRole("link", { name: "View Evidence Scores" })).toBeVisible();
   await page.getByRole("button", { name: "Score Retrieved Evidence" }).click();
   await expect(
@@ -1841,12 +1923,18 @@ Preferred Qualifications
     page.waitForURL(/\/applications\/[^/]+$/, { timeout: 15_000 }),
     page.getByRole("link", { name: "Open application" }).click()
   ]);
-  await Promise.all([
-    page.waitForURL(/\/applications\/[^/]+\/job-description$/, { timeout: 15_000 }),
-    page.getByRole("link", { name: "Replace Job Description" }).click()
-  ]);
+  const revisitJobDescriptionLink = page
+    .getByRole("link", { name: /Add Job Description|Replace Job Description/ })
+    .first();
+  await expect(revisitJobDescriptionLink).toHaveAttribute(
+    "href",
+    `/applications/${applicationId}/job-description`
+  );
+  await page.goto(`/applications/${applicationId}/job-description`);
   await expect(page.getByRole("heading", { name: "Replace job description" })).toBeVisible();
-  await page.getByRole("textbox", { name: "Job description text" }).fill(secondDescription);
+  await expect(page.getByRole("textbox", { name: "Job description text" })).toHaveValue(
+    secondDescription
+  );
   await page.getByRole("button", { name: "Save job description" }).click();
 
   await expect(
@@ -1915,15 +2003,7 @@ Preferred Qualifications
       const payload = response.request().postDataJSON() as { field?: string } | null;
       return payload?.field === "status";
     }),
-    page.evaluate((nextValue) => {
-      const editor = document.querySelector('select[aria-label="Status editor"]');
-      if (!(editor instanceof HTMLSelectElement)) {
-        throw new Error("Status editor is unavailable.");
-      }
-
-      editor.value = nextValue;
-      editor.dispatchEvent(new Event("change", { bubbles: true }));
-    }, nextStatusValue)
+    statusEditor.selectOption(nextStatusValue)
   ]);
 
   await expect(
@@ -1941,8 +2021,13 @@ Preferred Qualifications
 test("parses the Skyflow You have and You will sections through analysis and requirement review", async ({
   page
 }) => {
-  test.setTimeout(65_000);
+  test.setTimeout(120_000);
+  const pageErrors: string[] = [];
+  page.on("pageerror", (error) => {
+    pageErrors.push(error.message);
+  });
   await cleanupSkyflowStandaloneFixture();
+  await setCurrentCareerProfileByPurpose("USER");
   const skyflowDescription = await fs.readFile(
     path.join(process.cwd(), "fixtures", "job-description-parser", "skyflow-backend-engineer.txt"),
     "utf8"
@@ -2013,6 +2098,8 @@ test("parses the Skyflow You have and You will sections through analysis and req
     .locator("section")
     .filter({ has: page.getByRole("heading", { name: "Responsibilities" }) });
 
+  await expect(requiredSection.locator("article")).toHaveCount(8);
+  await expect(responsibilitiesSection.locator("article")).toHaveCount(6);
   await expect(
     requiredSection.getByText("Proficient in one or more programming languages like Go (preferred), Java, C, C++, Python")
   ).toBeVisible();
@@ -2022,6 +2109,11 @@ test("parses the Skyflow You have and You will sections through analysis and req
   await expect(
     requiredSection.getByText("Solid understanding of RESTful design, event driven systems, and security best practices")
   ).toBeVisible();
+  await expect(
+    requiredSection.getByText("Familiarity with data systems (e.g. BigQuery, Snowflake, Kafka)")
+  ).toBeVisible();
+  await expect(requiredSection.getByText(/^Familiarity with data systems \(e\.g\)$/)).toHaveCount(0);
+  await expect(requiredSection.getByText(/^Bigquery, Snowflake, Kafka\)$/)).toHaveCount(0);
   await expect(
     responsibilitiesSection.getByText(
       "Responsible for designing and developing Privacy APIs and backend infrastructure to support large-scale data and privacy workflows"
@@ -2033,6 +2125,77 @@ test("parses the Skyflow You have and You will sections through analysis and req
     )
   ).toBeVisible();
   await expect(page.getByText("READY", { exact: true }).first()).toBeVisible();
+  await expect(page.getByRole("button", { name: "Retrieve Career Evidence" })).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Confirm Requirement Analysis" }).click();
+  await expect(page.getByText("Requirement analysis confirmed.")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Retrieve Career Evidence" })).toBeVisible();
+
+  await page.getByRole("button", { name: "Retrieve Career Evidence" }).click();
+  await expect(page.getByText("Career evidence retrieval completed successfully.")).toBeVisible();
+  await Promise.all([
+    page.waitForURL(/\/job-descriptions\/[^/]+\/evidence\?runId=[^&]+(?:&.*)?$/, {
+      timeout: 15_000
+    }),
+    page.getByRole("link", { name: "View Candidate Evidence" }).click()
+  ]);
+  await expect(page.getByRole("heading", { name: "Evidence Summary" })).toBeVisible();
+
+  await page.getByRole("button", { name: "Score Retrieved Evidence" }).click();
+  await expect(page.getByText("Evidence scoring completed successfully.")).toBeVisible();
+  await Promise.all([
+    page.waitForURL(/\/job-descriptions\/[^/]+\/evidence\/scores\?runId=[^&]+(?:&.*)?$/, {
+      timeout: 15_000
+    }),
+    page.getByRole("link", { name: "View Evidence Scores" }).click()
+  ]);
+  await expect(page.getByRole("button", { name: "Generate Match Report" })).toBeVisible();
+
+  await Promise.all([
+    page.waitForURL(
+      (url) =>
+        /\/job-descriptions\/[^/]+\/evidence\/scores$/.test(url.pathname) &&
+        url.searchParams.has("matchReportRunId") &&
+        url.searchParams.get("success") === "report-created",
+      { timeout: 15_000 }
+    ),
+    page.getByRole("button", { name: "Generate Match Report" }).click()
+  ]);
+  await expect(page.getByText("Match report generated successfully.")).toBeVisible();
+  await Promise.all([
+    page.waitForURL(/\/job-descriptions\/[^/]+\/match-report\?runId=[^&]+(?:&.*)?$/, {
+      timeout: 15_000
+    }),
+    page.getByRole("link", { name: "View Match Report" }).click()
+  ]);
+
+  await expect(page.getByRole("heading", { name: "Strongest Alignment Areas" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Required Gaps" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Responsibility Limitations" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Preferred Gaps" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Contextual Gaps" })).toBeVisible();
+  await expect(
+    page.getByText("Familiarity with data systems (e.g. BigQuery, Snowflake, Kafka)").first()
+  ).toBeVisible();
+  await expect(page.getByText(/^Familiarity with data systems \(e\.g\)$/)).toHaveCount(0);
+  await expect(page.getByText(/^Bigquery, Snowflake, Kafka\)$/)).toHaveCount(0);
+  await expect(page.getByText("Throughput Optimization").first()).toBeVisible();
+  await expect(page.getByText("Low-Latency Systems").first()).toBeVisible();
+  await expect(page.getByText(/Prioritize throughput optimization, but do not imply low-latency engineering\./).first()).toBeVisible();
+  await expect(page.getByText(/Python, Python|AWS, AWS|CI\/CD, CI\/CD/)).toHaveCount(0);
+  await expect(page.getByText("Preferred and Contextual Gaps")).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Evidence Traceability" })).toBeVisible();
+  await expect(page.getByText(/hiring probability/i)).toBeVisible();
+
+  const traceabilitySection = page
+    .locator("section")
+    .filter({ has: page.getByRole("heading", { name: "Evidence Traceability" }) });
+  const firstTraceabilityCard = traceabilitySection.locator("article").first();
+  const technicalDetailsToggle = firstTraceabilityCard.locator("summary").first();
+  await technicalDetailsToggle.click();
+  await expect(firstTraceabilityCard.getByText(/Requirement ID:/)).toBeVisible();
+
+  expect(pageErrors).toEqual([]);
 });
 
 function preparedApplicationIdFromUrl(url: string) {

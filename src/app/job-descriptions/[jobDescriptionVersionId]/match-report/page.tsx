@@ -78,6 +78,94 @@ function Section({
   );
 }
 
+function formatEnumLabel(value: string) {
+  return value.replace(/_/g, " ");
+}
+
+function ComponentCoverageList({
+  components
+}: {
+  components:
+    | Array<{
+        componentId: string;
+        label: string;
+        supportState: string;
+        gapStatus: string;
+        strongestEvidenceLabel: string | null;
+        restrictionLabels: string[];
+        resumeGuidance: string;
+      }>
+    | undefined;
+}) {
+  if (!components || components.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="mt-4 space-y-3">
+      {components.map((component) => (
+        <div
+          key={component.componentId}
+          className="rounded-2xl border border-stone-200 bg-white px-4 py-3"
+        >
+          <p className="text-sm font-semibold text-stone-900">{component.label}</p>
+          <p className="mt-1 text-xs uppercase tracking-[0.2em] text-stone-500">
+            {formatEnumLabel(component.supportState)} • {formatEnumLabel(component.gapStatus)}
+          </p>
+          {component.strongestEvidenceLabel ? (
+            <p className="mt-2 text-sm text-stone-700">
+              Strongest evidence: {component.strongestEvidenceLabel}
+            </p>
+          ) : null}
+          {component.restrictionLabels.length > 0 ? (
+            <p className="mt-2 text-sm text-stone-700">
+              Restrictions: {component.restrictionLabels.join(", ")}
+            </p>
+          ) : null}
+          <p className="mt-2 text-sm text-stone-700">{component.resumeGuidance}</p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function GapCard({
+  risk,
+  category
+}: {
+  risk: Awaited<ReturnType<typeof parseStoredMatchReportRun>>["result"]["risksAndGaps"][number];
+  category: string;
+}) {
+  return (
+    <article className="rounded-2xl border border-stone-200 bg-stone-50 p-5">
+      <p className="text-base font-semibold text-stone-900">{risk.requirementText ?? risk.explanation}</p>
+      <p className="mt-2 text-sm text-stone-700">{risk.explanation}</p>
+      <p className="mt-2 text-sm text-stone-700">
+        Classification: {category} • Gap type: {formatEnumLabel(risk.gapType)} • Severity:{" "}
+        {risk.severity}
+      </p>
+      <ComponentCoverageList components={risk.componentConclusions} />
+      {risk.strongestRelatedEvidenceLabels && risk.strongestRelatedEvidenceLabels.length > 0 ? (
+        <p className="mt-3 text-sm text-stone-700">
+          Strongest related evidence: {risk.strongestRelatedEvidenceLabels.join(", ")}
+        </p>
+      ) : null}
+      <p className="mt-3 text-sm text-stone-700">Resume guidance: {risk.resumeWarning}</p>
+      <details className="mt-3 rounded-2xl border border-stone-200 bg-white px-4 py-3">
+        <summary className="cursor-pointer text-sm font-semibold text-stone-700">
+          Technical details
+        </summary>
+        <div className="mt-3 space-y-2 text-xs text-stone-600">
+          <p>Restricted evidence IDs: {risk.availableRestrictedEvidence.join(", ") || "None"}</p>
+          <p>Project evidence IDs: {risk.availableProjectEvidence.join(", ") || "None"}</p>
+          <p>Stale evidence IDs: {risk.availableStaleEvidence.join(", ") || "None"}</p>
+          <p>Requirement IDs: {risk.requirementIds.join(", ")}</p>
+        </div>
+      </details>
+    </article>
+  );
+}
+
 export default async function MatchReportPage({ params, searchParams }: MatchReportPageProps) {
   const { jobDescriptionVersionId } = await params;
   const query = (await searchParams) ?? {};
@@ -120,18 +208,27 @@ export default async function MatchReportPage({ params, searchParams }: MatchRep
   }
 
   const { run, result } = await parseStoredMatchReportRun(workspace.id, selectedRunId);
+  const requirementById = new Map(
+    result.requirementConclusions.map((item) => [item.requirementId, item])
+  );
   const requiredGaps = result.risksAndGaps.filter((risk) =>
-    risk.requirementIds.some((requirementId) =>
-      result.requirementConclusions.some(
-        (item) => item.requirementId === requirementId && item.category === "REQUIRED"
-      )
+    risk.requirementIds.some(
+      (requirementId) => requirementById.get(requirementId)?.category === "REQUIRED"
     )
   );
-  const nonRequiredGaps = result.risksAndGaps.filter((risk) =>
-    risk.requirementIds.every((requirementId) =>
-      result.requirementConclusions.some(
-        (item) => item.requirementId === requirementId && item.category !== "REQUIRED"
-      )
+  const responsibilityGaps = result.risksAndGaps.filter((risk) =>
+    risk.requirementIds.some(
+      (requirementId) => requirementById.get(requirementId)?.category === "RESPONSIBILITY"
+    )
+  );
+  const preferredGaps = result.risksAndGaps.filter((risk) =>
+    risk.requirementIds.some(
+      (requirementId) => requirementById.get(requirementId)?.category === "PREFERRED"
+    )
+  );
+  const contextualGaps = result.risksAndGaps.filter((risk) =>
+    risk.requirementIds.some(
+      (requirementId) => requirementById.get(requirementId)?.category === "CONTEXTUAL"
     )
   );
 
@@ -316,11 +413,19 @@ export default async function MatchReportPage({ params, searchParams }: MatchRep
                   Technologies: {strength.technologies.join(", ") || "None"}
                 </p>
                 <p className="mt-2 text-sm text-stone-700">
-                  Evidence IDs: {strength.supportingEvidenceIds.join(", ")}
+                  Primary evidence: {strength.supportingEvidenceLabels?.join(", ") || "None"}
                 </p>
-                <p className="mt-2 text-xs text-stone-600">
-                  Requirements: {strength.requirementIds.join(", ")} • Confidence {strength.confidence}
-                </p>
+                <details className="mt-3 rounded-2xl border border-stone-200 bg-white px-4 py-3">
+                  <summary className="cursor-pointer text-sm font-semibold text-stone-700">
+                    Technical details
+                  </summary>
+                  <div className="mt-3 space-y-2 text-xs text-stone-600">
+                    <p>Evidence cluster IDs: {strength.supportingEvidenceClusterIds?.join(", ") || "None"}</p>
+                    <p>Evidence IDs: {strength.supportingEvidenceIds.join(", ") || "None"}</p>
+                    <p>Requirement IDs: {strength.requirementIds.join(", ")}</p>
+                    <p>Confidence: {strength.confidence}</p>
+                  </div>
+                </details>
               </article>
             ))
           ) : (
@@ -336,20 +441,7 @@ export default async function MatchReportPage({ params, searchParams }: MatchRep
         <div className="space-y-4">
           {requiredGaps.length > 0 ? (
             requiredGaps.map((risk) => (
-              <article key={risk.riskId} className="rounded-2xl border border-stone-200 bg-stone-50 p-5">
-                <p className="text-base font-semibold text-stone-900">{risk.explanation}</p>
-                <p className="mt-2 text-sm text-stone-700">
-                  Gap type: {risk.gapType.replace(/_/g, " ")} • Severity: {risk.severity}
-                </p>
-                <p className="mt-2 text-sm text-stone-700">
-                  Resume guidance: {risk.resumeWarning}
-                </p>
-                <p className="mt-2 text-xs text-stone-600">
-                  Restricted evidence: {risk.availableRestrictedEvidence.join(", ") || "None"} •
-                  Project evidence: {risk.availableProjectEvidence.join(", ") || "None"} • Stale
-                  evidence: {risk.availableStaleEvidence.join(", ") || "None"}
-                </p>
-              </article>
+              <GapCard key={risk.riskId} risk={risk} category="Required" />
             ))
           ) : (
             <p className="text-sm text-stone-600">No required gaps were detected in this report.</p>
@@ -358,22 +450,46 @@ export default async function MatchReportPage({ params, searchParams }: MatchRep
       </Section>
 
       <Section
-        title="Preferred and Contextual Gaps"
-        description="Secondary limitations remain visible without overshadowing required evidence."
+        title="Responsibility Limitations"
+        description="Responsibility items stay separate from preferred and contextual requirements."
       >
         <div className="space-y-4">
-          {nonRequiredGaps.length > 0 ? (
-            nonRequiredGaps.map((risk) => (
-              <article key={risk.riskId} className="rounded-2xl border border-stone-200 bg-stone-50 p-5">
-                <p className="text-base font-semibold text-stone-900">{risk.explanation}</p>
-                <p className="mt-2 text-sm text-stone-700">
-                  Gap type: {risk.gapType.replace(/_/g, " ")} • Severity: {risk.severity}
-                </p>
-                <p className="mt-2 text-sm text-stone-700">{risk.resumeWarning}</p>
-              </article>
+          {responsibilityGaps.length > 0 ? (
+            responsibilityGaps.map((risk) => (
+              <GapCard key={risk.riskId} risk={risk} category="Responsibility" />
             ))
           ) : (
-            <p className="text-sm text-stone-600">No preferred or contextual gaps were detected.</p>
+            <p className="text-sm text-stone-600">No responsibility limitations were detected.</p>
+          )}
+        </div>
+      </Section>
+
+      <Section
+        title="Preferred Gaps"
+        description="Preferred gaps remain visible without being mixed into required or responsibility findings."
+      >
+        <div className="space-y-4">
+          {preferredGaps.length > 0 ? (
+            preferredGaps.map((risk) => (
+              <GapCard key={risk.riskId} risk={risk} category="Preferred" />
+            ))
+          ) : (
+            <p className="text-sm text-stone-600">No preferred gaps were detected.</p>
+          )}
+        </div>
+      </Section>
+
+      <Section
+        title="Contextual Gaps"
+        description="Contextual gaps stay separate from stronger requirement categories."
+      >
+        <div className="space-y-4">
+          {contextualGaps.length > 0 ? (
+            contextualGaps.map((risk) => (
+              <GapCard key={risk.riskId} risk={risk} category="Contextual" />
+            ))
+          ) : (
+            <p className="text-sm text-stone-600">No contextual gaps were detected.</p>
           )}
         </div>
       </Section>
@@ -390,7 +506,7 @@ export default async function MatchReportPage({ params, searchParams }: MatchRep
             <div className="mt-4 space-y-3">
               {result.resumeGuidance.priorityEvidenceThemes.map((theme) => (
                 <p key={theme.themeId} className="text-sm text-stone-700">
-                  {theme.label} • {theme.strength} • Evidence {theme.supportingEvidenceIds.join(", ")}
+                  {theme.label} • {theme.strength}
                 </p>
               ))}
             </div>
@@ -413,9 +529,11 @@ export default async function MatchReportPage({ params, searchParams }: MatchRep
             </h3>
             <div className="mt-4 space-y-3">
               {result.resumeGuidance.rolesToEmphasize.map((role) => (
-                <p key={role.roleId} className="text-sm text-stone-700">
-                  {(role.roleTitle ?? role.employer ?? role.roleId)} • {role.emphasisReason}
-                </p>
+                <div key={role.roleId} className="space-y-1 text-sm text-stone-700">
+                  <p>{role.displayLabel ?? role.roleTitle ?? role.employer ?? role.roleId}</p>
+                  {role.recencyLabel ? <p className="text-stone-600">{role.recencyLabel}</p> : null}
+                  <p>{role.emphasisReason}</p>
+                </div>
               ))}
             </div>
           </article>
@@ -446,13 +564,56 @@ export default async function MatchReportPage({ params, searchParams }: MatchRep
             >
               <p className="text-base font-semibold text-stone-900">{conclusion.requirementText}</p>
               <p className="mt-2 text-sm text-stone-700">
-                {conclusion.evidenceStrengthState.replace(/_/g, " ")} • {conclusion.conclusionCode.replace(/_/g, " ")}
+                {formatEnumLabel(conclusion.evidenceStrengthState)} •{" "}
+                {formatEnumLabel(conclusion.conclusionCode)}
               </p>
+              {conclusion.strongestAlignmentLabel ? (
+                <p className="mt-2 text-sm text-stone-700">
+                  Strongest aligned area: {conclusion.strongestAlignmentLabel}
+                </p>
+              ) : null}
               <p className="mt-2 text-sm text-stone-700">{conclusion.explanation}</p>
-              <p className="mt-2 text-xs text-stone-600">
-                Top evidence: {conclusion.topCandidateIds.join(", ") || "None"} • Requirement ID:{" "}
-                {conclusion.requirementId}
-              </p>
+              <ComponentCoverageList components={conclusion.componentConclusions} />
+              {conclusion.topEvidenceClusters && conclusion.topEvidenceClusters.length > 0 ? (
+                <div className="mt-4 space-y-3">
+                  {conclusion.topEvidenceClusters.map((cluster) => (
+                    <div
+                      key={cluster.clusterId}
+                      className="rounded-2xl border border-stone-200 bg-white px-4 py-3"
+                    >
+                      <p className="text-sm font-semibold text-stone-900">{cluster.primaryLabel}</p>
+                      <p className="mt-1 text-sm text-stone-700">
+                        {cluster.employer ?? cluster.project ?? cluster.role ?? "Context not specified"} •{" "}
+                        {formatEnumLabel(cluster.context)} • {formatEnumLabel(cluster.recency)}
+                      </p>
+                      {cluster.technologies.length > 0 ? (
+                        <p className="mt-2 text-sm text-stone-700">
+                          Technologies: {cluster.technologies.join(", ")}
+                        </p>
+                      ) : null}
+                      {cluster.relatedRepresentationIds.length > 1 ? (
+                        <p className="mt-2 text-sm text-stone-700">
+                          Supporting records: {cluster.relatedRepresentationIds.length - 1}
+                        </p>
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+              <details className="mt-4 rounded-2xl border border-stone-200 bg-white px-4 py-3">
+                <summary className="cursor-pointer text-sm font-semibold text-stone-700">
+                  Technical details
+                </summary>
+                <div className="mt-3 space-y-2 text-xs text-stone-600">
+                  <p>Top evidence IDs: {conclusion.topCandidateIds.join(", ") || "None"}</p>
+                  <p>Requirement ID: {conclusion.requirementId}</p>
+                  <p>
+                    Evidence cluster IDs:{" "}
+                    {conclusion.topEvidenceClusters?.map((cluster) => cluster.clusterId).join(", ") ||
+                      "None"}
+                  </p>
+                </div>
+              </details>
             </article>
           ))}
         </div>

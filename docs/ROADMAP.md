@@ -219,3 +219,9 @@ Complete deterministic approved cover-letter DOCX and PDF rendering through the 
 ## M8.4
 
 `M8.4` is not the start of `M9`. It is a corrective usability-and-intake milestone that makes the already-implemented `M0` through `M8` workflow operable from the browser and adds safe public URL job-description preview intake before save.
+
+## M8.8
+
+`M8.8` is a deterministic competency-graph and semantic-evidence milestone. It strengthens requirement-to-evidence reasoning, restricted-support explanation, and read-only enrichment guidance without beginning application-package work.
+
+The next roadmap step after `M8.8` still belongs to later application-package milestones rather than a new AI matching architecture.

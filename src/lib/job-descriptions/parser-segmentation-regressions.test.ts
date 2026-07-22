@@ -111,4 +111,16 @@ describe("job description parser regression fixtures", () => {
     expect(result.result?.responsibilities).toHaveLength(0);
     expect(result.result?.qualifications).toHaveLength(0);
   });
+
+  it("keeps abbreviation-heavy qualification lines atomic", () => {
+    const result = parseFixture("abbreviation-safe-splitting.txt");
+
+    expect(result.result?.qualifications.map((item) => item.originalText)).toEqual([
+      "Experience with cloud systems, e.g. AWS, Azure, or GCP.",
+      "Experience with Node.js, ASP.NET, and .NET services.",
+      "Must be located in the U.S. and authorized to work.",
+      "Use CI/CD, testing, etc. to support reliable delivery.",
+      "Shipped platform version 2.1.3 services with 99.9 availability."
+    ]);
+  });
 });

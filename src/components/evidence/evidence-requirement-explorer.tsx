@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { buttonSecondaryClassName, cardClassName, cx, mutedCardClassName } from "@/lib/ui";
 import type {
+  CareerKnowledgeOpportunityView,
+  EvidenceRestrictionBreakdownItem,
   EvidenceRequirementSectionView,
   EvidenceTechnicalDetailsView
 } from "@/lib/evidence-retrieval/presentation-types";
@@ -10,6 +12,8 @@ import type {
 type EvidenceRequirementExplorerProps = {
   sections?: EvidenceRequirementSectionView[];
   technicalDetails?: EvidenceTechnicalDetailsView;
+  restrictedEvidenceBreakdown?: EvidenceRestrictionBreakdownItem[];
+  careerKnowledgeOpportunities?: CareerKnowledgeOpportunityView[];
 };
 
 function StatusBadge({ label, tone }: { label: string; tone: "good" | "warn" | "muted" }) {
@@ -39,7 +43,9 @@ function toneForSupportState(label: string) {
 
 export function EvidenceRequirementExplorer({
   sections = [],
-  technicalDetails
+  technicalDetails,
+  restrictedEvidenceBreakdown = [],
+  careerKnowledgeOpportunities = []
 }: EvidenceRequirementExplorerProps) {
   const allRequirementIds = sections.flatMap((section) => section.items.map((item) => item.requirementId));
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
@@ -121,6 +127,11 @@ export function EvidenceRequirementExplorer({
                               Primary technologies: {item.primaryTechnologies.join(", ")}
                             </p>
                           ) : null}
+                          {(item.competencyLabels ?? []).length > 0 ? (
+                            <p className="text-xs text-stone-600">
+                              Competencies: {(item.competencyLabels ?? []).join(", ")}
+                            </p>
+                          ) : null}
                           {item.bundleCoverage.length > 0 ? (
                             <div className="flex flex-wrap gap-2 text-xs">
                               {item.bundleCoverage.map((technology) => (
@@ -157,6 +168,9 @@ export function EvidenceRequirementExplorer({
                       {expanded ? (
                         <div id={detailsId} className="mt-5 space-y-4">
                           <p className="text-sm text-stone-700">{item.supportExplanation}</p>
+                          {item.gapExplanation ? (
+                            <p className="text-sm text-stone-600">{item.gapExplanation}</p>
+                          ) : null}
 
                           {visibleCandidates.length > 0 ? (
                             <div className="space-y-3">
@@ -188,6 +202,11 @@ export function EvidenceRequirementExplorer({
                                   {candidate.matchedTechnologies.length > 0 ? (
                                     <p className="mt-2 text-xs text-stone-600">
                                       Matched technologies: {candidate.matchedTechnologies.join(", ")}
+                                    </p>
+                                  ) : null}
+                                  {(candidate.competencyLabels ?? []).length > 0 ? (
+                                    <p className="mt-2 text-xs text-stone-600">
+                                      Competencies: {(candidate.competencyLabels ?? []).join(", ")}
                                     </p>
                                   ) : null}
                                   {candidate.technologies.length > 0 ? (
@@ -274,6 +293,65 @@ export function EvidenceRequirementExplorer({
       </section>
 
       <section className={cardClassName}>
+        <div>
+          <h2 className="text-2xl font-semibold text-stone-900">Restricted Evidence Breakdown</h2>
+          <p className="mt-2 text-sm text-stone-600">
+            Restriction categories stay visible so related evidence is traceable without being overstated.
+          </p>
+        </div>
+        {restrictedEvidenceBreakdown.length === 0 ? (
+          <div className="mt-6 rounded-2xl border border-stone-200 bg-white p-4">
+            <p className="text-sm text-stone-600">No restricted evidence was recorded for this run.</p>
+          </div>
+        ) : (
+          <div className="mt-6 grid gap-3 md:grid-cols-2">
+            {restrictedEvidenceBreakdown.map((item) => (
+              <article key={item.code} className={mutedCardClassName}>
+                <p className="text-sm font-semibold text-stone-900">{item.label}</p>
+                <p className="mt-1 text-xs text-stone-600">Count: {item.count}</p>
+                <p className="mt-2 text-xs text-stone-600">
+                  Affected requirements: {item.affectedRequirementIds.length}
+                </p>
+                <p className="mt-1 text-xs text-stone-600">
+                  Affected evidence records: {item.affectedCandidateIds.length}
+                </p>
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
+
+      <section className={cardClassName}>
+        <div>
+          <h2 className="text-2xl font-semibold text-stone-900">Career Knowledge Opportunities</h2>
+          <p className="mt-2 text-sm text-stone-600">
+            Read-only guidance highlights where related evidence exists but the current structured model may still be incomplete.
+          </p>
+        </div>
+        {careerKnowledgeOpportunities.length === 0 ? (
+          <div className="mt-6 rounded-2xl border border-stone-200 bg-white p-4">
+            <p className="text-sm text-stone-600">No enrichment opportunities were derived for this run.</p>
+          </div>
+        ) : (
+          <div className="mt-6 space-y-3">
+            {careerKnowledgeOpportunities.map((item) => (
+              <article key={`${item.requirementId}-${item.competencyLabel}`} className={mutedCardClassName}>
+                <p className="text-sm font-semibold text-stone-900">{item.requirementTitle}</p>
+                <p className="mt-1 text-xs text-stone-600">Competency: {item.competencyLabel}</p>
+                {item.currentEvidence.length > 0 ? (
+                  <p className="mt-2 text-xs text-stone-600">
+                    Current evidence: {item.currentEvidence.join(", ")}
+                  </p>
+                ) : null}
+                <p className="mt-2 text-sm text-stone-700">{item.insufficiencyReason}</p>
+                <p className="mt-2 text-xs text-stone-600">{item.suggestedReviewAction}</p>
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
+
+      <section className={cardClassName}>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="text-2xl font-semibold text-stone-900">Technical Details</h2>
@@ -316,6 +394,19 @@ export function EvidenceRequirementExplorer({
               <p className="mt-2 text-sm text-stone-900">
                 {technicalDetails.retrievalEngineVersion} • Contract{" "}
                 {technicalDetails.retrievalContractVersion}
+              </p>
+            </div>
+            <div className={mutedCardClassName}>
+              <p className="text-sm font-medium text-stone-500">Competency Versions</p>
+              <p className="mt-2 text-sm text-stone-900">
+                Catalog {technicalDetails.competencyCatalogVersion ?? "Not recorded"} • Mapping{" "}
+                {technicalDetails.competencyMappingEngineVersion ?? "Not recorded"}
+              </p>
+            </div>
+            <div className={mutedCardClassName}>
+              <p className="text-sm font-medium text-stone-500">Competency Catalog Checksum</p>
+              <p className="mt-2 break-all text-sm text-stone-900">
+                {technicalDetails.competencyCatalogChecksum ?? "Not recorded"}
               </p>
             </div>
             <div className={mutedCardClassName}>

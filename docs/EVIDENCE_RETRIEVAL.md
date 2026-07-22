@@ -159,6 +159,30 @@ Routes:
 
 The UI exposes:
 
+## M8.8 competency layer
+
+Milestone `M8.8` extends retrieval with deterministic competency reasoning.
+
+Additional immutable retrieval lineage now includes:
+
+- competency catalog version
+- competency catalog checksum
+- competency mapping engine version
+
+Additional retrieval behavior now includes:
+
+- deterministic requirement-to-competency mapping
+- deterministic evidence-to-competency mapping
+- bounded relationship expansion with explicit strengths
+- requirement-aware evidence-family preferences
+- deterministic evidence clustering
+- compound component coverage
+- truthful gap explanations
+- restricted-evidence summary counts
+- read-only Career Knowledge Opportunities
+
+Exact technology and alias matches still outrank competency-only retrieval. The engine does not use embeddings, vector search, LLM matching, or auto-generated evidence.
+
 - retrieval readiness
 - executive summary
 - career knowledge provenance, source version, purpose, and whether the viewed run matches the current workspace profile

@@ -17,6 +17,7 @@ import { getLatestRenderedCoverLetterDocumentVersion } from "@/lib/cover-letter-
 import { renderApprovedResumeDocumentAction } from "@/lib/document-rendering/actions";
 import { getLatestRenderedResumeDocumentVersion } from "@/lib/document-rendering/service";
 import { runResumeAuditAction } from "@/lib/resume-audit/actions";
+import { runResumeRevisionAuditAction } from "@/lib/resume-audit/actions";
 import { getResumeAuditContext } from "@/lib/resume-audit/service";
 import {
   getActiveResumeRenderingApproval,
@@ -196,6 +197,18 @@ export default async function ApplicationDetailPage({
           applicationId: application.id
         })
       : null;
+  const currentFinalizedResumeRevision = resumeRevisionContext?.latestFinalizedRevision ?? null;
+  const currentResumeAuditRun =
+    currentFinalizedResumeRevision && resumeRevisionContext?.latestRevisionAudit
+      ? resumeRevisionContext.latestRevisionAudit
+      : resumeAuditContext?.reusableResumeAuditRun ?? null;
+  const resumeRenderingApprovalIsCurrent =
+    !currentFinalizedResumeRevision ||
+    (resumeRenderingApproval?.sourceType === "FINALIZED_REVISION" &&
+      resumeRenderingApproval.resumeRevisionVersionId === currentFinalizedResumeRevision.id);
+  const renderableResumeApproval = resumeRenderingApprovalIsCurrent
+    ? resumeRenderingApproval
+    : null;
   const resumeRenderingApprovalHistory =
     application.currentJobDescriptionVersion
       ? await listResumeRenderingApprovalHistory(workspace.id, {
@@ -324,22 +337,22 @@ export default async function ApplicationDetailPage({
       ? "Resume Composition Ready"
       : "Resume Composition Not Ready";
   const resumeAuditSummary =
-    resumeAuditContext?.reusableResumeAuditRun?.summary &&
-    typeof resumeAuditContext.reusableResumeAuditRun.summary === "object"
-      ? (resumeAuditContext.reusableResumeAuditRun.summary as {
+    currentResumeAuditRun?.summary &&
+    typeof currentResumeAuditRun.summary === "object"
+      ? (currentResumeAuditRun.summary as {
           renderingReadiness?: string;
           errorCount?: number;
           warningCount?: number;
         })
       : null;
-  const resumeAuditStateLabel = resumeAuditContext?.reusableResumeAuditRun
+  const resumeAuditStateLabel = currentResumeAuditRun
     ? "Resume Audit Complete"
     : resumeAuditContext?.auditReady
       ? "Resume Audit Ready"
       : "Resume Audit Not Ready";
   const documentRenderingStateLabel = latestRenderedResumePdf
     ? "Immutable Resume PDF Ready"
-    : resumeRenderingApproval
+    : renderableResumeApproval
       ? "Resume PDF Rendering Ready"
       : "Resume PDF Rendering Not Ready";
   const coverLetterCompositionStateLabel = coverLetterContext?.reusableCoverLetterCompositionVersion
@@ -403,7 +416,7 @@ export default async function ApplicationDetailPage({
     matchReportRun: reportContext?.reusableMatchReportRun ?? null,
     structuredResume: resumePlanContext?.reusableStructuredResumeVersion ?? null,
     resumeComposition: resumeCompositionContext?.reusableResumeCompositionVersion ?? null,
-    resumeAudit: resumeAuditContext?.reusableResumeAuditRun ?? null,
+    resumeAudit: currentResumeAuditRun,
     resumeApproval: resumeRenderingApproval
       ? {
           id: resumeRenderingApproval.approvalId,
@@ -458,8 +471,8 @@ export default async function ApplicationDetailPage({
           : `/job-descriptions/${currentJobDescriptionId}/resume`
         : null,
       resumeAudit: currentJobDescriptionId
-        ? resumeAuditContext?.reusableResumeAuditRun
-          ? `/job-descriptions/${currentJobDescriptionId}/resume/audit?runId=${resumeAuditContext.reusableResumeAuditRun.id}`
+        ? currentResumeAuditRun
+          ? `/job-descriptions/${currentJobDescriptionId}/resume/audit?runId=${currentResumeAuditRun.id}`
           : `/job-descriptions/${currentJobDescriptionId}/resume/audit`
         : null,
       resumeStudio: currentJobDescriptionId ? `/job-descriptions/${currentJobDescriptionId}/resume/studio` : null,
@@ -713,10 +726,10 @@ export default async function ApplicationDetailPage({
                 View Cover Letter Audit
               </Link>
             ) : null}
-            {resumeAuditContext?.reusableResumeAuditRun ? (
+            {currentResumeAuditRun ? (
               <Link
                 className="rounded-full border border-stone-300 px-5 py-3 text-sm font-semibold text-stone-700 transition hover:border-stone-950 hover:text-stone-950"
-                href={`/job-descriptions/${application.currentJobDescriptionVersion?.id}/resume/audit?runId=${resumeAuditContext.reusableResumeAuditRun.id}`}
+                href={`/job-descriptions/${application.currentJobDescriptionVersion?.id}/resume/audit?runId=${currentResumeAuditRun.id}`}
               >
                 View Resume Audit
               </Link>
@@ -851,18 +864,27 @@ export default async function ApplicationDetailPage({
             {application.currentJobDescriptionVersion &&
             resumeCompositionContext?.reusableResumeCompositionVersion ? (
               <form
-                action={runResumeAuditAction.bind(
-                  null,
-                  resumeCompositionContext.reusableResumeCompositionVersion.id,
-                  application.currentJobDescriptionVersion.id,
-                  `/applications/${application.id}`
-                )}
+                action={
+                  currentFinalizedResumeRevision
+                    ? runResumeRevisionAuditAction.bind(
+                        null,
+                        currentFinalizedResumeRevision.id,
+                        application.currentJobDescriptionVersion.id,
+                        `/applications/${application.id}`
+                      )
+                    : runResumeAuditAction.bind(
+                        null,
+                        resumeCompositionContext.reusableResumeCompositionVersion.id,
+                        application.currentJobDescriptionVersion.id,
+                        `/applications/${application.id}`
+                      )
+                }
               >
                 <button
                   className="rounded-full border border-stone-300 px-5 py-3 text-sm font-semibold text-stone-700 transition hover:border-stone-950 hover:text-stone-950"
                   type="submit"
                 >
-                  {resumeAuditContext?.reusableResumeAuditRun ? "Run Resume Audit Again" : "Run Resume Audit"}
+                  {currentResumeAuditRun ? "Run Resume Audit Again" : "Run Resume Audit"}
                 </button>
               </form>
             ) : null}
@@ -970,7 +992,7 @@ export default async function ApplicationDetailPage({
                 </a>
               </>
             ) : null}
-            {application.currentJobDescriptionVersion && resumeRenderingApproval ? (
+            {application.currentJobDescriptionVersion && renderableResumeApproval ? (
               <>
                 <form
                   action={renderApprovedResumeDocumentAction.bind(
@@ -1229,7 +1251,7 @@ export default async function ApplicationDetailPage({
                 {resumeAuditStateLabel}
               </p>
               <p className="mt-1 text-sm text-stone-600">
-                {resumeAuditContext?.reusableResumeAuditRun
+                {currentResumeAuditRun
                   ? `${resumeAuditSummary?.renderingReadiness?.replace(/_/g, " ") ?? "Unknown readiness"} • ${resumeAuditSummary?.errorCount ?? 0} blocking findings • ${resumeAuditSummary?.warningCount ?? 0} warnings`
                   : resumeCompositionContext?.reusableResumeCompositionVersion
                     ? "Ready to audit the current composed resume before any rendering step."
@@ -1264,8 +1286,10 @@ export default async function ApplicationDetailPage({
               </p>
               <p className="mt-1 text-sm text-stone-600">
                 {resumeRenderingApproval
-                  ? `${resumeRenderingApproval.sourceType.replace(/_/g, " ")} • ${resumeRenderingApproval.renderingReadiness.replace(/_/g, " ")} • ${resumeRenderingApproval.warningCount} warnings`
-                  : resumeAuditContext?.reusableResumeAuditRun
+                  ? resumeRenderingApprovalIsCurrent
+                    ? `${resumeRenderingApproval.sourceType.replace(/_/g, " ")} • ${resumeRenderingApproval.renderingReadiness.replace(/_/g, " ")} • ${resumeRenderingApproval.warningCount} warnings`
+                    : "A newer finalized revision exists and needs rendering approval before resume rendering continues."
+                  : currentResumeAuditRun
                     ? "Compare and approve an audited immutable resume before rendering."
                     : "Requires an eligible resume audit before approval can be recorded."}
               </p>
@@ -1281,7 +1305,7 @@ export default async function ApplicationDetailPage({
               <p className="mt-1 text-sm text-stone-600">
                 {latestRenderedResumePdf
                   ? `Latest version ${latestRenderedResumePdf.versionNumber} is available for download.`
-                  : resumeRenderingApproval
+                  : renderableResumeApproval
                     ? "An approved resume source is ready for immutable PDF rendering."
                     : "Approve a ready audited resume before rendering a PDF."}
               </p>

@@ -1,6 +1,6 @@
 export const EVIDENCE_SCORING_CONTRACT_VERSION = "1.0.0";
-export const EVIDENCE_SCORING_ENGINE_VERSION = "m4.2.0";
-export const EVIDENCE_SCORING_CONFIGURATION_VERSION = "scott-v1";
+export const EVIDENCE_SCORING_ENGINE_VERSION = "m4.2.1";
+export const EVIDENCE_SCORING_CONFIGURATION_VERSION = "scott-v2";
 
 export type RequirementImportanceKey =
   | "REQUIRED"
@@ -75,7 +75,9 @@ export const evidenceScoringConfiguration = {
     EDUCATION_MATCH: 18,
     CERTIFICATION_MATCH: 18,
     EXPERIENCE_CONTEXT_MATCH: 12,
-    USER_CONFIRMED_RELATIONSHIP: 20
+    USER_CONFIRMED_RELATIONSHIP: 20,
+    COMPONENT_DIRECT_SUPPORT: 10,
+    COMPONENT_RELATED_SUPPORT: 4
   },
   penaltyWeights: {
     STALE_SKILL: -12,
@@ -87,7 +89,9 @@ export const evidenceScoringConfiguration = {
     INTERMITTENT_USE: -5,
     NO_DIRECT_REQUIREMENT_LINK: -10,
     MISSING_DATE: -3,
-    FACTOR_FAMILY_CAP: -2
+    FACTOR_FAMILY_CAP: -2,
+    PARTIAL_COMPONENT_COVERAGE: -8,
+    COMPONENT_RELATION_MISMATCH: -6
   },
   metricWeights: {
     VERIFIED: 8,

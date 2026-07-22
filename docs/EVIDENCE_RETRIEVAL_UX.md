@@ -88,3 +88,15 @@ Domain matching now uses boundary-aware term matching instead of broad substring
 - Retrieval-level support states are still approximations before M4.2 scoring runs are viewed.
 - Historical confirmed analyses created before the classifier correction may still retain older `kind` assignments until a revised analysis is created and reconfirmed.
 - Project-only document-ingestion or ML-search evidence remains visible and explainable, but it is still restricted evidence rather than professional qualifying evidence.
+
+## M8.8 UX additions
+
+The Evidence Retrieval page now surfaces:
+
+- competency labels per requirement and candidate
+- direct-versus-related support through stored retrieval reasons
+- deterministic evidence clusters keyed from underlying experience identity
+- restricted-evidence breakdown counts
+- compound requirement gap explanations
+- read-only `Career Knowledge Opportunities`
+- competency catalog and mapping-engine lineage in technical details

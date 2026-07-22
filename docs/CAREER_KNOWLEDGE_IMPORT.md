@@ -88,3 +88,11 @@ The next slice should add:
 - validation and conflict surfacing
 - version metadata display
 - diagnostics for missing, duplicate, stale, or conflicting facts
+
+## M8.8 relationship
+
+The competency layer does not mutate imported Career Knowledge snapshots.
+
+- requirement support still depends on records already present in the selected immutable `CareerProfileVersion`
+- competency mapping may expose review opportunities when only skill declarations, project-only evidence, stale evidence, or incomplete structured examples exist
+- `Career Knowledge Opportunities` is a read-only retrieval output that points back to missing or weakly structured evidence without writing new accomplishments or inferred facts

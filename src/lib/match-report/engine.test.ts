@@ -20,8 +20,8 @@ function buildInput(): MatchReportInput {
       applicationId: "application-1",
       retrievalContractVersion: "1.0.0",
       scoringContractVersion: "1.0.0",
-      scoringEngineVersion: "m4.2.0",
-      scoringConfigurationVersion: "scott-v1",
+      scoringEngineVersion: "m4.2.1",
+      scoringConfigurationVersion: "scott-v2",
       inputChecksum: "scoring-input-checksum-1",
       createdAt: "2026-07-17T11:00:00.000Z",
       status: "SUCCESS_WITH_WARNINGS",
@@ -51,6 +51,20 @@ function buildInput(): MatchReportInput {
           kinds: ["TECHNOLOGY", "EXPERIENCE"],
           originalText: "TypeScript required",
           correctedDisplayText: "Production TypeScript experience",
+          competencyComponents: [
+            {
+              componentId: "component-rest",
+              label: "REST API Design",
+              competencyId: "rest-api-design",
+              competencyName: "REST API Design",
+              relationshipStrength: "DIRECT",
+              matchedSignals: ["RESTful"],
+              oneOfGroup: null,
+              direct: true,
+              inferred: false,
+              explanation: "REST requirement component."
+            }
+          ],
           evidenceStrengthState: "STRONG_EVIDENCE",
           highestCandidateScore: 96,
           eligibleCandidateCount: 1,
@@ -88,6 +102,18 @@ function buildInput(): MatchReportInput {
                 sourcePath: "professionalExperience[0]"
               },
               retrievalReasons: [],
+              matchedCompetencies: [
+                {
+                  competencyId: "rest-api-design",
+                  competencyName: "REST API Design",
+                  category: "API_ENGINEERING",
+                  relationshipStrength: "EXACT",
+                  matchedSignals: ["RESTful APIs"],
+                  explanation: "Direct REST API evidence.",
+                  direct: true,
+                  inferred: false
+                }
+              ],
               restrictions: [],
               eligibility: "ELIGIBLE",
               visibleForDiagnostics: true,
@@ -251,14 +277,19 @@ describe("match report engine", () => {
     const result = buildMatchReportResult(buildInput());
 
     expect(result.matchReportConfigurationVersion).toBe("scott-v1");
-    expect(result.matchReportEngineVersion).toBe("m4.3.0");
+    expect(result.matchReportEngineVersion).toBe("m4.3.1");
     expect(result.summary.matchTier).toBe("PARTIAL_ALIGNMENT");
     expect(result.summary.pursuitRecommendation).toBe("DO_NOT_RECOMMEND_YET");
     expect(result.summary.resumeReadinessState).toBe("NOT_READY");
     expect(result.summary.criticalRequiredGapCount).toBe(1);
     expect(result.summary.strongRequiredCount).toBe(1);
     expect(result.summary.goodRequiredCount).toBe(1);
-    expect(result.strengths[0]?.strengthId).toBe("strength:req-typescript:typescript");
+    expect(result.strengths[0]?.strengthCategory).toBe("REST API Design");
+    expect(result.strengths[0]?.supportingEvidenceLabels).toEqual(["Senior Engineer - Acme"]);
+    expect(result.requirementConclusions[0]?.strongestAlignmentLabel).toBe("REST API Design");
+    expect(result.requirementConclusions[0]?.topEvidenceClusters?.[0]?.primaryLabel).toBe(
+      "Senior Engineer - Acme"
+    );
     expect(result.resumeGuidance.claimsToAvoid.some((item) => item.concept.includes("clearance"))).toBe(true);
     expect(JSON.stringify(result).toLowerCase()).not.toContain("probability");
   });

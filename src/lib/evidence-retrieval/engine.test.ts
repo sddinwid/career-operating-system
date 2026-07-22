@@ -169,15 +169,29 @@ describe("buildEvidenceRetrievalResult", () => {
 
   it("does not treat JavaScript evidence as Java evidence", () => {
     const contract = loadFixtureContract();
-    contract.skills[0] = {
-      ...contract.skills[0],
-      name: "JavaScript",
-      evidenceReferences: []
-    };
-    contract.employment[0] = {
-      ...contract.employment[0],
-      technologies: ["JavaScript"]
-    };
+    contract.skills = contract.skills.map((skill) => ({
+      ...skill,
+      name: skill.name === "Java" ? "JavaScript" : skill.name,
+      evidenceReferences: skill.name === "Java" ? [] : skill.evidenceReferences
+    }));
+    contract.employment = contract.employment.map((employment) => ({
+      ...employment,
+      technologies: employment.technologies.map((technology) =>
+        technology === "Java" ? "JavaScript" : technology
+      )
+    }));
+    contract.projects = contract.projects.map((project) => ({
+      ...project,
+      technologies: project.technologies.map((technology) =>
+        technology === "Java" ? "JavaScript" : technology
+      )
+    }));
+    contract.evidence = contract.evidence.map((evidence) => ({
+      ...evidence,
+      technologies: evidence.technologies.map((technology) =>
+        technology === "Java" ? "JavaScript" : technology
+      )
+    }));
 
     const analysis = createAnalysis({
       requirements: [

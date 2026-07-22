@@ -305,8 +305,8 @@ describe("EvidenceRetrievalPage", () => {
     expect(screen.getByText("Software Engineer at Fixture Corp")).toBeVisible();
     expect(screen.getAllByText("Why this matched").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Restrictions").length).toBeGreaterThan(0);
-    expect(screen.getByText("Project evidence")).toBeVisible();
-    expect(screen.getByText("Date not recorded")).toBeVisible();
+    expect(screen.getAllByText("Project evidence").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Date not recorded").length).toBeGreaterThan(0);
 
     fireEvent.click(screen.getByRole("button", { name: "Show technical details" }));
 
