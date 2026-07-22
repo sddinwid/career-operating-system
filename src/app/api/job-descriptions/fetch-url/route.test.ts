@@ -40,11 +40,13 @@ describe("job description fetch-url route", () => {
     mockFetchJobDescriptionFromUrl.mockResolvedValueOnce({
       requestedUrl: "https://example.com/jobs/123",
       finalUrl: "https://example.com/jobs/123",
+      resolvedUrl: null,
       status: 200,
       contentType: "text/html",
       retrievedAt: "2026-07-21T12:00:00.000Z",
       pageTitle: "Platform Engineer",
       extractorVersion: "m8.4.0",
+      resolverVersion: null,
       extractionChecksum: "a".repeat(64),
       extractedText: "Build reliable systems.",
       diagnostics: []

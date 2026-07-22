@@ -139,4 +139,131 @@ describe("fetchJobDescriptionFromUrl", () => {
       status: 403
     });
   });
+
+  it("resolves embedded Ashby careers pages to the public job posting payload", async () => {
+    global.fetch = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(
+          `<!doctype html>
+          <html>
+            <head><title>Careers - Skyflow</title></head>
+            <body>
+              <main>${"Generic careers overview. ".repeat(30)}</main>
+              <script>window.__ashbyBaseJobBoardUrl = "https://jobs.ashbyhq.com/skyflow"</script>
+              <script src="https://jobs.ashbyhq.com/skyflow/embed"></script>
+            </body>
+          </html>`,
+          {
+            status: 200,
+            headers: {
+              "content-type": "text/html; charset=utf-8"
+            }
+          }
+        )
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            jobs: [
+              {
+                id: "5caff613-773d-466d-9876-cd803811d30b",
+                title: "Software Engineer",
+                jobUrl: "https://jobs.ashbyhq.com/skyflow/5caff613-773d-466d-9876-cd803811d30b",
+                descriptionPlain:
+                  "About the role:\nYou have\n - Build APIs\nYou will\n - Ship backend systems\n"
+              }
+            ],
+            apiVersion: "1"
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        )
+      ) as typeof global.fetch;
+
+    const result = await fetchJobDescriptionFromUrl(
+      "https://www.skyflow.com/careers?ashby_jid=5caff613-773d-466d-9876-cd803811d30b"
+    );
+
+    expect(result.finalUrl).toBe(
+      "https://www.skyflow.com/careers?ashby_jid=5caff613-773d-466d-9876-cd803811d30b"
+    );
+    expect(result.resolvedUrl).toBe(
+      "https://jobs.ashbyhq.com/skyflow/5caff613-773d-466d-9876-cd803811d30b"
+    );
+    expect(result.pageTitle).toBe("Software Engineer");
+    expect(result.contentType).toBe("application/json");
+    expect(result.resolverVersion).toBe("m8.4.1");
+    expect(result.extractedText).toContain("Ship backend systems");
+    expect(result.diagnostics).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ code: "ASHBY_JOB_POSTING_ID_DETECTED" }),
+        expect.objectContaining({ code: "ASHBY_JOB_BOARD_DISCOVERED" }),
+        expect.objectContaining({ code: "ASHBY_PUBLIC_API_REQUESTED" }),
+        expect.objectContaining({ code: "ASHBY_JOB_POSTING_RESOLVED" })
+      ])
+    );
+  });
+
+  it("rejects generic Ashby careers pages when the requested posting is missing from the public board", async () => {
+    global.fetch = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(
+          `<!doctype html>
+          <html>
+            <head><title>Careers - Skyflow</title></head>
+            <body>
+              <main>${"Generic careers overview. ".repeat(30)}</main>
+              <script>window.__ashbyBaseJobBoardUrl = "https://jobs.ashbyhq.com/skyflow"</script>
+              <script src="https://jobs.ashbyhq.com/skyflow/embed"></script>
+            </body>
+          </html>`,
+          {
+            status: 200,
+            headers: {
+              "content-type": "text/html; charset=utf-8"
+            }
+          }
+        )
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            jobs: [
+              {
+                id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+                title: "Different posting",
+                jobUrl: "https://jobs.ashbyhq.com/skyflow/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+                descriptionPlain: "Different job"
+              }
+            ],
+            apiVersion: "1"
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        )
+      ) as typeof global.fetch;
+
+    await expect(
+      fetchJobDescriptionFromUrl(
+        "https://www.skyflow.com/careers?ashby_jid=5caff613-773d-466d-9876-cd803811d30b"
+      )
+    ).rejects.toMatchObject({
+      status: 422,
+      diagnostics: expect.arrayContaining([
+        expect.objectContaining({ code: "ASHBY_JOB_POSTING_NOT_FOUND" }),
+        expect.objectContaining({ code: "GENERIC_CAREERS_PAGE_DETECTED" }),
+        expect.objectContaining({ code: "NO_JOB_CONTENT_FOUND" })
+      ])
+    });
+  });
 });

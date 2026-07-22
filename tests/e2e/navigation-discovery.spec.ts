@@ -72,12 +72,18 @@ test("supports corrected shell navigation and Fieldguide discovery workflow", as
 
   await page.goto("/");
 
-  const primaryApplicationLink = page.getByRole("link", { name: "Open applications" }).first();
-  await expect(primaryApplicationLink).toBeVisible();
+  const homeApplicationLink = page.getByRole("link", { name: "Open applications" }).first();
+  const primaryApplicationsLink = primaryNavigation.getByRole("link", {
+    name: "Applications",
+    exact: true
+  });
+  await expect(homeApplicationLink).toBeVisible();
+  await expect(primaryApplicationsLink).toBeVisible();
+  await expect(primaryApplicationsLink).toHaveAttribute("href", "/applications");
   await expect(page.getByRole("link", { name: "Browse jobs" }).first()).toBeVisible();
   await expect(page.getByRole("link", { name: "Browse documents" }).first()).toBeVisible();
 
-  const stylesBefore = await primaryApplicationLink.evaluate((element) => {
+  const stylesBefore = await homeApplicationLink.evaluate((element) => {
     const style = window.getComputedStyle(element);
     return {
       color: style.color,
@@ -88,12 +94,14 @@ test("supports corrected shell navigation and Fieldguide discovery workflow", as
   const backgroundBefore = parseRgb(stylesBefore.backgroundColor);
   expect(contrastRatio(foregroundBefore, backgroundBefore)).toBeGreaterThan(4.5);
 
-  await primaryApplicationLink.click();
-  await expect(page).toHaveURL(/\/applications$/);
+  await Promise.all([
+    page.waitForURL(/\/applications$/, { timeout: 15_000 }),
+    primaryApplicationsLink.click()
+  ]);
   await page.goBack();
   await expect(page).toHaveURL(/\/$/);
 
-  const stylesAfter = await primaryApplicationLink.evaluate((element) => {
+  const stylesAfter = await homeApplicationLink.evaluate((element) => {
     const style = window.getComputedStyle(element);
     return {
       color: style.color,

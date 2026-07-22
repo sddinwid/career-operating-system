@@ -39,6 +39,7 @@ const baseJobDescriptionSchema = z.object({
   intakeMode: z.enum(["paste", "url"]).default("paste"),
   fetchedRequestedUrl: z.preprocess(emptyToUndefined, z.string().trim().url().optional()),
   fetchedFinalUrl: z.preprocess(emptyToUndefined, z.string().trim().url().optional()),
+  fetchedResolvedUrl: z.preprocess(emptyToUndefined, z.string().trim().url().optional()),
   fetchedStatus: z.preprocess(
     emptyToUndefined,
     z.coerce.number().int().min(100).max(599).optional()
@@ -47,6 +48,7 @@ const baseJobDescriptionSchema = z.object({
   fetchedRetrievedAt: z.preprocess(emptyToUndefined, z.string().trim().max(64).optional()),
   fetchedPageTitle: z.preprocess(emptyToUndefined, z.string().trim().max(300).optional()),
   fetchedExtractorVersion: z.preprocess(emptyToUndefined, z.string().trim().max(40).optional()),
+  fetchedResolverVersion: z.preprocess(emptyToUndefined, z.string().trim().max(40).optional()),
   fetchedExtractionChecksum: z.preprocess(
     emptyToUndefined,
     z.string().trim().max(128).optional()

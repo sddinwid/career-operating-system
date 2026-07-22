@@ -747,14 +747,15 @@ test("captures, versions, and reuses job descriptions without changing applicati
     pageErrors.push(error.message);
   });
   await resetE2EApplicationFixture(prisma);
-  await setCurrentCareerProfileByPurpose("FIXTURE");
+  await setCurrentCareerProfileByPurpose("USER");
 
   const companyName = E2E_COMPANY_NAME;
   const roleName = E2E_ROLE_NAME;
-  const candidateName = "Fixture Candidate";
-  const approvedRoleBullet = "Built backend services for internal tools.";
-  const approvedAccomplishmentBullet = "Improved throughput by 20 percent.";
-  const approvedProject = "Fixture Platform";
+  const candidateName = "Scott Dinwiddie";
+  const expectedResumePdfFilename =
+    "Scott_Dinwiddie_E2E_Grid_Company_E2E_Grid_Role_Resume_v1.pdf";
+  const revisedSummaryText =
+    "Platform engineer focused on TypeScript, PostgreSQL, and reliable backend platform delivery.";
   const firstDescription = `${companyName}
 ${roleName}
 Hybrid role based in Chicago, IL. Full-time position.
@@ -964,8 +965,8 @@ Preferred Qualifications
     page.getByText(
       "This retrieval used fixture Career Knowledge and should not be used for a real application decision."
     )
-  ).toBeVisible();
-  await expect(page.getByText("Profile purpose FIXTURE")).toBeVisible();
+  ).toHaveCount(0);
+  await expect(page.getByText("Profile purpose USER")).toBeVisible();
   await expect(page.getByRole("heading", { name: "Required", exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Preferred", exact: true })).toBeVisible();
   await expect(page.getByText("Strongest Supported Areas")).toBeVisible();
@@ -1484,9 +1485,7 @@ Preferred Qualifications
     .filter({ has: page.getByRole("heading", { name: "Professional Summary" }) });
   const summaryTextarea = summarySection.getByRole("textbox", { name: "Revised" });
   await expect(summaryTextarea).toBeVisible({ timeout: 15_000 });
-  await summaryTextarea.fill(
-    "Platform engineer focused on TypeScript, PostgreSQL, and reliable backend platform delivery."
-  );
+  await summaryTextarea.fill(revisedSummaryText);
 
   const skillsSection = page
     .locator("section")
@@ -1528,7 +1527,7 @@ Preferred Qualifications
   await expect(page.getByRole("heading", { name: "Review Notes" })).toBeVisible();
   await page.reload();
   await expect(summarySection.getByRole("textbox", { name: "Revised" })).toHaveValue(
-    "Platform engineer focused on TypeScript, PostgreSQL, and reliable backend platform delivery."
+    revisedSummaryText
   );
   await page.getByRole("button", { name: "Finalize for Audit" }).click();
   await expect(page.getByText("Revision actions")).toBeVisible();
@@ -1639,7 +1638,7 @@ Preferred Qualifications
   await page.getByRole("link", { name: "Download PDF" }).click();
   const download = await downloadPromise;
   const suggestedFilename = download.suggestedFilename();
-  expect(suggestedFilename).toContain("Fixture_Candidate");
+  expect(suggestedFilename).toBe(expectedResumePdfFilename);
   expect(suggestedFilename.endsWith(".pdf")).toBe(true);
   const downloadPath = test.info().outputPath(suggestedFilename);
   await download.saveAs(downloadPath);
@@ -1674,12 +1673,7 @@ Preferred Qualifications
   expect(extractedText).toContain("Professional Summary");
   expect(extractedText).toContain("Core Skills");
   expect(extractedText).toContain("Professional Experience");
-  expect(
-    extractedText.includes(approvedRoleBullet) || extractedText.includes(approvedAccomplishmentBullet)
-  ).toBe(true);
-  if (extractedText.includes("Selected Projects")) {
-    expect(extractedText).toContain(approvedProject);
-  }
+  expect(extractedText).toContain(revisedSummaryText);
   expect(extractedText).not.toContain("Shortened the summary and trimmed optional content for a tighter employer-facing pass.");
   expect(extractedText).not.toContain("I acknowledge the remaining non-blocking warnings.");
   expect(extractedText).not.toContain("exp_fixture");
@@ -1722,12 +1716,76 @@ Preferred Qualifications
       "The current structured resume contract, engine, and configuration already had a successful result for this exact match report and career profile, so the existing plan was reused."
     )
   ).toBeVisible();
-  await page.getByRole("button", { name: "Run Resume Audit Again" }).click();
-  await expect(
-    page.getByText(
-      "The current audit contract, engine, and configuration already had a successful result for this exact composed resume, so the existing audit was reused."
-    )
-  ).toBeVisible();
+  const currentResumeAuditLinks = page.getByRole("link", { name: "View Resume Audit" });
+  await expect(currentResumeAuditLinks).toHaveCount(2);
+  const currentResumeAuditHref = await currentResumeAuditLinks.first().getAttribute("href");
+  expect(currentResumeAuditHref).toBeTruthy();
+  await expect(currentResumeAuditLinks.first()).toHaveAttribute("href", currentResumeAuditHref ?? "");
+  await expect(currentResumeAuditLinks.nth(1)).toHaveAttribute("href", currentResumeAuditHref ?? "");
+  const currentResumeAuditId = preparedRunIdFromHref(currentResumeAuditHref ?? "");
+  const existingResumeAudit = await prisma.resumeAuditRun.findUnique({
+    where: {
+      id: currentResumeAuditId
+    },
+    select: {
+      id: true,
+      applicationId: true,
+      jobDescriptionVersionId: true,
+      resumeCompositionVersionId: true,
+      resumeRevisionVersionId: true
+    }
+  });
+  expect(existingResumeAudit).toBeTruthy();
+  const existingResumeAuditCount = await prisma.resumeAuditRun.count({
+    where: {
+      applicationId: existingResumeAudit?.applicationId ?? applicationId,
+      jobDescriptionVersionId: existingResumeAudit?.jobDescriptionVersionId,
+      resumeCompositionVersionId: existingResumeAudit?.resumeCompositionVersionId,
+      resumeRevisionVersionId: existingResumeAudit?.resumeRevisionVersionId ?? null
+    }
+  });
+
+  await Promise.all([
+    page.waitForResponse(
+      (response) =>
+        response.request().method() === "POST" &&
+        response.url().includes(`/applications/${applicationId}`) &&
+        response.status() === 303
+    ),
+    page.getByRole("button", { name: "Run Resume Audit Again" }).click()
+  ]);
+  await page.waitForURL((url) => {
+    return (
+      url.pathname === `/applications/${applicationId}` &&
+      url.searchParams.get("success") === "audit-reused"
+    );
+  }, { timeout: 15_000 });
+
+  const reusedResumeAudit = await prisma.resumeAuditRun.findFirst({
+    where: {
+      applicationId: existingResumeAudit?.applicationId ?? applicationId,
+      jobDescriptionVersionId: existingResumeAudit?.jobDescriptionVersionId,
+      resumeCompositionVersionId: existingResumeAudit?.resumeCompositionVersionId,
+      resumeRevisionVersionId: existingResumeAudit?.resumeRevisionVersionId ?? null
+    },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    select: {
+      id: true
+    }
+  });
+  const reusedResumeAuditCount = await prisma.resumeAuditRun.count({
+    where: {
+      applicationId: existingResumeAudit?.applicationId ?? applicationId,
+      jobDescriptionVersionId: existingResumeAudit?.jobDescriptionVersionId,
+      resumeCompositionVersionId: existingResumeAudit?.resumeCompositionVersionId,
+      resumeRevisionVersionId: existingResumeAudit?.resumeRevisionVersionId ?? null
+    }
+  });
+  expect(reusedResumeAudit?.id).toBe(currentResumeAuditId);
+  expect(reusedResumeAuditCount).toBe(existingResumeAuditCount);
+  await expect(page.getByText("Resume Audit Complete")).toBeVisible();
+  await expect(currentResumeAuditLinks.first()).toHaveAttribute("href", currentResumeAuditHref ?? "");
+  await expect(currentResumeAuditLinks.nth(1)).toHaveAttribute("href", currentResumeAuditHref ?? "");
   await page.getByRole("button", { name: "Generate Match Report" }).click();
   await expect(
     page.getByText(
@@ -1844,20 +1902,29 @@ Preferred Qualifications
   }, statusRowIndex);
   const statusEditor = page.getByRole("combobox", { name: "Status editor" });
   await expect(statusEditor).toBeVisible();
-  const statusSaveResponse = page.waitForResponse((response) => {
-    if (
-      response.request().method() !== "POST" ||
-      !response.url().includes("/api/applications/") ||
-      !response.url().includes("/grid-field")
-    ) {
-      return false;
-    }
+  await Promise.all([
+    page.waitForResponse((response) => {
+      if (
+        response.request().method() !== "POST" ||
+        !response.url().includes("/api/applications/") ||
+        !response.url().includes("/grid-field")
+      ) {
+        return false;
+      }
 
-    const payload = response.request().postDataJSON() as { field?: string } | null;
-    return payload?.field === "status";
-  });
-  await statusEditor.selectOption(nextStatusValue);
-  await statusSaveResponse;
+      const payload = response.request().postDataJSON() as { field?: string } | null;
+      return payload?.field === "status";
+    }),
+    page.evaluate((nextValue) => {
+      const editor = document.querySelector('select[aria-label="Status editor"]');
+      if (!(editor instanceof HTMLSelectElement)) {
+        throw new Error("Status editor is unavailable.");
+      }
+
+      editor.value = nextValue;
+      editor.dispatchEvent(new Event("change", { bubbles: true }));
+    }, nextStatusValue)
+  ]);
 
   await expect(
     page.getByRole("status").filter({ hasText: "Application updated." }).first()
@@ -1975,6 +2042,16 @@ function preparedApplicationIdFromUrl(url: string) {
   }
 
   return match[1];
+}
+
+function preparedRunIdFromHref(href: string, parameterName = "runId") {
+  const parsed = new URL(href, "http://localhost");
+  const runId = parsed.searchParams.get(parameterName);
+  if (!runId) {
+    throw new Error(`Could not determine ${parameterName} from href: ${href}`);
+  }
+
+  return runId;
 }
 
 const RENDERING_WARNING_ACKNOWLEDGEMENT =

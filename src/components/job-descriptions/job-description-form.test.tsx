@@ -130,11 +130,13 @@ describe("JobDescriptionForm", () => {
         JSON.stringify({
           requestedUrl: "https://company.example/jobs/1",
           finalUrl: "https://company.example/jobs/1?gh_jid=1",
+          resolvedUrl: "https://jobs.ashbyhq.com/company/1",
           status: 200,
           contentType: "text/html",
           retrievedAt: "2026-07-21T12:00:00.000Z",
           pageTitle: "Senior Engineer",
           extractorVersion: "m8.4.0",
+          resolverVersion: "m8.4.1",
           extractionChecksum: "b".repeat(64),
           extractedText: "Original text",
           diagnostics: [
@@ -185,8 +187,10 @@ describe("JobDescriptionForm", () => {
 
     expect(screen.getAllByText("https://company.example/jobs/1").length).toBeGreaterThan(0);
     expect(screen.getByText("https://company.example/jobs/1?gh_jid=1")).toBeVisible();
+    expect(screen.getByText("https://jobs.ashbyhq.com/company/1")).toBeVisible();
     expect(screen.getAllByText("Senior Engineer").length).toBeGreaterThan(0);
     expect(screen.getByText("JSON_LD_JOB_POSTING_USED")).toBeVisible();
+    expect(screen.getByText("m8.4.1")).toBeVisible();
     expect(screen.getByText("b".repeat(64))).toBeVisible();
     expect(
       screen.getByText(
@@ -218,11 +222,13 @@ describe("JobDescriptionForm", () => {
           JSON.stringify({
             requestedUrl: "https://company.example/jobs/1",
             finalUrl: "https://company.example/jobs/1",
+            resolvedUrl: null,
             status: 200,
             contentType: "text/html",
             retrievedAt: "2026-07-21T12:00:00.000Z",
             pageTitle: "Senior Engineer",
             extractorVersion: "m8.4.0",
+            resolverVersion: null,
             extractionChecksum: "c".repeat(64),
             extractedText: "Changed text with more detail",
             diagnostics: []

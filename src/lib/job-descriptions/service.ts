@@ -262,11 +262,13 @@ async function persistJobDescriptionVersion(
             ? {
                 requestedUrl: args.input.fetchedRequestedUrl ?? null,
                 finalUrl: args.input.fetchedFinalUrl ?? null,
+                resolvedUrl: args.input.fetchedResolvedUrl ?? null,
                 status: args.input.fetchedStatus ?? null,
                 contentType: args.input.fetchedContentType ?? null,
                 retrievedAt: args.input.fetchedRetrievedAt ?? null,
                 pageTitle: args.input.fetchedPageTitle ?? null,
                 extractorVersion: args.input.fetchedExtractorVersion ?? null,
+                resolverVersion: args.input.fetchedResolverVersion ?? null,
                 extractionChecksum: args.input.fetchedExtractionChecksum ?? null,
                 diagnostics: args.input.fetchedDiagnostics ?? null
               }

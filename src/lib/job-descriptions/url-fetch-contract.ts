@@ -13,11 +13,13 @@ export const jobDescriptionFetchDiagnosticSchema = z.object({
 export const jobDescriptionFetchResponseSchema = z.object({
   requestedUrl: z.string().url(),
   finalUrl: z.string().url(),
+  resolvedUrl: z.string().url().nullable().optional(),
   status: z.number().int().min(100).max(599),
   contentType: z.string(),
   retrievedAt: z.string(),
   pageTitle: z.string().nullable(),
   extractorVersion: z.string(),
+  resolverVersion: z.string().nullable().optional(),
   extractionChecksum: z.string(),
   extractedText: z.string(),
   diagnostics: z.array(jobDescriptionFetchDiagnosticSchema)

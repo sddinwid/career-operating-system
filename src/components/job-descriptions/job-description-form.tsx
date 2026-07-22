@@ -139,9 +139,9 @@ export function JobDescriptionForm({
       }
 
       const preview = payload as JobDescriptionFetchResponse;
-      setFetchPreview(preview);
+        setFetchPreview(preview);
       setDescriptionText(preview.extractedText);
-      setSourceUrl(preview.finalUrl);
+      setSourceUrl(preview.resolvedUrl ?? preview.finalUrl);
       if (preview.pageTitle) {
         setSourceTitle((currentValue) => currentValue || preview.pageTitle || "");
       }
@@ -274,6 +274,7 @@ export function JobDescriptionForm({
         <input name="intakeMode" type="hidden" value={sourceMode} />
         <input name="fetchedRequestedUrl" type="hidden" value={fetchPreview?.requestedUrl ?? ""} />
         <input name="fetchedFinalUrl" type="hidden" value={fetchPreview?.finalUrl ?? ""} />
+        <input name="fetchedResolvedUrl" type="hidden" value={fetchPreview?.resolvedUrl ?? ""} />
         <input name="fetchedStatus" type="hidden" value={fetchPreview?.status ?? ""} />
         <input name="fetchedContentType" type="hidden" value={fetchPreview?.contentType ?? ""} />
         <input name="fetchedRetrievedAt" type="hidden" value={fetchPreview?.retrievedAt ?? ""} />
@@ -282,6 +283,11 @@ export function JobDescriptionForm({
           name="fetchedExtractorVersion"
           type="hidden"
           value={fetchPreview?.extractorVersion ?? ""}
+        />
+        <input
+          name="fetchedResolverVersion"
+          type="hidden"
+          value={fetchPreview?.resolverVersion ?? ""}
         />
         <input
           name="fetchedExtractionChecksum"
@@ -333,6 +339,12 @@ export function JobDescriptionForm({
                     <p className="mt-1 break-all text-sm text-stone-800">{fetchPreview.finalUrl}</p>
                   </article>
                   <article>
+                    <p className="text-sm font-medium text-stone-500">Resolved posting URL</p>
+                    <p className="mt-1 break-all text-sm text-stone-800">
+                      {fetchPreview.resolvedUrl ?? "Not resolved"}
+                    </p>
+                  </article>
+                  <article>
                     <p className="text-sm font-medium text-stone-500">HTTP status</p>
                     <p className="mt-1 text-sm text-stone-800">{fetchPreview.status}</p>
                   </article>
@@ -347,6 +359,12 @@ export function JobDescriptionForm({
                   <article>
                     <p className="text-sm font-medium text-stone-500">Extractor version</p>
                     <p className="mt-1 text-sm text-stone-800">{fetchPreview.extractorVersion}</p>
+                  </article>
+                  <article>
+                    <p className="text-sm font-medium text-stone-500">Resolver version</p>
+                    <p className="mt-1 text-sm text-stone-800">
+                      {fetchPreview.resolverVersion ?? "Not used"}
+                    </p>
                   </article>
                   <article>
                     <p className="text-sm font-medium text-stone-500">Extraction checksum</p>

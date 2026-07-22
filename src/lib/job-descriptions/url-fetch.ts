@@ -8,7 +8,8 @@ import type {
   JobDescriptionFetchResponse
 } from "@/lib/job-descriptions/url-fetch-contract";
 
-const EXTRACTOR_VERSION = "m8.4.0";
+const EXTRACTOR_VERSION = "m8.4.1";
+const RESOLVER_VERSION = "m8.4.1";
 const FETCH_TIMEOUT_MS = 12_000;
 const MAX_REDIRECTS = 4;
 const MAX_RESPONSE_BYTES = 3 * 1024 * 1024;
@@ -21,6 +22,40 @@ const SUPPORTED_CONTENT_TYPES = new Set([
   "text/plain",
   "application/xhtml+xml"
 ]);
+const ASHBY_PUBLIC_API_HOSTNAME = "api.ashbyhq.com";
+const ASHBY_PUBLIC_BOARD_PATH_PREFIX = "/posting-api/job-board/";
+const ASHBY_HOSTNAME = "jobs.ashbyhq.com";
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+type HtmlExtractionResult = {
+  pageTitle: string | null;
+  extractedText: string;
+  diagnostics: JobDescriptionFetchDiagnostic[];
+};
+
+type ResolvedAshbyPosting = {
+  requestedUrl: string;
+  finalUrl: string;
+  resolvedUrl: string;
+  status: number;
+  contentType: string;
+  pageTitle: string;
+  extractedText: string;
+  diagnostics: JobDescriptionFetchDiagnostic[];
+};
+
+type AshbyPublicJobPosting = {
+  id?: string;
+  title?: string;
+  jobUrl?: string;
+  descriptionHtml?: string;
+  descriptionPlain?: string;
+};
+
+type AshbyBoardResponse = {
+  jobs?: AshbyPublicJobPosting[];
+};
 
 export class JobDescriptionUrlFetchError extends Error {
   readonly status: number;
@@ -126,6 +161,42 @@ function readContentType(header: string | null) {
   return header?.split(";")[0]?.trim().toLowerCase() ?? "application/octet-stream";
 }
 
+async function fetchRemoteUrl(
+  targetUrl: URL,
+  acceptHeader: string
+) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+
+  try {
+    return await fetch(targetUrl, {
+      method: "GET",
+      headers: {
+        "user-agent": SAFE_USER_AGENT,
+        accept: acceptHeader
+      },
+      redirect: "manual",
+      signal: controller.signal
+    });
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") {
+      throw new JobDescriptionUrlFetchError(
+        408,
+        "The remote fetch timed out.",
+        [createDiagnostic("REMOTE_TIMEOUT", "The remote fetch timed out.", "ERROR")]
+      );
+    }
+
+    throw new JobDescriptionUrlFetchError(
+      502,
+      "The remote page could not be fetched.",
+      [createDiagnostic("REMOTE_FETCH_FAILED", "The remote page could not be fetched.", "ERROR")]
+    );
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 async function readBoundedText(response: Response) {
   if (!response.body) {
     return "";
@@ -165,6 +236,29 @@ function normalizeExtractedText(value: string) {
     .replace(/\n{3,}/g, "\n\n")
     .replace(/[ \t]{2,}/g, " ")
     .trim();
+}
+
+function truncateExtractedText(
+  extractedText: string,
+  diagnostics: JobDescriptionFetchDiagnostic[]
+) {
+  if (extractedText.length <= MAX_EXTRACTED_TEXT_CHARACTERS) {
+    return {
+      extractedText,
+      diagnostics
+    };
+  }
+
+  return {
+    extractedText: extractedText.slice(0, MAX_EXTRACTED_TEXT_CHARACTERS),
+    diagnostics: diagnostics.concat(
+      createDiagnostic(
+        "TEXT_TRUNCATED",
+        "The extracted text was truncated to the maximum preview size.",
+        "WARNING"
+      )
+    )
+  };
 }
 
 function extractJobPostingJsonLd(document: Document) {
@@ -304,20 +398,275 @@ function extractVisibleTextFromHtml(html: string) {
     );
   }
 
+  const truncated = truncateExtractedText(normalized, diagnostics);
+
   return {
     pageTitle,
-    extractedText: normalized.length > MAX_EXTRACTED_TEXT_CHARACTERS
-      ? `${normalized.slice(0, MAX_EXTRACTED_TEXT_CHARACTERS)}`
-      : normalized,
-    diagnostics: normalized.length > MAX_EXTRACTED_TEXT_CHARACTERS
-      ? diagnostics.concat(
+    extractedText: truncated.extractedText,
+    diagnostics: truncated.diagnostics
+  };
+}
+
+function extractAshbyJobPostingId(url: URL) {
+  const queryId = url.searchParams.get("ashby_jid")?.trim();
+  if (queryId && UUID_PATTERN.test(queryId)) {
+    return queryId;
+  }
+
+  if (url.hostname !== ASHBY_HOSTNAME) {
+    return null;
+  }
+
+  const pathSegments = url.pathname.split("/").filter(Boolean);
+  const candidate = pathSegments.at(-1) ?? null;
+  if (candidate && UUID_PATTERN.test(candidate)) {
+    return candidate;
+  }
+
+  return null;
+}
+
+function discoverAshbyBaseJobBoardUrl(html: string) {
+  const baseJobBoardMatch = html.match(
+    /window\.__ashbyBaseJobBoardUrl\s*=\s*["']([^"']+)["']/i
+  );
+  if (baseJobBoardMatch?.[1]) {
+    return baseJobBoardMatch[1];
+  }
+
+  const embedScriptMatch = html.match(
+    /<script[^>]+src=["'](https:\/\/jobs\.ashbyhq\.com\/[^"'?#]+)\/embed["']/i
+  );
+  if (embedScriptMatch?.[1]) {
+    return embedScriptMatch[1];
+  }
+
+  return null;
+}
+
+function buildAshbyBoardApiUrl(baseJobBoardUrl: string) {
+  let parsed: URL;
+
+  try {
+    parsed = new URL(baseJobBoardUrl);
+  } catch {
+    return null;
+  }
+
+  if (parsed.hostname !== ASHBY_HOSTNAME) {
+    return null;
+  }
+
+  const pathSegments = parsed.pathname.split("/").filter(Boolean);
+  const jobBoardName = pathSegments.at(0) ?? null;
+  if (!jobBoardName) {
+    return null;
+  }
+
+  return new URL(
+    `${ASHBY_PUBLIC_BOARD_PATH_PREFIX}${encodeURIComponent(jobBoardName)}?includeCompensation=true`,
+    `https://${ASHBY_PUBLIC_API_HOSTNAME}`
+  );
+}
+
+async function fetchAshbyBoardResponse(boardApiUrl: URL) {
+  await assertSafeDestination(boardApiUrl);
+
+  const response = await fetchRemoteUrl(boardApiUrl, "application/json");
+  if (!response.ok) {
+    throw new JobDescriptionUrlFetchError(
+      502,
+      "The remote page returned an unexpected response.",
+      [createDiagnostic("REMOTE_FETCH_FAILED", `Remote status ${response.status}.`, "ERROR")]
+    );
+  }
+
+  const contentType = readContentType(response.headers.get("content-type"));
+  if (contentType !== "application/json") {
+    throw new JobDescriptionUrlFetchError(
+      415,
+      "The remote content type is not supported.",
+      [createDiagnostic("CONTENT_TYPE_UNSUPPORTED", `Unsupported content type: ${contentType}.`, "ERROR")]
+    );
+  }
+
+  const rawBody = await readBoundedText(response);
+  try {
+    return JSON.parse(rawBody) as AshbyBoardResponse;
+  } catch {
+    throw new JobDescriptionUrlFetchError(
+      502,
+      "The remote page could not be fetched.",
+      [createDiagnostic("REMOTE_FETCH_FAILED", "The remote page returned invalid JSON.", "ERROR")]
+    );
+  }
+}
+
+function resolveAshbyJobPosting(
+  boardResponse: AshbyBoardResponse,
+  jobPostingId: string
+) {
+  const jobs = Array.isArray(boardResponse.jobs) ? boardResponse.jobs : [];
+  return (
+    jobs.find((job) => typeof job.id === "string" && job.id === jobPostingId) ??
+    jobs.find((job) => {
+      const jobUrl = job.jobUrl?.trim();
+      if (!jobUrl) {
+        return false;
+      }
+
+      try {
+        const parsed = new URL(jobUrl);
+        return extractAshbyJobPostingId(parsed) === jobPostingId;
+      } catch {
+        return false;
+      }
+    }) ??
+    null
+  );
+}
+
+function normalizeAshbyResolvedPosting(
+  posting: AshbyPublicJobPosting,
+  fallbackTitle: string | null,
+  diagnostics: JobDescriptionFetchDiagnostic[]
+) {
+  const primaryText =
+    typeof posting.descriptionPlain === "string" && posting.descriptionPlain.trim().length > 0
+      ? posting.descriptionPlain
+      : typeof posting.descriptionHtml === "string" && posting.descriptionHtml.trim().length > 0
+        ? extractVisibleTextFromHtml(posting.descriptionHtml).extractedText
+        : "";
+
+  const normalizedText = normalizeExtractedText(primaryText);
+  const truncated = truncateExtractedText(normalizedText, diagnostics);
+
+  return {
+    pageTitle:
+      (typeof posting.title === "string" && posting.title.trim().length > 0
+        ? posting.title.trim()
+        : fallbackTitle) ?? "Job posting",
+    extractedText: truncated.extractedText,
+    diagnostics: truncated.diagnostics
+  };
+}
+
+function looksLikeGenericAshbyLandingPage(url: URL, extraction: HtmlExtractionResult) {
+  if (!extractAshbyJobPostingId(url)) {
+    return false;
+  }
+
+  return /careers/i.test(extraction.pageTitle ?? "");
+}
+
+async function maybeResolveAshbyEmbeddedJob(args: {
+  requestedUrl: string;
+  fetchedUrl: URL;
+  html: string;
+  extraction: HtmlExtractionResult;
+}): Promise<ResolvedAshbyPosting | null> {
+  const ashbyJobPostingId = extractAshbyJobPostingId(args.fetchedUrl);
+  if (!ashbyJobPostingId) {
+    return null;
+  }
+
+  const baseJobBoardUrl = discoverAshbyBaseJobBoardUrl(args.html);
+  if (!baseJobBoardUrl) {
+    return null;
+  }
+
+  const boardApiUrl = buildAshbyBoardApiUrl(baseJobBoardUrl);
+  const resolutionDiagnostics: JobDescriptionFetchDiagnostic[] = [
+    createDiagnostic(
+      "ASHBY_JOB_POSTING_ID_DETECTED",
+      `Detected embedded Ashby job posting id ${ashbyJobPostingId}.`
+    ),
+    createDiagnostic(
+      "ASHBY_JOB_BOARD_DISCOVERED",
+      `Discovered Ashby job board ${baseJobBoardUrl}.`
+    )
+  ];
+
+  if (!boardApiUrl) {
+    if (looksLikeGenericAshbyLandingPage(args.fetchedUrl, args.extraction)) {
+      throw new JobDescriptionUrlFetchError(
+        422,
+        "The fetched page did not contain enough usable job-description text.",
+        args.extraction.diagnostics.concat(
+          resolutionDiagnostics,
           createDiagnostic(
-            "TEXT_TRUNCATED",
-            "The extracted text was truncated to the maximum preview size.",
-            "WARNING"
+            "GENERIC_CAREERS_PAGE_DETECTED",
+            "The fetched page appears to be a generic careers landing page rather than the requested embedded job posting.",
+            "ERROR"
+          ),
+          createDiagnostic(
+            "NO_JOB_CONTENT_FOUND",
+            "The fetched page did not contain enough usable job-description text.",
+            "ERROR"
           )
         )
-      : diagnostics
+      );
+    }
+
+    return null;
+  }
+
+  resolutionDiagnostics.push(
+    createDiagnostic(
+      "ASHBY_PUBLIC_API_REQUESTED",
+      `Requested Ashby's public job board API at ${boardApiUrl.href}.`
+    )
+  );
+
+  const boardResponse = await fetchAshbyBoardResponse(boardApiUrl);
+  const matchedPosting = resolveAshbyJobPosting(boardResponse, ashbyJobPostingId);
+
+  if (!matchedPosting) {
+    throw new JobDescriptionUrlFetchError(
+      422,
+      "The fetched page did not contain enough usable job-description text.",
+      args.extraction.diagnostics.concat(
+        resolutionDiagnostics,
+        createDiagnostic(
+          "ASHBY_JOB_POSTING_NOT_FOUND",
+          `Ashby's public job board did not contain posting ${ashbyJobPostingId}.`,
+          "ERROR"
+        ),
+        createDiagnostic(
+          "GENERIC_CAREERS_PAGE_DETECTED",
+          "The fetched page appears to be a generic careers landing page rather than the requested embedded job posting.",
+          "ERROR"
+        ),
+        createDiagnostic(
+          "NO_JOB_CONTENT_FOUND",
+          "The fetched page did not contain enough usable job-description text.",
+          "ERROR"
+        )
+      )
+    );
+  }
+
+  const normalizedPosting = normalizeAshbyResolvedPosting(
+    matchedPosting,
+    args.extraction.pageTitle,
+    args.extraction.diagnostics.concat(
+      resolutionDiagnostics,
+      createDiagnostic(
+        "ASHBY_JOB_POSTING_RESOLVED",
+        `Resolved embedded Ashby job posting to ${matchedPosting.jobUrl ?? "the hosted job page"}.`
+      )
+    )
+  );
+
+  return {
+    requestedUrl: args.requestedUrl,
+    finalUrl: args.fetchedUrl.href,
+    resolvedUrl: matchedPosting.jobUrl ?? args.fetchedUrl.href,
+    status: 200,
+    contentType: "application/json",
+    pageTitle: normalizedPosting.pageTitle,
+    extractedText: normalizedPosting.extractedText,
+    diagnostics: normalizedPosting.diagnostics
   };
 }
 
@@ -337,38 +686,10 @@ export async function fetchJobDescriptionFromUrl(
 
   for (let redirectCount = 0; redirectCount <= MAX_REDIRECTS; redirectCount += 1) {
     await assertSafeDestination(currentUrl);
-
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
-
-    let response: Response;
-    try {
-      response = await fetch(currentUrl, {
-        method: "GET",
-        headers: {
-          "user-agent": SAFE_USER_AGENT,
-          accept: "text/html, text/plain, application/xhtml+xml"
-        },
-        redirect: "manual",
-        signal: controller.signal
-      });
-    } catch (error) {
-      clearTimeout(timeout);
-      if (error instanceof Error && error.name === "AbortError") {
-        throw new JobDescriptionUrlFetchError(
-          408,
-          "The remote fetch timed out.",
-          [createDiagnostic("REMOTE_TIMEOUT", "The remote fetch timed out.", "ERROR")]
-        );
-      }
-
-      throw new JobDescriptionUrlFetchError(
-        502,
-        "The remote page could not be fetched.",
-        [createDiagnostic("REMOTE_FETCH_FAILED", "The remote page could not be fetched.", "ERROR")]
-      );
-    }
-    clearTimeout(timeout);
+    const response = await fetchRemoteUrl(
+      currentUrl,
+      "text/html, text/plain, application/xhtml+xml"
+    );
 
     if ([301, 302, 303, 307, 308].includes(response.status)) {
       const location = response.headers.get("location");
@@ -410,12 +731,41 @@ export async function fetchJobDescriptionFromUrl(
           }
         : (() => {
             const htmlExtraction = extractVisibleTextFromHtml(bodyText);
+            const ashbyResolution = maybeResolveAshbyEmbeddedJob({
+              requestedUrl,
+              fetchedUrl: currentUrl,
+              html: bodyText,
+              extraction: htmlExtraction
+            });
             return {
+              ashbyResolution,
               pageTitle: htmlExtraction.pageTitle,
               extractedText: htmlExtraction.extractedText,
               diagnostics: diagnostics.concat(htmlExtraction.diagnostics)
             };
           })();
+
+    if ("ashbyResolution" in extracted) {
+      const resolvedPosting = await extracted.ashbyResolution;
+      if (resolvedPosting) {
+        return {
+          requestedUrl: resolvedPosting.requestedUrl,
+          finalUrl: resolvedPosting.finalUrl,
+          resolvedUrl: resolvedPosting.resolvedUrl,
+          status: resolvedPosting.status,
+          contentType: resolvedPosting.contentType,
+          retrievedAt: new Date().toISOString(),
+          pageTitle: resolvedPosting.pageTitle,
+          extractorVersion: EXTRACTOR_VERSION,
+          resolverVersion: RESOLVER_VERSION,
+          extractionChecksum: computeJobDescriptionChecksum(
+            normalizeJobDescriptionText(resolvedPosting.extractedText)
+          ),
+          extractedText: resolvedPosting.extractedText,
+          diagnostics: resolvedPosting.diagnostics
+        };
+      }
+    }
 
     if (extracted.extractedText.length < MIN_USEFUL_TEXT_CHARACTERS) {
       throw new JobDescriptionUrlFetchError(
@@ -434,11 +784,13 @@ export async function fetchJobDescriptionFromUrl(
     return {
       requestedUrl,
       finalUrl: currentUrl.href,
+      resolvedUrl: null,
       status: response.status,
       contentType,
       retrievedAt: new Date().toISOString(),
       pageTitle: extracted.pageTitle,
       extractorVersion: EXTRACTOR_VERSION,
+      resolverVersion: null,
       extractionChecksum: computeJobDescriptionChecksum(
         normalizeJobDescriptionText(extracted.extractedText)
       ),
