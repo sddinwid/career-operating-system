@@ -95,6 +95,13 @@ function loadFieldguideFixture() {
   );
 }
 
+function loadSkyflowFixture() {
+  return readFileSync(
+    path.join(process.cwd(), "fixtures", "job-description-parser", "skyflow-backend-engineer.txt"),
+    "utf8"
+  );
+}
+
 async function createParsedVersion(workspaceId: string) {
   const application = await createApplication(workspaceId, {
     companyName: "Acme",
@@ -554,6 +561,52 @@ describe("requirement analysis service", () => {
     ).toBe(true);
     expect(JSON.stringify(legacyResult)).toBe(sourceSnapshot);
     expect(storedParse.result).toEqual(legacyResult);
+  });
+
+  it("keeps the Skyflow corrective parse downstream-ready once You have and You will are recognized", async () => {
+    const workspace = await createWorkspace();
+    const application = await createApplication(workspace.id, {
+      companyName: "Skyflow",
+      role: "Software Engineer",
+      appliedAtLocal: "2026-07-21T09:00",
+      status: ApplicationStatus.APPLIED,
+      jobUrl: "https://www.skyflow.com/careers?ashby_jid=5caff613-773d-466d-9876-cd803811d30b"
+    });
+    const saved = await saveJobDescriptionForApplication(
+      workspace.id,
+      application.id,
+      buildInput(loadSkyflowFixture())
+    );
+    const parsed = await parseStoredJobDescriptionVersion(workspace.id, saved.version!.id, prisma);
+    const draft = await ensureRequirementAnalysisDraft(workspace.id, saved.version!.id, prisma);
+    const analysis = parseStoredJobRequirementAnalysis(draft.analysis!.analysis as Prisma.JsonValue);
+
+    expect(parsed.parse.parserVersion).toBe("m3.2.6");
+    expect(analysis.summary.downstreamReadiness).toBe("READY");
+    expect(analysis.responsibilities.length).toBeGreaterThanOrEqual(6);
+    expect(analysis.requirements.filter((item) => !item.userAdded).length).toBeGreaterThanOrEqual(8);
+    expect(
+      analysis.requirements.some(
+        (item) =>
+          item.originalText.includes("Go (preferred), Java, C, C++, Python") &&
+          item.technologies.includes("Go") &&
+          item.technologies.includes("Java") &&
+          item.technologies.includes("Python")
+      )
+    ).toBe(true);
+    expect(
+      analysis.requirements.some(
+        (item) =>
+          item.originalText.includes("RESTful design, event driven systems") &&
+          item.technologies.includes("REST API") &&
+          item.technologies.includes("Event-Driven Systems")
+      )
+    ).toBe(true);
+    expect(
+      analysis.responsibilities.some((item) =>
+        item.originalText.includes("REST/GraphQL services, message queues")
+      )
+    ).toBe(true);
   });
 
   it("normalizes a persisted legacy row through context loading without writing back to the database", async () => {

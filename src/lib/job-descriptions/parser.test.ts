@@ -22,6 +22,10 @@ const marathonFixture = readFileSync(
   "fixtures/job-description-parser/workday-marathon-health-software-engineer.txt",
   "utf8"
 );
+const skyflowFixture = readFileSync(
+  "fixtures/job-description-parser/skyflow-backend-engineer.txt",
+  "utf8"
+);
 
 function parse(text: string) {
   return parseNormalizedJobDescription({
@@ -142,7 +146,9 @@ Requirements
       "REQUIRED",
       "REQUIRED"
     ]);
-    expect(result.result?.technologies.map((item) => item.canonicalName)).toEqual([]);
+    expect(result.result?.technologies.map((item) => item.canonicalName)).toEqual([
+      "Distributed Systems"
+    ]);
     expect(
       result.diagnostics.some((diagnostic) => diagnostic.code === "NO_RESPONSIBILITIES_SECTION")
     ).toBe(true);
@@ -150,7 +156,7 @@ Requirements
       result.diagnostics.some(
         (diagnostic) => diagnostic.code === "EXPERIENCE_WITHOUT_CLEAR_SKILL"
       )
-    ).toBe(true);
+    ).toBe(false);
   });
 
   it("extracts hourly compensation, remote language, seniority, and certification preferences", () => {
@@ -498,5 +504,97 @@ Requirements
         (diagnostic) => diagnostic.code === "COMPENSATION_EXCLUDED_FROM_REQUIREMENTS"
       )
     ).toBe(true);
+  });
+
+  it("parses Skyflow headings and preserves overview paragraphs as non-metadata content", () => {
+    const result = parseNormalizedJobDescription({
+      ...baseContext,
+      opportunityCompanyName: "Skyflow",
+      opportunityRoleTitle: "Software Engineer",
+      sourceUrl:
+        "https://www.skyflow.com/careers?ashby_jid=5caff613-773d-466d-9876-cd803811d30b",
+      normalizedText: skyflowFixture,
+      parsedAt: new Date("2026-07-22T03:05:18.989Z")
+    });
+
+    expect(result.status).toBe("SUCCESS");
+    expect(result.result?.parserVersion).toBe(JOB_DESCRIPTION_PARSER_VERSION);
+    expect(result.result?.roleMetadata.companyName?.value).toBe("Skyflow");
+    expect(result.result?.roleMetadata.companyName?.agreementWithOpportunity).toBe("MATCH");
+    expect(result.result?.roleMetadata.roleTitle?.value).toBe("Backend Software Engineer");
+    expect(result.result?.sections.map((section) => section.type)).toEqual(
+      expect.arrayContaining([
+        "ABOUT_ROLE",
+        "REQUIRED_QUALIFICATIONS",
+        "RESPONSIBILITIES",
+        "BENEFITS"
+      ])
+    );
+    expect(
+      result.result?.sections.some(
+        (section) =>
+          section.type === "REQUIRED_QUALIFICATIONS" && section.heading === "You have"
+      )
+    ).toBe(true);
+    expect(
+      result.result?.sections.some(
+        (section) => section.type === "RESPONSIBILITIES" && section.heading === "You will"
+      )
+    ).toBe(true);
+    expect(result.result?.responsibilities.length).toBeGreaterThanOrEqual(6);
+    expect(result.result?.qualifications.length).toBeGreaterThanOrEqual(8);
+    expect(
+      result.result?.responsibilities.some((item) =>
+        item.text.includes("Privacy APIs and backend infrastructure")
+      )
+    ).toBe(true);
+    expect(
+      result.result?.responsibilities.some((item) =>
+        item.text.includes("REST/GraphQL services, message queues")
+      )
+    ).toBe(true);
+    expect(
+      result.result?.qualifications.some((item) =>
+        item.originalText.includes("Go (preferred), Java, C, C++, Python")
+      )
+    ).toBe(true);
+    expect(
+      result.result?.qualifications.some((item) =>
+        item.originalText.includes("RESTful design, event driven systems")
+      )
+    ).toBe(true);
+    expect(result.result?.technologies.map((item) => item.canonicalName)).toEqual(
+      expect.arrayContaining([
+        "AWS",
+        "Azure",
+        "BigQuery",
+        "CI/CD",
+        "Distributed Systems",
+        "Event-Driven Systems",
+        "GCP",
+        "Go",
+        "GraphQL",
+        "Java",
+        "Kafka",
+        "Python",
+        "REST API",
+        "Snowflake"
+      ])
+    );
+    expect(
+      result.result?.roleMetadata.roleTitle?.sourceText
+    ).toBe("Backend Software Engineer");
+    expect(
+      result.diagnostics.some((diagnostic) => diagnostic.code === "NO_RESPONSIBILITIES_SECTION")
+    ).toBe(false);
+    expect(
+      result.diagnostics.some((diagnostic) => diagnostic.code === "NO_REQUIREMENTS_SECTION")
+    ).toBe(false);
+    expect(
+      result.diagnostics.some((diagnostic) => diagnostic.code === "COMPANY_MISMATCH_WITH_OPPORTUNITY")
+    ).toBe(false);
+    expect(
+      result.diagnostics.some((diagnostic) => diagnostic.code === "ROLE_MISMATCH_WITH_OPPORTUNITY")
+    ).toBe(false);
   });
 });

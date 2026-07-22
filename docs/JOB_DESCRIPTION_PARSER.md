@@ -7,7 +7,7 @@
 Implemented:
 
 - immutable `JobDescriptionParse` persistence
-- parser version `m3.2.5`
+- parser version `m3.2.6`
 - contract version `1.0.0`
 - section detection and statement segmentation
 - role metadata, compensation, responsibilities, qualifications, technologies, experience, education, certifications, and benefits extraction
@@ -160,6 +160,14 @@ Fieldguide regression outcome on July 19, 2026:
 - `Our Values` is recognized as contextual company-value content instead of an unrecognized heading
 - top metadata now resolves to `Fieldguide`, `Software Engineer (All Levels)`, `FULL_TIME`, `MULTI_LEVEL`, `Remote, United States`, `San Francisco, CA (Bay Area hybrid)`, and `Engineering`
 - scraped labels such as `Employment Type`, `Location Type`, and `Department` no longer appear as `OTHER` sections
+
+Skyflow corrective outcome on July 22, 2026:
+
+- reusable headings `You have` and `You will` now resolve to qualifications and responsibilities, including optional trailing colons and capitalization variants
+- saved URL-derived Skyflow overview paragraphs remain overview content and are no longer promoted into company or role metadata
+- company and role metadata now prefer explicit metadata, exact opportunity-value mentions in source text, and narrative role extraction before falling back to header heuristics
+- the deterministic technology dictionary now recognizes `GCP`, `Azure`, `BigQuery`, `Snowflake`, `Distributed Systems`, and `Event-Driven Systems`
+- the saved Skyflow posting now yields substantive responsibilities, qualifications, and downstream-ready requirement analysis instead of an empty substantive parse
 
 ## Read-only inspection
 

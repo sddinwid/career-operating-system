@@ -4,13 +4,19 @@ import { pathToFileURL } from "node:url";
 import { PrismaClient } from "@prisma/client";
 import { expect, test, type Page } from "@playwright/test";
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
+import { JOB_DESCRIPTION_PARSER_VERSION } from "@/lib/job-descriptions/parser-contract";
 import { E2E_COMPANY_NAME, E2E_ROLE_NAME, resetE2EApplicationFixture } from "@/lib/testing/e2e-fixtures";
 
 const prisma = new PrismaClient();
 const FIELDGUIDE_COMPANY_NAME = "Fieldguide";
 const FIELDGUIDE_ROLE_NAME = "Software Engineer (All Levels)";
 const FIELDGUIDE_SOURCE_URL = "https://www.fieldguide.io/careers/software-engineer-all-levels";
+const SKYFLOW_COMPANY_NAME = "Skyflow";
+const SKYFLOW_ROLE_NAME = "Software Engineer";
+const SKYFLOW_SOURCE_URL =
+  "https://www.skyflow.com/careers?ashby_jid=5caff613-773d-466d-9876-cd803811d30b";
 type FieldguideStandaloneVersion = Awaited<ReturnType<typeof getFieldguideStandaloneVersion>>;
+type SkyflowStandaloneVersion = Awaited<ReturnType<typeof getSkyflowStandaloneVersion>>;
 
 function delay(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -29,6 +35,136 @@ async function cleanupFieldguideStandaloneFixture() {
         title: FIELDGUIDE_ROLE_NAME,
         company: {
           name: FIELDGUIDE_COMPANY_NAME
+        }
+      }
+    },
+    select: {
+      id: true,
+      opportunityId: true
+    },
+    orderBy: [{ createdAt: "asc" }, { id: "asc" }]
+  });
+
+  const jobDescriptionVersionIds = Array.from(new Set(matchingVersions.map((version) => version.id)));
+  const opportunityIds = Array.from(new Set(matchingVersions.map((version) => version.opportunityId)));
+
+  if (jobDescriptionVersionIds.length === 0 && opportunityIds.length === 0) {
+    return;
+  }
+
+  const applicationIds = (
+    await prisma.application.findMany({
+      where: {
+        workspaceId: "local-workspace",
+        opportunityId: {
+          in: opportunityIds
+        }
+      },
+      select: {
+        id: true
+      }
+    })
+  ).map((application) => application.id);
+
+  await prisma.$transaction(async (transaction) => {
+    if (applicationIds.length > 0) {
+      await transaction.activity.deleteMany({
+        where: {
+          applicationId: {
+            in: applicationIds
+          }
+        }
+      });
+    }
+
+    const scopedDocumentWhere = {
+      OR: [
+        {
+          workspaceId: "local-workspace",
+          applicationId: {
+            in: applicationIds
+          }
+        },
+        {
+          workspaceId: "local-workspace",
+          jobDescriptionVersionId: {
+            in: jobDescriptionVersionIds
+          }
+        }
+      ]
+    };
+
+    await transaction.documentVersion.deleteMany({ where: scopedDocumentWhere });
+    await transaction.document.deleteMany({ where: scopedDocumentWhere });
+    await transaction.resumeRenderingApproval.deleteMany({ where: scopedDocumentWhere });
+    await transaction.resumeAuditRun.deleteMany({ where: scopedDocumentWhere });
+    await transaction.coverLetterCompositionVersion.deleteMany({ where: scopedDocumentWhere });
+    await transaction.resumeRevisionVersion.deleteMany({ where: scopedDocumentWhere });
+    await transaction.resumeCompositionVersion.deleteMany({ where: scopedDocumentWhere });
+    await transaction.structuredResumeVersion.deleteMany({ where: scopedDocumentWhere });
+    await transaction.matchReportRun.deleteMany({ where: scopedDocumentWhere });
+    await transaction.evidenceScoringRun.deleteMany({ where: scopedDocumentWhere });
+    await transaction.evidenceRetrievalRun.deleteMany({ where: scopedDocumentWhere });
+    await transaction.jobRequirementAnalysis.deleteMany({
+      where: {
+        workspaceId: "local-workspace",
+        jobDescriptionVersionId: {
+          in: jobDescriptionVersionIds
+        }
+      }
+    });
+    await transaction.jobDescriptionParse.deleteMany({
+      where: {
+        workspaceId: "local-workspace",
+        jobDescriptionVersionId: {
+          in: jobDescriptionVersionIds
+        }
+      }
+    });
+
+    if (applicationIds.length > 0) {
+      await transaction.applicationStatusHistory.deleteMany({
+        where: {
+          applicationId: {
+            in: applicationIds
+          }
+        }
+      });
+      await transaction.application.deleteMany({
+        where: {
+          id: {
+            in: applicationIds
+          }
+        }
+      });
+    }
+
+    await transaction.jobDescriptionVersion.deleteMany({
+      where: {
+        id: {
+          in: jobDescriptionVersionIds
+        }
+      }
+    });
+    await transaction.jobOpportunity.deleteMany({
+      where: {
+        id: {
+          in: opportunityIds
+        }
+      }
+    });
+  });
+}
+
+async function cleanupSkyflowStandaloneFixture() {
+  const matchingVersions = await prisma.jobDescriptionVersion.findMany({
+    where: {
+      workspaceId: "local-workspace",
+      sourceUrl: SKYFLOW_SOURCE_URL,
+      opportunity: {
+        title: SKYFLOW_ROLE_NAME,
+        company: {
+          name: SKYFLOW_COMPANY_NAME
         }
       }
     },
@@ -184,6 +320,40 @@ async function getFieldguideStandaloneVersion() {
   });
 }
 
+async function getSkyflowStandaloneVersion() {
+  return prisma.jobDescriptionVersion.findFirst({
+    where: {
+      workspaceId: "local-workspace",
+      sourceUrl: SKYFLOW_SOURCE_URL,
+      opportunity: {
+        title: SKYFLOW_ROLE_NAME,
+        company: {
+          name: SKYFLOW_COMPANY_NAME
+        }
+      }
+    },
+    include: {
+      parses: {
+        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+        select: {
+          id: true,
+          parserVersion: true,
+          status: true
+        }
+      },
+      requirementAnalyses: {
+        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+        select: {
+          id: true,
+          classifierVersion: true,
+          status: true,
+          jobDescriptionParseId: true
+        }
+      }
+    }
+  });
+}
+
 async function waitForFieldguideStandaloneVersion(
   predicate: (version: FieldguideStandaloneVersion | null) => boolean,
   failureMessage: string,
@@ -193,6 +363,25 @@ async function waitForFieldguideStandaloneVersion(
 
   while (Date.now() - startedAt < timeoutMs) {
     const version = await getFieldguideStandaloneVersion();
+    if (predicate(version)) {
+      return version;
+    }
+
+    await delay(100);
+  }
+
+  throw new Error(failureMessage);
+}
+
+async function waitForSkyflowStandaloneVersion(
+  predicate: (version: SkyflowStandaloneVersion | null) => boolean,
+  failureMessage: string,
+  timeoutMs = 5_000
+) {
+  const startedAt = Date.now();
+
+  while (Date.now() - startedAt < timeoutMs) {
+    const version = await getSkyflowStandaloneVersion();
     if (predicate(version)) {
       return version;
     }
@@ -284,13 +473,13 @@ test("parses and reviews the Fieldguide fixture as atomic, level-aware requireme
   await page.getByRole("button", { name: "Parse Job Description" }).click();
 
   await expect(page.getByText("Job description parsed successfully.")).toBeVisible();
-  await expect(page.getByText("m3.2.5")).toBeVisible();
+  await expect(page.getByText(JOB_DESCRIPTION_PARSER_VERSION)).toBeVisible();
   const parsedVersion = await waitForFieldguideStandaloneVersion(
     (version) => version?.parses.length === 1,
     "Expected the standalone Fieldguide job description to have exactly one parse."
   );
   expect(parsedVersion?.parses).toHaveLength(1);
-  expect(parsedVersion?.parses[0]?.parserVersion).toBe("m3.2.5");
+  expect(parsedVersion?.parses[0]?.parserVersion).toBe(JOB_DESCRIPTION_PARSER_VERSION);
 
   const parseId = parsedVersion?.parses[0]?.id;
   expect(parseId).toBeTruthy();
@@ -680,7 +869,7 @@ Preferred Qualifications
 
   await expect(page.getByText("Job description parsed successfully.")).toBeVisible();
   await expect(page.getByText("SUCCESS", { exact: true })).toBeVisible();
-  await expect(page.getByText("m3.2.5")).toBeVisible();
+  await expect(page.getByText(JOB_DESCRIPTION_PARSER_VERSION)).toBeVisible();
   await expect(
     page.getByRole("link", { name: "View Parsed Job Description" })
   ).toBeVisible();
@@ -1680,6 +1869,103 @@ Preferred Qualifications
       .locator('.ag-cell[col-id="status"]')
       .filter({ hasText: nextStatusValue })
   ).toHaveCount(1);
+});
+
+test("parses the Skyflow You have and You will sections through analysis and requirement review", async ({
+  page
+}) => {
+  test.setTimeout(65_000);
+  await cleanupSkyflowStandaloneFixture();
+  const skyflowDescription = await fs.readFile(
+    path.join(process.cwd(), "fixtures", "job-description-parser", "skyflow-backend-engineer.txt"),
+    "utf8"
+  );
+
+  await page.goto("/jobs/new");
+  await expect(page.getByRole("heading", { name: "Capture a new job description" })).toBeVisible();
+
+  await page.getByRole("textbox", { name: "Company" }).fill(SKYFLOW_COMPANY_NAME);
+  await page.getByRole("textbox", { name: "Role" }).fill(SKYFLOW_ROLE_NAME);
+  await page.getByRole("textbox", { name: "Job URL" }).fill(SKYFLOW_SOURCE_URL);
+  await page.getByRole("textbox", { name: "Opportunity source" }).fill("Company site");
+  await page.getByRole("textbox", { name: "Source URL" }).fill(SKYFLOW_SOURCE_URL);
+  await page.getByRole("textbox", { name: "Source title" }).fill("Careers - Skyflow");
+  await page.getByRole("textbox", { name: "Publication date" }).fill("2026-07-22");
+  await page.getByRole("textbox", { name: "Job description text" }).fill(skyflowDescription);
+  await page.getByRole("button", { name: "Save job description" }).click();
+
+  await expect(page.getByText("Job description saved successfully.")).toBeVisible();
+  await expect(page.getByRole("heading", { name: SKYFLOW_ROLE_NAME })).toBeVisible();
+
+  const savedVersion = await waitForSkyflowStandaloneVersion(
+    (version) => version !== null,
+    "Expected the standalone Skyflow job description version to be created."
+  );
+  expect(savedVersion?.parses).toHaveLength(0);
+
+  await page.getByRole("button", { name: "Parse Job Description" }).click();
+  await expect(page.getByText("Job description parsed successfully.")).toBeVisible();
+  await expect(page.getByText(JOB_DESCRIPTION_PARSER_VERSION)).toBeVisible();
+
+  const parsedVersion = await waitForSkyflowStandaloneVersion(
+    (version) => version?.parses.length === 1,
+    "Expected the standalone Skyflow job description to have exactly one parse."
+  );
+  expect(parsedVersion?.parses[0]?.parserVersion).toBe(JOB_DESCRIPTION_PARSER_VERSION);
+
+  await Promise.all([
+    page.waitForURL(/\/job-descriptions\/[^/]+\/analysis$/),
+    page.getByRole("link", { name: "View Parsed Job Description" }).click()
+  ]);
+
+  await expect(page.getByText("Backend Software Engineer")).toBeVisible();
+  await expect(page.getByText(/You have/)).toBeVisible();
+  await expect(page.getByText(/You will/)).toBeVisible();
+  await expect(page.getByText(/BigQuery/)).toBeVisible();
+  await expect(page.getByText(/Distributed Systems/)).toBeVisible();
+
+  await Promise.all([
+    page.waitForURL(/\/job-descriptions\/[^/]+\/requirements(?:\?|$)/),
+    page.getByRole("link", { name: "Review Requirements" }).click()
+  ]);
+
+  await expect(page.getByText("Requirement review")).toBeVisible();
+
+  const firstAnalysisVersion = await waitForSkyflowStandaloneVersion(
+    (version) => version?.requirementAnalyses.length === 1,
+    "Expected the standalone Skyflow job description to have exactly one requirement analysis."
+  );
+  expect(firstAnalysisVersion?.requirementAnalyses[0]?.jobDescriptionParseId).toBe(
+    parsedVersion?.parses[0]?.id
+  );
+
+  const requiredSection = page
+    .locator("section")
+    .filter({ has: page.getByRole("heading", { name: "Required" }) });
+  const responsibilitiesSection = page
+    .locator("section")
+    .filter({ has: page.getByRole("heading", { name: "Responsibilities" }) });
+
+  await expect(
+    requiredSection.getByText("Proficient in one or more programming languages like Go (preferred), Java, C, C++, Python")
+  ).toBeVisible();
+  await expect(
+    requiredSection.getByText("Experience with cloud platforms (GCP, AWS or Azure)")
+  ).toBeVisible();
+  await expect(
+    requiredSection.getByText("Solid understanding of RESTful design, event driven systems, and security best practices")
+  ).toBeVisible();
+  await expect(
+    responsibilitiesSection.getByText(
+      "Responsible for designing and developing Privacy APIs and backend infrastructure to support large-scale data and privacy workflows"
+    )
+  ).toBeVisible();
+  await expect(
+    responsibilitiesSection.getByText(
+      "Own integration with third party and internal data platforms (e.g data warehouses, REST/GraphQL services, message queues)"
+    )
+  ).toBeVisible();
+  await expect(page.getByText("READY", { exact: true }).first()).toBeVisible();
 });
 
 function preparedApplicationIdFromUrl(url: string) {

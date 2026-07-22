@@ -37,6 +37,7 @@ export const SECTION_ALIAS_DEFINITIONS: SectionAliasDefinition[] = [
       "essential duties and responsibilities",
       "what you'll do",
       "what you will do",
+      "you will",
       "your impact",
       "the role",
       "what you'll be doing",
@@ -57,6 +58,7 @@ export const SECTION_ALIAS_DEFINITIONS: SectionAliasDefinition[] = [
       "qualifications",
       "what we're looking for",
       "what you bring",
+      "you have",
       "must have",
       "basic qualifications"
     ]

@@ -348,6 +348,32 @@ function buildAgreement(extractedValue: string | null, opportunityValue: string 
     : ("DIFFERENT" as const);
 }
 
+function buildRoleAgreement(extractedValue: string | null, opportunityValue: string | null) {
+  if (!extractedValue && opportunityValue) {
+    return "MISSING_IN_SOURCE" as const;
+  }
+
+  if (extractedValue && !opportunityValue) {
+    return "NO_OPPORTUNITY_VALUE" as const;
+  }
+
+  if (!extractedValue && !opportunityValue) {
+    return "MISSING_IN_OPPORTUNITY" as const;
+  }
+
+  const normalizedExtracted = normalizeComparableText(extractedValue ?? "");
+  const normalizedOpportunity = normalizeComparableText(opportunityValue ?? "");
+  if (
+    normalizedExtracted === normalizedOpportunity ||
+    normalizedExtracted.includes(normalizedOpportunity) ||
+    normalizedOpportunity.includes(normalizedExtracted)
+  ) {
+    return "MATCH" as const;
+  }
+
+  return "DIFFERENT" as const;
+}
+
 function segmentLines(text: string): SegmentedLine[] {
   return text.split("\n").map((line, index) => ({
     number: index + 1,
@@ -458,6 +484,75 @@ function isLikelyRoleLine(text: string) {
       text
     ) || /\([^)]+\)/.test(text)
   );
+}
+
+function isTrustworthyHeaderMetadataLine(text: string) {
+  const trimmed = text.trim();
+  if (!trimmed) {
+    return false;
+  }
+
+  if (trimmed.length > 120 || /[.!?]$/.test(trimmed)) {
+    return false;
+  }
+
+  const wordCount = trimmed.split(/\s+/).filter(Boolean).length;
+  if (wordCount === 0 || wordCount > 10) {
+    return false;
+  }
+
+  return isTitleStyleHeading(trimmed) || isLikelyRoleLine(trimmed);
+}
+
+function findOpportunityTextMention(lines: SegmentedLine[], expectedValue: string) {
+  const trimmedExpectedValue = expectedValue.trim();
+  if (!trimmedExpectedValue) {
+    return null;
+  }
+
+  const pattern = new RegExp(`\\b${escapeRegExp(trimmedExpectedValue)}\\b`, "i");
+  for (const line of lines) {
+    const match = line.text.match(pattern);
+    if (!match) {
+      continue;
+    }
+
+    return {
+      value: match[0],
+      sourceText: match[0],
+      sourceLocation: buildLocation(line.number)
+    };
+  }
+
+  return null;
+}
+
+function extractRoleFromNarrative(lines: SegmentedLine[]) {
+  const patterns = [
+    /\bAs an?\s+([A-Z][A-Za-z0-9+&/().,' -]{2,80}?)\s+you will\b/i,
+    /\bWe are looking for an?\s+([A-Z][A-Za-z0-9+&/().,' -]{2,80}?)\s+to\b/i
+  ];
+
+  for (const line of lines) {
+    const trimmed = line.text.trim();
+    for (const pattern of patterns) {
+      const match = trimmed.match(pattern);
+      const candidate = match?.[1]?.trim();
+      if (!candidate || !isLikelyRoleLine(candidate)) {
+        continue;
+      }
+
+      return {
+        value: candidate,
+        sourceText: candidate,
+        sourceLocation: buildLocation(line.number),
+        extractionRule: "metadata.role.narrative",
+        confidence: "MEDIUM" as const
+      };
+    }
+  }
+
+  return null;
 }
 
 function normalizeDepartmentValue(valueLines: SegmentedLine[]) {
@@ -2029,33 +2124,45 @@ function extractRoleMetadata(
   const explicitRequisitionId = findMetadataEntry(metadataBlock, "requisitionId");
   const explicitPostedText = findMetadataEntry(metadataBlock, "postedText");
   const aboutHeadingCompany = extractCompanyFromAboutHeading(lines, diagnostics);
+  const opportunityCompanyMention = findOpportunityTextMention(
+    lines,
+    context.opportunityCompanyName
+  );
+  const opportunityRoleMention = findOpportunityTextMention(
+    lines,
+    context.opportunityRoleTitle
+  );
+  const narrativeRole = extractRoleFromNarrative(lines);
   const normalizedOpportunityCompany = context.opportunityCompanyName.trim().toLowerCase();
   const normalizedOpportunityRole = context.opportunityRoleTitle.trim().toLowerCase();
   const nonLocationHeaderLines = metadataBlock.headerLines.filter(
     (line) => !isLocationLike(line.text)
   );
+  const trustworthyHeaderLines = nonLocationHeaderLines.filter((line) =>
+    isTrustworthyHeaderMetadataLine(line.text)
+  );
   const matchingCompanyHeader =
-    nonLocationHeaderLines.find(
+    trustworthyHeaderLines.find(
       (line) => line.text.trim().toLowerCase() === normalizedOpportunityCompany
     ) ?? null;
   const matchingRoleHeader =
-    nonLocationHeaderLines.find(
+    trustworthyHeaderLines.find(
       (line) => line.text.trim().toLowerCase() === normalizedOpportunityRole
     ) ?? null;
   const roleHeaderLine =
     matchingRoleHeader ??
-    nonLocationHeaderLines.find((line) => isLikelyRoleLine(line.text)) ??
-    nonLocationHeaderLines.find((line) => line.number !== matchingCompanyHeader?.number) ??
-    nonLocationHeaderLines[0] ??
+    trustworthyHeaderLines.find((line) => isLikelyRoleLine(line.text)) ??
+    trustworthyHeaderLines.find((line) => line.number !== matchingCompanyHeader?.number) ??
+    trustworthyHeaderLines[0] ??
     null;
   const companyHeaderLine =
     matchingCompanyHeader ??
-    nonLocationHeaderLines.find(
+    trustworthyHeaderLines.find(
       (line) =>
         line.number !== roleHeaderLine?.number &&
         !isLikelyRoleLine(line.text)
     ) ??
-    nonLocationHeaderLines.find((line) => line.number !== roleHeaderLine?.number) ??
+    trustworthyHeaderLines.find((line) => line.number !== roleHeaderLine?.number) ??
     null;
 
   const companyName = explicitCompany
@@ -2079,6 +2186,18 @@ function extractRoleMetadata(
             context.opportunityCompanyName
           )
         })
+      : opportunityCompanyMention
+        ? makeScalarField({
+            value: context.opportunityCompanyName,
+            sourceText: opportunityCompanyMention.sourceText,
+            sourceLocation: opportunityCompanyMention.sourceLocation,
+            extractionRule: "metadata.company.opportunityMention",
+            confidence: "MEDIUM",
+            agreementWithOpportunity: buildAgreement(
+              context.opportunityCompanyName,
+              context.opportunityCompanyName
+            )
+          })
       : companyHeaderLine
         ? makeScalarField({
             value: companyHeaderLine.text.trim(),
@@ -2091,7 +2210,17 @@ function extractRoleMetadata(
               context.opportunityCompanyName
             )
           })
-    : null;
+        : makeScalarField({
+            value: context.opportunityCompanyName,
+            sourceText: context.opportunityCompanyName,
+            sourceLocation: buildLocation(1),
+            extractionRule: "metadata.company.opportunityFallback",
+            confidence: "LOW",
+            agreementWithOpportunity: buildAgreement(
+              context.opportunityCompanyName,
+              context.opportunityCompanyName
+            )
+          });
   const roleTitle = explicitRole
     ? makeScalarField({
         value: explicitRole.value,
@@ -2099,8 +2228,35 @@ function extractRoleMetadata(
         sourceLocation: explicitRole.sourceLocation,
         extractionRule: "metadata.block.role",
         confidence: "HIGH",
-        agreementWithOpportunity: buildAgreement(explicitRole.value, context.opportunityRoleTitle)
+        agreementWithOpportunity: buildRoleAgreement(
+          explicitRole.value,
+          context.opportunityRoleTitle
+        )
       })
+    : narrativeRole
+      ? makeScalarField({
+          value: narrativeRole.value,
+          sourceText: narrativeRole.sourceText,
+          sourceLocation: narrativeRole.sourceLocation,
+          extractionRule: narrativeRole.extractionRule,
+          confidence: narrativeRole.confidence,
+          agreementWithOpportunity: buildRoleAgreement(
+            narrativeRole.value,
+            context.opportunityRoleTitle
+          )
+        })
+    : opportunityRoleMention
+      ? makeScalarField({
+          value: context.opportunityRoleTitle,
+          sourceText: opportunityRoleMention.sourceText,
+          sourceLocation: opportunityRoleMention.sourceLocation,
+          extractionRule: "metadata.role.opportunityMention",
+          confidence: "MEDIUM",
+          agreementWithOpportunity: buildAgreement(
+            context.opportunityRoleTitle,
+            context.opportunityRoleTitle
+          )
+        })
     : roleHeaderLine
       ? makeScalarField({
           value: roleHeaderLine.text.trim(),
@@ -2108,12 +2264,22 @@ function extractRoleMetadata(
           sourceLocation: buildLocation(roleHeaderLine.number),
           extractionRule: "metadata.header.role",
           confidence: "HIGH",
-          agreementWithOpportunity: buildAgreement(
+          agreementWithOpportunity: buildRoleAgreement(
             roleHeaderLine.text.trim(),
             context.opportunityRoleTitle
           )
         })
-    : null;
+      : makeScalarField({
+          value: context.opportunityRoleTitle,
+          sourceText: context.opportunityRoleTitle,
+          sourceLocation: buildLocation(1),
+          extractionRule: "metadata.role.opportunityFallback",
+          confidence: "LOW",
+          agreementWithOpportunity: buildAgreement(
+            context.opportunityRoleTitle,
+            context.opportunityRoleTitle
+          )
+        });
 
   if (companyName?.agreementWithOpportunity === "DIFFERENT") {
     addDiagnostic(

@@ -4,7 +4,11 @@ import { detectSectionTypeFromHeading } from "@/lib/job-descriptions/section-ali
 describe("job description section aliases", () => {
   it("maps approved heading aliases to normalized section types", () => {
     expect(detectSectionTypeFromHeading("What You'll Do")).toBe("RESPONSIBILITIES");
+    expect(detectSectionTypeFromHeading("You will")).toBe("RESPONSIBILITIES");
     expect(detectSectionTypeFromHeading("What We're Looking For")).toBe(
+      "REQUIRED_QUALIFICATIONS"
+    );
+    expect(detectSectionTypeFromHeading("You have")).toBe(
       "REQUIRED_QUALIFICATIONS"
     );
     expect(detectSectionTypeFromHeading("Bonus Points")).toBe(

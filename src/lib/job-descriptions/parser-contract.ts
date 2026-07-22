@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 export const JOB_DESCRIPTION_PARSE_CONTRACT_VERSION = "1.0.0";
-export const JOB_DESCRIPTION_PARSER_VERSION = "m3.2.5";
+export const JOB_DESCRIPTION_PARSER_VERSION = "m3.2.6";
 const semanticVersionSchema = z.string().regex(/^[A-Za-z0-9.-]+$/);
 
 export const confidenceLevelSchema = z.enum(["HIGH", "MEDIUM", "LOW"]);

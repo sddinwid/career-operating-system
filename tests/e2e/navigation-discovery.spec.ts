@@ -1,6 +1,7 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { expect, test, type Page } from "@playwright/test";
+import { JOB_DESCRIPTION_PARSER_VERSION } from "@/lib/job-descriptions/parser-contract";
 
 const FIELDGUIDE_COMPANY_NAME = "Fieldguide";
 const FIELDGUIDE_ROLE_NAME = "Software Engineer (All Levels)";
@@ -124,11 +125,11 @@ test("supports corrected shell navigation and Fieldguide discovery workflow", as
   await expect(parseButton).toBeVisible();
   await parseButton.click();
   await expect(page.getByText(/Job description parsed successfully|existing parse was reused/i)).toBeVisible();
-  await expect(page.getByText("m3.2.5")).toBeVisible();
+  await expect(page.getByText(JOB_DESCRIPTION_PARSER_VERSION)).toBeVisible();
 
   await page.getByRole("link", { name: /View Parsed Job Description/ }).click();
   await expect(page).toHaveURL(/\/analysis$/);
-  await expect(page.getByText("m3.2.5")).toBeVisible();
+  await expect(page.getByText(JOB_DESCRIPTION_PARSER_VERSION)).toBeVisible();
 
   await page.getByRole("link", { name: /Review Requirements|View Confirmed Requirements/ }).click();
   await expect(page).toHaveURL(/\/requirements/);
