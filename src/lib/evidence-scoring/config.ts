@@ -65,6 +65,10 @@ export const evidenceScoringConfiguration = {
     ROLE_RESPONSIBILITY_MATCH: 18,
     PROJECT_RESPONSIBILITY_MATCH: 13,
     ARCHITECTURE_CONCEPT_MATCH: 16,
+    COMMUNICATION_MATCH: 16,
+    COLLABORATION_MATCH: 16,
+    DATA_MATCH: 18,
+    AI_ML_MATCH: 18,
     LEADERSHIP_MATCH: 16,
     DOMAIN_MATCH: 10,
     CLOUD_PLATFORM_ALIGNMENT: 12,
@@ -113,4 +117,3 @@ export const evidenceScoringConfiguration = {
     "candidateId"
   ] as const
 } as const;
-

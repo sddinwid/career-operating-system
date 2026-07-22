@@ -118,6 +118,11 @@ enum DocumentSource {
   OTHER
 }
 
+enum CareerProfilePurpose {
+  USER
+  FIXTURE
+}
+
 enum DocumentRenderStatus {
   PENDING
   SUCCESS
@@ -296,6 +301,7 @@ enum AiRunStatus {
 model Workspace {
   id                    String                    @id @default(cuid())
   name                  String
+  currentCareerProfileVersionId String?
   createdAt             DateTime                  @default(now())
   updatedAt             DateTime                  @updatedAt
   activities            Activity[]
@@ -304,6 +310,7 @@ model Workspace {
   auditEvents           AuditEvent[]
   careerProfileSources  CareerProfileSource[]
   careerProfileVersions CareerProfileVersion[]
+  currentCareerProfileVersion CareerProfileVersion? @relation("WorkspaceCurrentCareerProfileVersion", fields: [currentCareerProfileVersionId], references: [id], onDelete: SetNull)
   companies             Company[]
   coverLetterCompositionVersions CoverLetterCompositionVersion[]
   coverLetterRevisionVersions CoverLetterRevisionVersion[]
@@ -787,6 +794,7 @@ model CareerProfileVersion {
   predecessor       CareerProfileVersion? @relation("CareerProfileVersionPredecessor", fields: [predecessorId], references: [id], onDelete: SetNull)
   source            CareerProfileSource   @relation(fields: [sourceId], references: [id], onDelete: Restrict)
   successors        CareerProfileVersion[] @relation("CareerProfileVersionPredecessor")
+  currentForWorkspaces Workspace[]        @relation("WorkspaceCurrentCareerProfileVersion")
   workspace         Workspace             @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
   coverLetterCompositionVersions CoverLetterCompositionVersion[]
   coverLetterRevisionVersions CoverLetterRevisionVersion[]
@@ -1411,6 +1419,7 @@ model CareerProfileSource {
   mimeType   String
   sizeBytes  Int
   checksum   String
+  purpose    CareerProfilePurpose   @default(USER)
   sourceVersion String?
   rawPayload Json
   createdAt  DateTime               @default(now())

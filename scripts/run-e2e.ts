@@ -83,7 +83,8 @@ async function main() {
     stdio: "inherit",
     env: {
       ...process.env,
-      PORT: String(PORT)
+      PORT: String(PORT),
+      ALLOW_FIXTURE_CAREER_PROFILE_SELECTION: "1"
     }
   });
 

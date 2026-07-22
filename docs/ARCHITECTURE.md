@@ -283,6 +283,12 @@ Implementation boundaries:
 
 The retrieval layer stays JSONB-first and inspectable. It does not rank evidence, calculate match percentages, or perform AI-based matching.
 
+July 22, 2026 corrective note:
+
+- immutable retrieval storage remains unchanged
+- a presentation-layer evidence view model now derives summary cards, support states, bundle coverage, duplicate clustering, and disclosure behavior without mutating stored runs
+- deterministic retrieval matching was tightened with boundary-aware concept and domain matching plus additional kind-aware concept bridges for communication, collaboration, data, and AI or ML requirements
+
 ## Layering
 
 Each module should separate:

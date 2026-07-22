@@ -10,6 +10,10 @@ Prompt 04D is not automatically next.
 
 The active implementation slice is `M8.4 - End-to-End UI Readiness and URL Job Intake`.
 
+Focused corrective slice in progress on July 22, 2026:
+
+- Evidence Retrieval frontend usability and retrieval-quality hardening
+
 ## Last Completed Implementation
 
 Last completed implementation: `M8.3 - Cover Letter Rendering and Document Integration`.
@@ -61,6 +65,7 @@ Repository evidence:
   - Verified corrective update on July 20, 2026: classifier version `m3.3.3` preserves level-specific requirements as non-universal contextual guidance, keeps technologies attached to the correct atomic item, suppresses compensation leakage diagnostics after semantic decomposition, and renders applicability plus section hierarchy plus equivalency metadata in the review UI without duplicate item text
 - Evidence retrieval contract, immutable retrieval runs, idempotent reuse, and read-only evidence inspection
   - Evidence: `src/lib/evidence-retrieval/contract.ts`, `src/lib/evidence-retrieval/engine.ts`, `src/lib/evidence-retrieval/service.ts`, `src/lib/evidence-retrieval/actions.ts`, `src/app/job-descriptions/[jobDescriptionVersionId]/evidence/page.tsx`, `src/lib/evidence-retrieval/engine.test.ts`, `src/lib/evidence-retrieval/service.test.ts`, `tests/e2e/job-descriptions.spec.ts`
+  - Verified corrective update on July 22, 2026: Evidence Retrieval now uses a summary-first page layout, progressive disclosure, retrieval-level support states, human-readable restrictions, per-technology bundle coverage, duplicate clustering, and tighter deterministic matching for communication, collaboration, document-ingestion, AI or ML, and domain-specific requirements
 - Evidence scoring contract, immutable scoring runs, idempotent reuse, and read-only score inspection
   - Evidence: `src/lib/evidence-scoring/config.ts`, `src/lib/evidence-scoring/contract.ts`, `src/lib/evidence-scoring/engine.ts`, `src/lib/evidence-scoring/service.ts`, `src/lib/evidence-scoring/actions.ts`, `src/app/job-descriptions/[jobDescriptionVersionId]/evidence/scores/page.tsx`, `src/lib/evidence-scoring/engine.test.ts`, `src/lib/evidence-scoring/service.test.ts`, `tests/e2e/job-descriptions.spec.ts`
 - Resume audit contract, immutable audit runs, idempotent reuse, and read-only rendering-readiness inspection
@@ -108,11 +113,17 @@ These models exist in schema only. No deterministic generation workflows current
 ## Implemented Career Knowledge Foundation
 
 - `CareerProfileSource`
-  - Current state: immutable preserved source payload with checksum, file metadata, source version, and workspace ownership
+  - Current state: immutable preserved source payload with checksum, file metadata, source version, source purpose, and workspace ownership
   - Evidence: `prisma/schema.prisma`, `prisma/migrations/20260716210000_m2_1_career_knowledge_import/migration.sql`
 - `CareerProfileVersion`
-  - Current state: immutable canonical snapshot with contract version, importer version, validation summary, predecessor linkage, and active-version semantics
+  - Current state: immutable canonical snapshot with contract version, importer version, validation summary, predecessor linkage, active-version semantics, and a workspace current-profile pointer for normal workflows
   - Evidence: `prisma/schema.prisma`, `src/lib/career/service.ts`, `src/lib/career/service.test.ts`
+
+## July 22, 2026 career-profile selection hardening
+
+- Normal local seeding now imports Scott's real Career Knowledge source as the current workspace profile.
+- Fixture Career Knowledge stays available for controlled tests, but Evidence Retrieval blocks instead of silently using fixture data in normal browser workflows.
+- Evidence and readiness views now distinguish historical fixture-backed runs from the current real-profile path.
 
 ## Not Started or Documentation-Only
 

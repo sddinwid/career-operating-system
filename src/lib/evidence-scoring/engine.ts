@@ -98,6 +98,34 @@ const factorDefinitions: Record<
     family: "CONCEPTUAL_ALIGNMENT",
     familyCapKey: "CONCEPTUAL_ALIGNMENT"
   },
+  COMMUNICATION_MATCH: {
+    label: "Communication alignment",
+    ruleIdentifier: "factor.communication",
+    sourceRelationship: "concept.communication",
+    family: "CONCEPTUAL_ALIGNMENT",
+    familyCapKey: "CONCEPTUAL_ALIGNMENT"
+  },
+  COLLABORATION_MATCH: {
+    label: "Collaboration alignment",
+    ruleIdentifier: "factor.collaboration",
+    sourceRelationship: "concept.collaboration",
+    family: "CONCEPTUAL_ALIGNMENT",
+    familyCapKey: "CONCEPTUAL_ALIGNMENT"
+  },
+  DATA_MATCH: {
+    label: "Data or retrieval alignment",
+    ruleIdentifier: "factor.data",
+    sourceRelationship: "concept.data",
+    family: "CONCEPTUAL_ALIGNMENT",
+    familyCapKey: "CONCEPTUAL_ALIGNMENT"
+  },
+  AI_ML_MATCH: {
+    label: "AI or ML alignment",
+    ruleIdentifier: "factor.ai-ml",
+    sourceRelationship: "concept.ai-ml",
+    family: "CONCEPTUAL_ALIGNMENT",
+    familyCapKey: "CONCEPTUAL_ALIGNMENT"
+  },
   DOMAIN_MATCH: {
     label: "Domain alignment",
     ruleIdentifier: "factor.domain",

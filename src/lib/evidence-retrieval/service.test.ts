@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { afterAll, describe, expect, it } from "vitest";
 import {
   ApplicationStatus,
+  CareerProfilePurpose,
   JobDescriptionSourceType,
   Prisma,
   PrismaClient
@@ -128,7 +129,19 @@ async function importCareerFixture(workspaceId: string) {
   return importCareerKnowledge({
     filePath: "fixtures/career_knowledge_base_fixture_v1.json",
     prismaClient: prisma,
-    workspaceId
+    workspaceId,
+    purpose: CareerProfilePurpose.FIXTURE,
+    setAsCurrent: false
+  });
+}
+
+async function importUserCareerProfile(workspaceId: string) {
+  return importCareerKnowledge({
+    filePath: "reference/Scott_Dinwiddie_Career_Knowledge_Base_MongoDB_v3.json",
+    prismaClient: prisma,
+    workspaceId,
+    purpose: CareerProfilePurpose.USER,
+    setAsCurrent: true
   });
 }
 
@@ -173,7 +186,7 @@ describe("evidence retrieval service", () => {
   it("creates an immutable retrieval run, preserves workflow state, and reuses the same successful run for identical inputs", async () => {
     const workspace = await createWorkspace();
     const { application, version, analysis } = await prepareConfirmedAnalysis(workspace.id);
-    const importReport = await importCareerFixture(workspace.id);
+    const importReport = await importUserCareerProfile(workspace.id);
     const beforeApplication = await prisma.application.findUniqueOrThrow({
       where: { id: application.id }
     });
@@ -218,7 +231,7 @@ describe("evidence retrieval service", () => {
   it("creates a new run when a newer confirmed requirement analysis becomes the current input", async () => {
     const workspace = await createWorkspace();
     const { version, analysis } = await prepareConfirmedAnalysis(workspace.id);
-    await importCareerFixture(workspace.id);
+    await importUserCareerProfile(workspace.id);
 
     const first = await retrieveCareerEvidence(
       workspace.id,
@@ -245,7 +258,7 @@ describe("evidence retrieval service", () => {
   it("rolls back the retrieval row when persistence fails after creation", async () => {
     const workspace = await createWorkspace();
     const { version } = await prepareConfirmedAnalysis(workspace.id);
-    await importCareerFixture(workspace.id);
+    await importUserCareerProfile(workspace.id);
 
     await expect(
       retrieveCareerEvidence(
@@ -268,7 +281,7 @@ describe("evidence retrieval service", () => {
   it("keeps legacy confirmed analyses readable but not downstream-ready until a current confirmed analysis exists", async () => {
     const workspace = await createWorkspace();
     const { version, parse, analysis } = await prepareConfirmedAnalysis(workspace.id);
-    await importCareerFixture(workspace.id);
+    await importUserCareerProfile(workspace.id);
 
     const legacyAnalysis = buildLegacyStoredAnalysis(analysis.analysis as Prisma.JsonValue);
     await prisma.jobRequirementAnalysis.create({
@@ -315,5 +328,36 @@ describe("evidence retrieval service", () => {
     expect(currentConfirmed?.status).toBe("CONFIRMED");
     expect(currentContext?.latestConfirmedRequirementAnalysis?.classifierVersion).toBe("m3.3.3");
     expect(currentContext?.downstreamReadyRequirementAnalysis?.id).toBe(currentConfirmed?.id);
+  });
+
+  it("uses the current user profile even when a fixture profile exists in the same workspace", async () => {
+    const workspace = await createWorkspace();
+    const { version } = await prepareConfirmedAnalysis(workspace.id);
+    const userImport = await importUserCareerProfile(workspace.id);
+    await importCareerFixture(workspace.id);
+
+    const result = await retrieveCareerEvidence(
+      workspace.id,
+      { jobDescriptionVersionId: version.id },
+      prisma
+    );
+
+    expect(result.run?.careerProfileVersionId).toBe(userImport.versionId);
+  });
+
+  it("fails safely when only fixture career knowledge is available", async () => {
+    const workspace = await createWorkspace();
+    const { version } = await prepareConfirmedAnalysis(workspace.id);
+    await importCareerFixture(workspace.id);
+
+    await expect(
+      retrieveCareerEvidence(workspace.id, { jobDescriptionVersionId: version.id }, prisma)
+    ).rejects.toThrow(/No active Career Knowledge profile is available/i);
+
+    const count = await prisma.evidenceRetrievalRun.count({
+      where: { workspaceId: workspace.id }
+    });
+
+    expect(count).toBe(0);
   });
 });

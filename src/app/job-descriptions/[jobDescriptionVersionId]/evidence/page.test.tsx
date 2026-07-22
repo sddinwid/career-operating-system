@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import EvidenceRetrievalPage from "@/app/job-descriptions/[jobDescriptionVersionId]/evidence/page";
 
 vi.mock("@/lib/workspace", () => ({
@@ -18,6 +18,7 @@ vi.mock("@/lib/evidence-retrieval/service", () => ({
     latestCareerProfileVersion: {
       id: "career-version-1"
     },
+    careerProfileSelectionIssue: null,
     latestConfirmedRequirementAnalysis: {
       id: "analysis-1"
     },
@@ -33,11 +34,19 @@ vi.mock("@/lib/evidence-retrieval/service", () => ({
       contractVersion: "1.0.0",
       careerProfileVersion: {
         id: "career-version-1",
-        sourceFilename: "career_knowledge_base_fixture_v1.json"
+        sourceFilename: "career_knowledge_base_fixture_v1.json",
+        sourceVersion: "3.0.0",
+        importedAt: new Date("2026-07-17T12:00:00.000Z"),
+        source: {
+          filename: "career_knowledge_base_fixture_v1.json",
+          sourceVersion: "3.0.0",
+          purpose: "FIXTURE"
+        }
       },
       requirementAnalysis: {
         id: "analysis-1",
-        classifierVersion: "m3.3.0"
+        classifierVersion: "m3.3.0",
+        status: "CONFIRMED"
       }
     },
     result: {
@@ -253,7 +262,7 @@ vi.mock("@/lib/evidence-scoring/service", () => ({
 }));
 
 describe("EvidenceRetrievalPage", () => {
-  it("renders the run summary, candidate evidence, and gap summary", async () => {
+  it("renders the summary-first retrieval report with progressive disclosure", async () => {
     const page = await EvidenceRetrievalPage({
       params: Promise.resolve({ jobDescriptionVersionId: "job-description-1" }),
       searchParams: Promise.resolve({ runId: "run-1" })
@@ -264,12 +273,19 @@ describe("EvidenceRetrievalPage", () => {
     expect(screen.getByRole("heading", { name: "Senior Platform Engineer" })).toBeVisible();
     expect(screen.getByText("SUCCESS WITH WARNINGS")).toBeVisible();
     expect(screen.getByText("career_knowledge_base_fixture_v1.json")).toBeVisible();
-    expect(screen.getByText("Production PostgreSQL experience")).toBeVisible();
-    expect(screen.getByText("Software Engineer at Fixture Corp")).toBeVisible();
-    expect(screen.getAllByText(/Retrieved because:/)).toHaveLength(2);
-    expect(screen.getByText(/Restrictions: PROJECT_ONLY, MISSING_DATE/)).toBeVisible();
-    expect(screen.getByRole("heading", { name: "Gap Summary" })).toBeVisible();
-    expect(screen.getAllByText("Active cloud certification preferred")).toHaveLength(2);
+    expect(screen.getByText("Evidence Summary")).toBeVisible();
+    expect(
+      screen.getByText(
+        "This retrieval used fixture Career Knowledge and should not be used for a real application decision."
+      )
+    ).toBeVisible();
+    expect(screen.getByText("Profile purpose FIXTURE")).toBeVisible();
+    expect(screen.getByText("No")).toBeVisible();
+    expect(screen.getAllByText("Production PostgreSQL experience").length).toBeGreaterThan(0);
+    expect(screen.getByText("Largest Evidence Gaps")).toBeVisible();
+    expect(screen.getByText("Strongest Supported Areas")).toBeVisible();
+    expect(screen.queryByText("Software Engineer at Fixture Corp")).not.toBeInTheDocument();
+    expect(screen.queryByText("run-1")).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Open application" })).toHaveAttribute(
       "href",
       "/applications/application-1"
@@ -278,6 +294,22 @@ describe("EvidenceRetrievalPage", () => {
       "href",
       "/job-descriptions/job-description-1/evidence/scores?runId=scoring-run-1&retrievalRunId=run-1"
     );
+    expect(
+      screen.queryByRole("button", { name: "Score Retrieved Evidence" })
+    ).not.toBeInTheDocument();
     expect(screen.queryByText(/match percentage/i)).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Expand details" })[0]!);
+
+    expect(screen.getByText("Software Engineer at Fixture Corp")).toBeVisible();
+    expect(screen.getAllByText("Why this matched").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Restrictions").length).toBeGreaterThan(0);
+    expect(screen.getByText("Project evidence")).toBeVisible();
+    expect(screen.getByText("Date not recorded")).toBeVisible();
+
+    fireEvent.click(screen.getByRole("button", { name: "Show technical details" }));
+
+    expect(screen.getByText("run-1")).toBeVisible();
+    expect(screen.getByText("career-version-1")).toBeVisible();
   });
 });

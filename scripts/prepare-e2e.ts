@@ -1,6 +1,10 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
-import { ApplicationStatus, PrismaClient } from "@prisma/client";
+import {
+  ApplicationStatus,
+  CareerProfilePurpose,
+  PrismaClient
+} from "@prisma/client";
 import { createApplication } from "@/lib/applications/service";
 import { importCareerKnowledge } from "@/lib/career/service";
 import { env } from "@/lib/env";
@@ -873,40 +877,13 @@ async function main() {
     status: ApplicationStatus.APPLIED
   });
 
-  const imported = await importCareerKnowledge({
+  await importCareerKnowledge({
     filePath: "fixtures/career_knowledge_base_fixture_v1.json",
     prismaClient: prisma,
-    workspaceId: workspace.id
+    workspaceId: workspace.id,
+    purpose: CareerProfilePurpose.FIXTURE,
+    setAsCurrent: false
   });
-  const fixtureVersionId = imported.versionId ?? imported.reusedVersionId;
-
-  if (fixtureVersionId) {
-    await prisma.$transaction(async (transaction) => {
-      await transaction.careerProfileVersion.updateMany({
-        where: {
-          workspaceId: workspace.id,
-          active: true,
-          NOT: {
-            id: fixtureVersionId
-          }
-        },
-        data: {
-          active: false,
-          supersededAt: new Date()
-        }
-      });
-
-      await transaction.careerProfileVersion.update({
-        where: {
-          id: fixtureVersionId
-        },
-        data: {
-          active: true,
-          supersededAt: null
-        }
-      });
-    });
-  }
 }
 
 main()

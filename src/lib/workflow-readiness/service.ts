@@ -93,6 +93,8 @@ type WorkflowReadinessInput = {
   latestConfirmedAnalysis?: {
     id: string;
   } | null;
+  careerProfileAvailable?: boolean;
+  careerProfileIssue?: string | null;
   downstreamReadiness?: string | null;
   retrievalRun?: {
     id: string;
@@ -213,12 +215,26 @@ function renderReadiness(result: unknown) {
   return typeof value === "string" ? value : null;
 }
 
+function careerProfileBlockingReason(issue: string | null | undefined) {
+  switch (issue) {
+    case "FIXTURE_ONLY":
+      return "Import or select a real Career Knowledge profile. Fixture-only profiles cannot drive normal evidence retrieval.";
+    case "CURRENT_PROFILE_FIXTURE":
+      return "Select a real Career Knowledge profile before retrieving evidence. Fixture profiles cannot be used for normal workflow runs.";
+    case "CURRENT_PROFILE_MISSING":
+      return "Select a real Career Knowledge profile before retrieving evidence.";
+    default:
+      return "Import a real Career Knowledge profile before retrieving evidence.";
+  }
+}
+
 export function buildWorkflowReadiness(
   input: WorkflowReadinessInput
 ): WorkflowReadiness {
   const currentJobDescription = input.currentJobDescription ?? null;
   const parseSucceeded = hasSuccessfulParse(input.latestParse?.status);
   const analysisConfirmed = input.latestAnalysis?.status === "CONFIRMED";
+  const careerProfileAvailable = input.careerProfileAvailable ?? true;
   const evidenceReady = analysisConfirmed && input.downstreamReadiness === "READY";
   const matchResumeReadiness = resumeReadinessState(input.matchReportRun?.summary);
   const canCreateResumePlan =
@@ -402,6 +418,21 @@ export function buildWorkflowReadiness(
       status: "BLOCKED",
       description: "Evidence retrieval requires a confirmed requirement analysis.",
       blockingReason: "Confirm requirement review first."
+    });
+  } else if (!careerProfileAvailable) {
+    stages.push({
+      key: "evidence-retrieval",
+      name: "Evidence Retrieval",
+      status: "BLOCKED",
+      description: "Evidence retrieval requires the current real Career Knowledge profile.",
+      blockingReason: careerProfileBlockingReason(input.careerProfileIssue),
+      viewAction: input.paths.requirements
+        ? {
+            type: "link",
+            label: "Open Requirement Review",
+            href: input.paths.requirements
+          }
+        : undefined
     });
   } else if (input.downstreamReadiness !== "READY") {
     stages.push({

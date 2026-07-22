@@ -65,8 +65,9 @@ The service derives current state from:
 - active `JobDescriptionVersion`
 - latest successful `JobDescriptionParse` for the current version
 - confirmed or current non-superseded `JobRequirementAnalysis`
-- latest successful `EvidenceRetrievalRun`
-- latest successful `EvidenceScoringRun`
+- the workspace current real `CareerProfileVersion`
+- latest successful `EvidenceRetrievalRun` that matches the current real profile and confirmed requirement lineage
+- latest successful `EvidenceScoringRun` for that retrieval lineage
 - latest successful `MatchReportRun`
 - latest active `StructuredResumeVersion`
 - latest current resume composition, revision, audit, approval, and rendered documents
@@ -92,6 +93,16 @@ Examples of deterministic next actions:
 - approved cover letter without artifacts: `Render Cover Letter DOCX` or `Render Cover Letter PDF`
 
 Blocked actions show their missing prerequisite instead of routing to placeholder pages.
+
+Evidence Retrieval is blocked when:
+
+- no current real Career Knowledge profile exists
+- the workspace only has fixture Career Knowledge
+- the current pointer resolves to a fixture profile
+
+When Evidence Retrieval is available or already complete, the linked page now surfaces a concise next action and a summary-first requirement view rather than exposing raw engine metadata as the primary page content.
+
+Historical fixture-backed retrieval runs remain inspectable by direct view routes, but they do not mark the normal workflow as complete.
 
 ## Ownership and invariants
 

@@ -100,6 +100,27 @@ describe("buildWorkflowReadiness", () => {
     expect(stage(readiness, "match-report")).toMatchObject({ status: "BLOCKED" });
   });
 
+  it("blocks evidence retrieval when only fixture career knowledge is available", () => {
+    const readiness = buildWorkflowReadiness({
+      ...createInput(),
+      currentJobDescription: { id: "jd-1", versionNumber: 1 },
+      latestParse: { id: "parse-1", status: "SUCCESS", parserVersion: "m3.2.5" },
+      latestAnalysis: { id: "analysis-1", status: "CONFIRMED", classifierVersion: "m3.3.3" },
+      latestConfirmedAnalysis: { id: "analysis-1" },
+      careerProfileAvailable: false,
+      careerProfileIssue: "FIXTURE_ONLY",
+      downstreamReadiness: "READY"
+    });
+
+    expect(stage(readiness, "evidence-retrieval")).toMatchObject({
+      status: "BLOCKED"
+    });
+    expect(stage(readiness, "evidence-retrieval").blockingReason).toMatch(
+      /fixture-only profiles cannot drive normal evidence retrieval/i
+    );
+    expect(stage(readiness, "evidence-scoring")).toMatchObject({ status: "BLOCKED" });
+  });
+
   it("shows resume approval as available after a renderable audit and before any active approval", () => {
     const readiness = buildWorkflowReadiness({
       ...createInput(),

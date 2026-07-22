@@ -155,9 +155,12 @@ Milestone `M4.1` adds deterministic candidate-evidence retrieval from one confir
 
 - Retrieval runs are persisted immutably in `EvidenceRetrievalRun`
 - The same exact input versions reuse the existing successful run
+- Normal browser retrieval resolves the workspace's current real Career Knowledge profile, not whichever profile was imported most recently
+- Fixture Career Knowledge remains available for controlled tests, but normal retrieval blocks instead of silently using fixture data
 - Candidate evidence stays grouped by requirement with provenance, restrictions, recency, and professional-versus-project context
 - The read-only evidence screen lives at `/job-descriptions/[jobDescriptionVersionId]/evidence`
 - Application detail now surfaces retrieval readiness, reuse, and gap-aware status without showing final scores
+- July 22, 2026 corrective update: the Evidence Retrieval page now defaults to a concise summary-first layout with collapsed requirement details, retrieval-level support states, per-technology bundle coverage, human-readable restrictions, clustered duplicate representations, and technical metadata behind disclosure instead of rendering the full raw retrieval payload expanded by default
 
 See [docs/EVIDENCE_RETRIEVAL.md](docs/EVIDENCE_RETRIEVAL.md).
 
@@ -239,6 +242,8 @@ Milestone `M2.1` adds a versioned import path for Scott's structured career know
 npm run career:import -- --file .\fixtures\career_knowledge_base_fixture_v1.json --dry-run
 npm run career:import -- --file .\fixtures\career_knowledge_base_fixture_v1.json
 ```
+
+`npm run db:seed` now imports `reference/Scott_Dinwiddie_Career_Knowledge_Base_MongoDB_v3.json` as the current real workspace profile. Controlled fixtures can still be imported with `npm run career:import -- --file .\fixtures\career_knowledge_base_fixture_v1.json --fixture --no-current`.
 
 Import behavior:
 

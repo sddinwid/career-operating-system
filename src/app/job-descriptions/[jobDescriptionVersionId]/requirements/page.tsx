@@ -38,6 +38,19 @@ type RequirementReviewPageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 };
 
+function careerProfileStatusMessage(issue: string | null | undefined) {
+  switch (issue) {
+    case "FIXTURE_ONLY":
+      return "Only fixture Career Knowledge is available right now. Import or select a real Career Knowledge profile before retrieving evidence.";
+    case "CURRENT_PROFILE_FIXTURE":
+      return "The current Career Knowledge selection points to fixture data. Select the real Career Knowledge profile before retrieving evidence.";
+    case "CURRENT_PROFILE_MISSING":
+      return "Select a current real Career Knowledge profile before retrieving evidence.";
+    default:
+      return "Import a real Career Knowledge profile before retrieving evidence.";
+  }
+}
+
 type RequirementReviewDetail = NonNullable<
   Awaited<ReturnType<typeof getJobRequirementAnalysisById>>
 >;
@@ -816,6 +829,17 @@ export default async function RequirementReviewPage({
           <h2 className="text-2xl font-semibold text-amber-950">Downstream automation is paused</h2>
           <p className="mt-3 max-w-3xl text-sm leading-6 text-amber-900">
             Evidence retrieval, scoring, and later resume automation stay paused until this requirement set has enough extraction coverage for deterministic downstream use.
+          </p>
+        </section>
+      ) : null}
+
+      {analysis.reviewStatus === "CONFIRMED" && !retrievalContext?.latestCareerProfileVersion ? (
+        <section className="rounded-3xl border border-amber-300 bg-amber-50 p-8 shadow-sm">
+          <h2 className="text-2xl font-semibold text-amber-950">
+            Evidence retrieval is blocked
+          </h2>
+          <p className="mt-3 max-w-3xl text-sm leading-6 text-amber-900">
+            {careerProfileStatusMessage(retrievalContext?.careerProfileSelectionIssue)}
           </p>
         </section>
       ) : null}

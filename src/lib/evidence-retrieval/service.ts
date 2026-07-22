@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import {
+  CareerProfilePurpose,
   EvidenceRetrievalRunStatus,
   JobRequirementAnalysisStatus,
   Prisma,
@@ -9,7 +10,9 @@ import { prisma } from "@/lib/prisma";
 import {
   assertCanonicalCareerKnowledgeContract
 } from "@/lib/career/validation";
-import { getLatestCareerProfileVersion } from "@/lib/career/service";
+import {
+  getCurrentCareerProfileSelection
+} from "@/lib/career/service";
 import { parseStoredJobRequirementAnalysis } from "@/lib/job-descriptions/requirement-analysis-service";
 import {
   EVIDENCE_RETRIEVAL_CONTRACT_VERSION,
@@ -30,6 +33,13 @@ type RetrieveEvidenceOptions = {
   careerProfileVersionId?: string;
   simulateFailureAfterCreate?: boolean;
 };
+
+const MISSING_CAREER_PROFILE_ERROR =
+  "No active Career Knowledge profile is available. Import or select a real Career Knowledge version before retrieving evidence.";
+
+function allowFixtureCareerProfileSelection() {
+  return process.env.ALLOW_FIXTURE_CAREER_PROFILE_SELECTION === "1";
+}
 
 function stableSerialize(value: unknown): string {
   if (value === null || typeof value !== "object") {
@@ -88,6 +98,8 @@ export async function getEvidenceRetrievalRunById(
               id: true,
               filename: true,
               checksum: true,
+              sourceVersion: true,
+              purpose: true,
               createdAt: true
             }
           }
@@ -161,7 +173,7 @@ export async function getEvidenceRetrievalContext(
   jobDescriptionVersionId: string,
   prismaClient: PrismaClient = prisma
 ) {
-  const [jobDescriptionVersion, latestCareerProfileVersion, latestConfirmedRequirementAnalysis] =
+  const [jobDescriptionVersion, careerProfileSelection, latestConfirmedRequirementAnalysis] =
     await Promise.all([
       prismaClient.jobDescriptionVersion.findFirst({
         where: {
@@ -192,7 +204,7 @@ export async function getEvidenceRetrievalContext(
           }
         }
       }),
-      getLatestCareerProfileVersion(workspaceId, prismaClient),
+      getCurrentCareerProfileSelection(workspaceId, prismaClient),
       prismaClient.jobRequirementAnalysis.findFirst({
         where: {
           workspaceId,
@@ -218,6 +230,7 @@ export async function getEvidenceRetrievalContext(
 
   const activeApplication =
     jobDescriptionVersion.currentForApplications[0] ?? jobDescriptionVersion.sourceApplication;
+  const latestCareerProfileVersion = careerProfileSelection.version;
 
   let reusableRun = null;
   if (latestCareerProfileVersion && downstreamReadyRequirementAnalysis) {
@@ -237,6 +250,7 @@ export async function getEvidenceRetrievalContext(
   return {
     jobDescriptionVersion,
     latestCareerProfileVersion,
+    careerProfileSelectionIssue: careerProfileSelection.issue,
     latestConfirmedRequirementAnalysis,
     downstreamReadyRequirementAnalysis,
     requirementAnalysisDownstreamReadiness:
@@ -321,7 +335,14 @@ export async function retrieveCareerEvidence(
       : context.latestCareerProfileVersion;
 
     if (!careerProfileVersion) {
-      throw new Error("An active career profile version is required before retrieving evidence.");
+      throw new Error(MISSING_CAREER_PROFILE_ERROR);
+    }
+
+    if (
+      careerProfileVersion.source.purpose === CareerProfilePurpose.FIXTURE &&
+      !allowFixtureCareerProfileSelection()
+    ) {
+      throw new Error(MISSING_CAREER_PROFILE_ERROR);
     }
 
     assertCanonicalCareerKnowledgeContract(careerProfileVersion.content);

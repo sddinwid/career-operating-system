@@ -109,6 +109,7 @@ Deterministic rules and verified evidence remain authoritative for:
 ### Milestone 4 - Evidence Retrieval and Scoring
 - Status: `M4.1`, `M4.2`, and `M4.3` complete
 - Scope: candidate evidence retrieval, deterministic scoring, explainable match output
+- July 22, 2026 corrective note: a narrow post-completion slice is hardening Evidence Retrieval usability and deterministic retrieval quality without changing milestone order or beginning `M9`
 
 ### Milestone 5 - Resume Composition Engine
 - Status: `M5.1` complete, `M5.2` complete, `M5.3` complete

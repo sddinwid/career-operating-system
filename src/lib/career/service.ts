@@ -1,6 +1,10 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
-import { Prisma, PrismaClient } from "@prisma/client";
+import {
+  CareerProfilePurpose,
+  Prisma,
+  PrismaClient
+} from "@prisma/client";
 import { env } from "@/lib/env";
 import {
   CAREER_CONTRACT_VERSION,
@@ -34,6 +38,8 @@ type CareerImportCounts = {
 export type CareerImportReport = {
   sourceFilename: string;
   sourcePath: string;
+  purpose: CareerProfilePurpose;
+  setAsCurrent: boolean;
   checksum: string;
   sourceVersion: string | null;
   contractVersion: string;
@@ -55,8 +61,25 @@ type ImportOptions = {
   dryRun?: boolean;
   prismaClient?: PrismaClient;
   workspaceId?: string;
+  purpose?: CareerProfilePurpose;
+  setAsCurrent?: boolean;
   simulateFailureAfterSourceCreate?: boolean;
 };
+
+export type CareerProfileSelectionIssue =
+  | "NO_PROFILE"
+  | "FIXTURE_ONLY"
+  | "CURRENT_PROFILE_MISSING"
+  | "CURRENT_PROFILE_FIXTURE";
+
+export type CareerProfileSelectionResult = {
+  version: Awaited<ReturnType<typeof getCareerProfileVersionById>> | null;
+  issue: CareerProfileSelectionIssue | null;
+};
+
+function allowFixtureCareerProfileSelection() {
+  return process.env.ALLOW_FIXTURE_CAREER_PROFILE_SELECTION === "1";
+}
 
 type LoadedCareerSource = {
   sourcePath: string;
@@ -122,28 +145,131 @@ export async function locateCareerKnowledgeCandidates() {
   return candidates;
 }
 
-export async function getLatestCareerProfileVersion(workspaceId: string, prismaClient = prisma) {
+function buildCareerProfileInclude() {
+  return {
+    predecessor: {
+      select: {
+        id: true,
+        importedAt: true
+      }
+    },
+    source: {
+      select: {
+        id: true,
+        filename: true,
+        checksum: true,
+        sourceVersion: true,
+        purpose: true,
+        createdAt: true,
+        sizeBytes: true,
+        fileType: true,
+        mimeType: true
+      }
+    }
+  } satisfies Prisma.CareerProfileVersionInclude;
+}
+
+async function findLatestCareerProfileVersionByPurpose(
+  workspaceId: string,
+  purpose: CareerProfilePurpose,
+  prismaClient: PrismaClient | TransactionClient = prisma
+) {
   return prismaClient.careerProfileVersion.findFirst({
     where: {
       workspaceId,
-      active: true
-    },
-    include: {
+      active: true,
       source: {
-        select: {
-          id: true,
-          filename: true,
-          checksum: true,
-          sourceVersion: true,
-          createdAt: true,
-          sizeBytes: true,
-          fileType: true,
-          mimeType: true
-        }
+        purpose
       }
     },
-    orderBy: [{ importedAt: "desc" }]
+    include: buildCareerProfileInclude(),
+    orderBy: [{ importedAt: "desc" }, { id: "desc" }]
   });
+}
+
+export async function getCurrentCareerProfileSelection(
+  workspaceId: string,
+  prismaClient: PrismaClient | TransactionClient = prisma
+): Promise<CareerProfileSelectionResult> {
+  const workspace = await prismaClient.workspace.findUnique({
+    where: { id: workspaceId },
+    select: {
+      currentCareerProfileVersionId: true
+    }
+  });
+
+  if (!workspace) {
+    return {
+      version: null,
+      issue: "NO_PROFILE"
+    };
+  }
+
+  if (workspace.currentCareerProfileVersionId) {
+    const current = await getCareerProfileVersionById(
+      workspaceId,
+      workspace.currentCareerProfileVersionId,
+      prismaClient
+    );
+
+    if (!current) {
+      return {
+        version: null,
+        issue: "CURRENT_PROFILE_MISSING"
+      };
+    }
+
+    if (
+      current.source.purpose === CareerProfilePurpose.FIXTURE &&
+      !allowFixtureCareerProfileSelection()
+    ) {
+      return {
+        version: null,
+        issue: "CURRENT_PROFILE_FIXTURE"
+      };
+    }
+
+    return {
+      version: current,
+      issue: null
+    };
+  }
+
+  const fallback = await findLatestCareerProfileVersionByPurpose(
+    workspaceId,
+    CareerProfilePurpose.USER,
+    prismaClient
+  );
+
+  if (fallback) {
+    return {
+      version: fallback,
+      issue: null
+    };
+  }
+
+  const fixtureExists = await prismaClient.careerProfileVersion.findFirst({
+    where: {
+      workspaceId,
+      source: {
+        purpose: CareerProfilePurpose.FIXTURE
+      }
+    },
+    select: { id: true }
+  });
+
+  return {
+    version: null,
+    issue: fixtureExists ? "FIXTURE_ONLY" : "NO_PROFILE"
+  };
+}
+
+export async function getLatestCareerProfileVersion(
+  workspaceId: string,
+  prismaClient: PrismaClient | TransactionClient = prisma
+) {
+  const selection = await getCurrentCareerProfileSelection(workspaceId, prismaClient);
+  return selection.version;
 }
 
 export async function getCareerProfileVersionById(
@@ -163,6 +289,7 @@ export async function getCareerProfileVersionById(
           filename: true,
           checksum: true,
           sourceVersion: true,
+          purpose: true,
           createdAt: true,
           sizeBytes: true,
           fileType: true,
@@ -183,6 +310,8 @@ export async function importCareerKnowledge(
   options: ImportOptions
 ): Promise<CareerImportReport> {
   const prismaClient = options.prismaClient ?? prisma;
+  const purpose = options.purpose ?? CareerProfilePurpose.USER;
+  const setAsCurrent = options.setAsCurrent ?? purpose === CareerProfilePurpose.USER;
   const workspace = options.workspaceId
     ? await prismaClient.workspace.findUniqueOrThrow({
         where: { id: options.workspaceId }
@@ -197,6 +326,8 @@ export async function importCareerKnowledge(
     return {
       sourceFilename: loaded.sourceFilename,
       sourcePath: loaded.sourcePath,
+      purpose,
+      setAsCurrent,
       checksum: loaded.checksum,
       sourceVersion: findSourceVersion(loaded.rawPayload),
       contractVersion: CAREER_CONTRACT_VERSION,
@@ -254,6 +385,8 @@ export async function importCareerKnowledge(
     return {
       sourceFilename: loaded.sourceFilename,
       sourcePath: loaded.sourcePath,
+      purpose,
+      setAsCurrent,
       checksum: loaded.checksum,
       sourceVersion,
       contractVersion: CAREER_CONTRACT_VERSION,
@@ -272,9 +405,44 @@ export async function importCareerKnowledge(
   }
 
   if (existingVersion) {
+    if (setAsCurrent) {
+      await prismaClient.$transaction(async (transaction) => {
+        await transaction.careerProfileVersion.updateMany({
+          where: {
+            workspaceId: workspace.id,
+            active: true,
+            NOT: {
+              id: existingVersion.id
+            }
+          },
+          data: {
+            active: false,
+            supersededAt: new Date()
+          }
+        });
+
+        await transaction.careerProfileVersion.update({
+          where: { id: existingVersion.id },
+          data: {
+            active: true,
+            supersededAt: null
+          }
+        });
+
+        await transaction.workspace.update({
+          where: { id: workspace.id },
+          data: {
+            currentCareerProfileVersionId: existingVersion.id
+          }
+        });
+      });
+    }
+
     return {
       sourceFilename: loaded.sourceFilename,
       sourcePath: loaded.sourcePath,
+      purpose,
+      setAsCurrent,
       checksum: loaded.checksum,
       sourceVersion,
       contractVersion: CAREER_CONTRACT_VERSION,
@@ -296,6 +464,12 @@ export async function importCareerKnowledge(
     recursive: true
   });
 
+  if (existingSource && existingSource.purpose !== purpose) {
+    throw new Error(
+      `Career profile source purpose mismatch for ${loaded.sourceFilename}. Existing purpose is ${existingSource.purpose}; requested purpose is ${purpose}.`
+    );
+  }
+
   const committed = await prismaClient.$transaction(async (transaction) => {
     const sourceRecord =
       existingSource ??
@@ -307,6 +481,7 @@ export async function importCareerKnowledge(
           mimeType: loaded.mimeType,
           sizeBytes: loaded.sizeBytes,
           checksum: loaded.checksum,
+          purpose,
           sourceVersion,
           rawPayload: loaded.rawPayload as Prisma.InputJsonValue
         }
@@ -316,13 +491,15 @@ export async function importCareerKnowledge(
       throw new Error("Simulated career import failure after source creation.");
     }
 
-    const previousActive = await transaction.careerProfileVersion.findFirst({
-      where: {
-        workspaceId: workspace.id,
-        active: true
-      },
-      orderBy: [{ importedAt: "desc" }]
-    });
+    const previousActive = setAsCurrent
+      ? await transaction.careerProfileVersion.findFirst({
+          where: {
+            workspaceId: workspace.id,
+            active: true
+          },
+          orderBy: [{ importedAt: "desc" }, { id: "desc" }]
+        })
+      : null;
 
     if (previousActive) {
       await transaction.careerProfileVersion.update({
@@ -346,9 +523,18 @@ export async function importCareerKnowledge(
         content: contract as Prisma.InputJsonValue,
         validationSummary: validation as Prisma.InputJsonValue,
         checksum: loaded.checksum,
-        active: true
+        active: setAsCurrent
       }
     });
+
+    if (setAsCurrent) {
+      await transaction.workspace.update({
+        where: { id: workspace.id },
+        data: {
+          currentCareerProfileVersionId: version.id
+        }
+      });
+    }
 
     return {
       sourceRecordId: sourceRecord.id,
@@ -359,6 +545,8 @@ export async function importCareerKnowledge(
   return {
     sourceFilename: loaded.sourceFilename,
     sourcePath: loaded.sourcePath,
+    purpose,
+    setAsCurrent,
     checksum: loaded.checksum,
     sourceVersion,
     contractVersion: CAREER_CONTRACT_VERSION,
@@ -382,6 +570,8 @@ export function formatCareerImportReport(report: CareerImportReport) {
   return [
     `Career knowledge import: ${modeLabel}`,
     `Source file: ${report.sourceFilename}`,
+    `Purpose: ${report.purpose}`,
+    `Set as current: ${report.setAsCurrent ? "yes" : "no"}`,
     `Checksum: ${report.checksum}`,
     `Source version: ${report.sourceVersion ?? "unknown"}`,
     `Contract version: ${report.contractVersion}`,

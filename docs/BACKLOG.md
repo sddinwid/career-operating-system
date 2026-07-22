@@ -160,6 +160,14 @@ These remain intentionally deferred after the July 19, 2026 navigation/discovery
 - Personal workflow benefit: makes the implemented document pipeline operable through normal browser navigation and removes repeated copy-paste from public job URLs
 - Acceptance summary: deterministic workflow-readiness panel, truthful next-action discovery on Jobs and detail pages, SSRF-safe URL preview intake, immutable save reuse, and full browser completion of the existing resume and cover-letter flow
 
+### `M4 corrective - Evidence Retrieval UX and focused retrieval-quality hardening`
+- Status: `in progress`
+- Priority: `P2`
+- Milestone: `Milestone 4 / corrective`
+- Dependency: verified `M4.1` and `M4.2`
+- Personal workflow benefit: makes real evidence review usable for daily go or no-go application decisions before scoring or resume generation
+- Acceptance summary: summary-first evidence inspection, progressive disclosure, compound technology coverage, human-readable gap language, deterministic duplicate clustering, and focused retrieval fixes for proven communication, collaboration, data, AI or ML, and domain-specific cases
+
 ## Later
 
 ### `M9.1 - Calculated Application Columns`

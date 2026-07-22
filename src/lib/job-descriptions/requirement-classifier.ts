@@ -40,18 +40,19 @@ const workAuthorizationPattern =
 const clearancePattern = /\b(clearance|public trust|secret|top secret)\b/i;
 const travelPattern = /\b(travel|travel up to \d+%|\d+%\s*travel)\b/i;
 const locationPattern = /\b(remote|hybrid|on-site|onsite|relocate|location)\b/i;
-const communicationPattern = /\b(communication|communicate|present|writing|written|verbal)\b/i;
+const communicationPattern =
+  /\b(communication|communicate|present|writing|written|verbal|progress|risk|risks|decision|decisions|documentation)\b/i;
 const collaborationPattern =
-  /\b(collaborat|cross-functional|stakeholder|partner|team|mentor)\b/i;
+  /\b(collaborat|cross-functional|stakeholder|partner|team|mentor|peer|teammate|customer|onboarding|across disciplines|shared goals)\b/i;
 const architecturePattern =
-  /\b(architecture|distributed systems|microservices|api|rest|graphql|platform|maintainable|well-tested|observable|tradeoffs|reliability|performance|scalability)\b/i;
+  /\b(architecture|distributed systems|microservices|api|rest|graphql|platform|maintainable|well-tested|well tested|observable|observability|tradeoffs|reliability|performance|scalability|production code)\b/i;
 const cloudPattern = /\b(aws|azure|gcp|cloud|lambda|sqs|cloudwatch)\b/i;
 const dataPattern = /\b(data|database|postgres|postgresql|mysql|sql|etl|warehouse|analytics|document-heavy|ingestion|retrieval|search)\b/i;
 const aiMlPattern = /\b(ai|ml|machine learning|llm|rag|openai|langchain)\b/i;
 const securityPattern = /\b(security|secure|oauth|authentication|authorization|cissp|soc 2|fedramp)\b/i;
 const domainPattern = /\b(fintech|healthcare|payments|saas|ecommerce|gov|government|audit|assurance|risk management|compliance)\b/i;
 const responsibilityPattern =
-  /\b(scope|prioritize|deliver|ownership|own|build|ship|iterate|improve|balance|shape)\b/i;
+  /\b(scope|prioritize|delivery|deliver|ownership|own|build|ship|shipping|production|iterate|improve|improvement|balance|shape|business outcomes?)\b/i;
 const contextualSectionTypes = new Set([
   "ABOUT_ROLE",
   "LOCATION",
@@ -300,7 +301,7 @@ function classifyResponsibility(responsibility: Responsibility) {
 }
 
 function actionLooksLeadership(text: string) {
-  return /\b(lead|mentor|manage|coach|influence)\b/i.test(text);
+  return /\b(lead|mentor|manage|coach|influence|hire|hiring|onboard|onboarding)\b/i.test(text);
 }
 
 function buildSummary(

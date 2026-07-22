@@ -3,8 +3,9 @@ import os from "node:os";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { PrismaClient } from "@prisma/client";
+import { CareerProfilePurpose, PrismaClient } from "@prisma/client";
 import {
+  getCurrentCareerProfileSelection,
   getCareerProfileVersionById,
   getLatestCareerProfileVersion,
   importCareerKnowledge
@@ -16,6 +17,7 @@ const prisma = new PrismaClient();
 const createdWorkspaceIds = new Set<string>();
 let fixtureDirectory = "";
 let validFixturePath = "";
+let validUserFixturePath = "";
 
 async function cleanupWorkspace(workspaceId: string) {
   await prisma.activity.deleteMany({ where: { workspaceId } });
@@ -76,6 +78,19 @@ describe("career knowledge import service", () => {
       "career_knowledge_base_fixture_v1.json",
       fixture
     );
+    validUserFixturePath = await writeFixtureFile("career_knowledge_user_v1.json", {
+      ...fixture,
+      _meta: {
+        ...fixture._meta,
+        owner: "Real Candidate"
+      },
+      candidateProfile: {
+        ...fixture.candidateProfile,
+        _id: "candidate_real",
+        name: "Real Candidate",
+        email: "real@example.com"
+      }
+    });
   });
 
   afterAll(async () => {
@@ -327,5 +342,80 @@ describe("career knowledge import service", () => {
     const fileContents = await fs.readFile(validFixturePath, "utf8");
 
     expect(report.checksum).toBe(computeSha256(fileContents));
+  });
+
+  it("keeps the current user profile selected when a fixture profile is imported later", async () => {
+    const workspace = await createWorkspace();
+    const userImport = await importCareerKnowledge({
+      filePath: validUserFixturePath,
+      prismaClient: prisma,
+      workspaceId: workspace.id,
+      purpose: CareerProfilePurpose.USER,
+      setAsCurrent: true
+    });
+
+    const fixtureImport = await importCareerKnowledge({
+      filePath: validFixturePath,
+      prismaClient: prisma,
+      workspaceId: workspace.id,
+      purpose: CareerProfilePurpose.FIXTURE,
+      setAsCurrent: false
+    });
+
+    const selection = await getCurrentCareerProfileSelection(workspace.id, prisma);
+    const latest = await getLatestCareerProfileVersion(workspace.id, prisma);
+    const workspaceRecord = await prisma.workspace.findUniqueOrThrow({
+      where: { id: workspace.id }
+    });
+
+    expect(userImport.versionId).toBeTruthy();
+    expect(fixtureImport.versionId).toBeTruthy();
+    expect(selection.issue).toBeNull();
+    expect(selection.version?.id).toBe(userImport.versionId);
+    expect(selection.version?.source.purpose).toBe(CareerProfilePurpose.USER);
+    expect(latest?.id).toBe(userImport.versionId);
+    expect(workspaceRecord.currentCareerProfileVersionId).toBe(userImport.versionId);
+  });
+
+  it("reports fixture-only workspaces as unavailable for normal profile selection", async () => {
+    const workspace = await createWorkspace();
+    const fixtureImport = await importCareerKnowledge({
+      filePath: validFixturePath,
+      prismaClient: prisma,
+      workspaceId: workspace.id,
+      purpose: CareerProfilePurpose.FIXTURE,
+      setAsCurrent: false
+    });
+
+    const selection = await getCurrentCareerProfileSelection(workspace.id, prisma);
+    const latest = await getLatestCareerProfileVersion(workspace.id, prisma);
+
+    expect(fixtureImport.versionId).toBeTruthy();
+    expect(selection.version).toBeNull();
+    expect(selection.issue).toBe("FIXTURE_ONLY");
+    expect(latest).toBeNull();
+  });
+
+  it("rejects a workspace current pointer that targets a fixture profile", async () => {
+    const workspace = await createWorkspace();
+    const fixtureImport = await importCareerKnowledge({
+      filePath: validFixturePath,
+      prismaClient: prisma,
+      workspaceId: workspace.id,
+      purpose: CareerProfilePurpose.FIXTURE,
+      setAsCurrent: false
+    });
+
+    await prisma.workspace.update({
+      where: { id: workspace.id },
+      data: {
+        currentCareerProfileVersionId: fixtureImport.versionId
+      }
+    });
+
+    const selection = await getCurrentCareerProfileSelection(workspace.id, prisma);
+
+    expect(selection.version).toBeNull();
+    expect(selection.issue).toBe("CURRENT_PROFILE_FIXTURE");
   });
 });

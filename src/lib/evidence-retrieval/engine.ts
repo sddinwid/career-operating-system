@@ -75,11 +75,38 @@ const CONCEPT_DICTIONARY: Array<{ concept: string; phrases: string[] }> = [
   { concept: "CLOUD_ARCHITECTURE", phrases: ["aws", "cloud", "cloud architecture"] },
   { concept: "RELIABILITY", phrases: ["reliability", "resilience", "observability"] },
   { concept: "OBSERVABILITY", phrases: ["observability", "monitoring", "logging"] },
-  { concept: "TESTING", phrases: ["testing", "test automation"] },
+  { concept: "TESTING", phrases: ["testing", "test automation", "well tested", "testable"] },
   { concept: "CI_CD", phrases: ["ci/cd", "continuous integration", "deployment"] },
   { concept: "MENTORING", phrases: ["mentor", "mentoring", "coach", "coaching"] },
   { concept: "TECHNICAL_LEADERSHIP", phrases: ["technical leadership", "technical direction", "leadership"] },
   { concept: "CROSS_FUNCTIONAL_COLLABORATION", phrases: ["cross-functional", "stakeholder", "collaboration"] },
+  {
+    concept: "COMMUNICATION",
+    phrases: ["communication", "communicate", "progress", "risks", "decisions", "stakeholder communication"]
+  },
+  { concept: "DOCUMENTATION", phrases: ["documentation", "documented", "written"] },
+  {
+    concept: "PRODUCTION_DELIVERY",
+    phrases: ["production code", "production systems", "shipping", "delivery", "deployment", "release"]
+  },
+  {
+    concept: "BUSINESS_OUTCOMES",
+    phrases: ["business outcomes", "customer impact", "business impact", "operational impact"]
+  },
+  { concept: "OWNERSHIP", phrases: ["ownership", "own", "ideation", "iteration"] },
+  {
+    concept: "CONTINUOUS_IMPROVEMENT",
+    phrases: ["continuous improvement", "improve", "improvement", "workflow improvements"]
+  },
+  {
+    concept: "DOCUMENT_WORKFLOWS",
+    phrases: ["document heavy", "document-heavy", "document workflows", "document understanding", "document processing"]
+  },
+  {
+    concept: "SEARCH_RETRIEVAL",
+    phrases: ["retrieval", "semantic retrieval", "search", "semantic search", "ingestion pipelines"]
+  },
+  { concept: "CUSTOMER_EMPATHY", phrases: ["customers", "customer empathy", "teammates"] },
   { concept: "AI_ORCHESTRATION", phrases: ["agent", "orchestration", "tool invocation"] },
   { concept: "RAG", phrases: ["rag", "retrieval augmented generation"] },
   { concept: "DATA_PIPELINES", phrases: ["data pipeline", "etl", "ingestion"] }
@@ -94,11 +121,51 @@ const DOMAIN_ALIASES: Record<string, string[]> = {
   platform: ["platform", "internal platforms", "platform engineering"],
   travel: ["travel"],
   crm: ["crm", "customer relationship management"],
-  msp: ["msp", "managed service provider"]
+  msp: ["msp", "managed service provider"],
+  audit: ["audit", "auditing"],
+  assurance: ["assurance"],
+  risk: ["risk management", "risk"],
+  compliance: ["compliance", "soc 2", "fedramp", "regulated financial", "regulated finance"]
 };
+
+const COMMUNICATION_CONCEPTS = new Set(["COMMUNICATION", "DOCUMENTATION"]);
+const COLLABORATION_CONCEPTS = new Set([
+  "CROSS_FUNCTIONAL_COLLABORATION",
+  "MENTORING",
+  "TECHNICAL_LEADERSHIP",
+  "CUSTOMER_EMPATHY"
+]);
+const DATA_CONCEPTS = new Set(["DATA_PIPELINES", "DOCUMENT_WORKFLOWS", "SEARCH_RETRIEVAL"]);
+const AI_ML_CONCEPTS = new Set([
+  "AI_ORCHESTRATION",
+  "RAG",
+  "SEARCH_RETRIEVAL",
+  "DOCUMENT_WORKFLOWS"
+]);
+const RESPONSIBILITY_CONCEPTS = new Set([
+  "PRODUCTION_DELIVERY",
+  "BUSINESS_OUTCOMES",
+  "OWNERSHIP",
+  "CONTINUOUS_IMPROVEMENT",
+  "MENTORING",
+  "CROSS_FUNCTIONAL_COLLABORATION"
+]);
 
 function normalizeKey(value: string | null | undefined) {
   return (value ?? "").trim().toLowerCase();
+}
+
+function normalizeSearchText(value: string | null | undefined) {
+  return ` ${normalizeKey(value).replace(/[^a-z0-9]+/g, " ").trim()} `;
+}
+
+function containsNormalizedPhrase(normalizedHaystack: string, phrase: string) {
+  const normalizedPhrase = normalizeSearchText(phrase).trim();
+  if (!normalizedPhrase) {
+    return false;
+  }
+
+  return normalizedHaystack.includes(` ${normalizedPhrase} `);
 }
 
 function titleCaseFromSlug(value: string) {
@@ -224,11 +291,11 @@ function getEligibility(
 }
 
 function collectConcepts(values: string[]) {
-  const blob = normalizeKey(values.join(" "));
+  const blob = normalizeSearchText(values.join(" "));
   const matches = new Set<string>();
 
   for (const entry of CONCEPT_DICTIONARY) {
-    if (entry.phrases.some((phrase) => blob.includes(normalizeKey(phrase)))) {
+    if (entry.phrases.some((phrase) => containsNormalizedPhrase(blob, phrase))) {
       matches.add(entry.concept);
     }
   }
@@ -237,11 +304,11 @@ function collectConcepts(values: string[]) {
 }
 
 function getDomainMatches(values: string[]) {
-  const blob = normalizeKey(values.join(" "));
+  const blob = normalizeSearchText(values.join(" "));
   const matches = new Set<string>();
 
   for (const [domain, aliases] of Object.entries(DOMAIN_ALIASES)) {
-    if (aliases.some((alias) => blob.includes(normalizeKey(alias)))) {
+    if (aliases.some((alias) => containsNormalizedPhrase(blob, alias))) {
       matches.add(domain);
     }
   }
@@ -257,6 +324,11 @@ function mapRawEvidenceType(value: string): EvidenceType {
       return "ARCHITECTURE";
     case "LEADERSHIP":
       return "LEADERSHIP";
+    case "METRIC":
+      return "METRIC";
+    case "RESPONSIBILITY":
+    case "PRODUCTION":
+      return "RESPONSIBILITY";
     default:
       return "OTHER";
   }
@@ -948,17 +1020,60 @@ function sortCandidateReasons(reasons: RetrievalReason[]) {
 
 function sortCandidates(candidates: CandidateEvidence[]) {
   return [...candidates].sort((left, right) => {
-    if (left.eligibility !== right.eligibility) {
-      return left.eligibility.localeCompare(right.eligibility);
+    const eligibilityRank = (eligibility: CandidateEvidence["eligibility"]) =>
+      ({
+        ELIGIBLE: 2,
+        ELIGIBLE_WITH_RESTRICTIONS: 1,
+        INELIGIBLE: 0
+      })[eligibility];
+    if (eligibilityRank(left.eligibility) !== eligibilityRank(right.eligibility)) {
+      return eligibilityRank(right.eligibility) - eligibilityRank(left.eligibility);
     }
-    if (left.context !== right.context) {
-      return left.context.localeCompare(right.context);
+
+    const contextRank = (context: CandidateEvidence["context"]) =>
+      ({
+        PROFESSIONAL: 4,
+        PROJECT: 3,
+        EDUCATION: 2,
+        CERTIFICATION: 2,
+        OTHER: 1
+      })[context];
+    if (contextRank(left.context) !== contextRank(right.context)) {
+      return contextRank(right.context) - contextRank(left.context);
     }
-    if (left.recency !== right.recency) {
-      return left.recency.localeCompare(right.recency);
+
+    const recencyRank = (recency: CandidateEvidence["recency"]) =>
+      ({
+        CURRENT: 5,
+        RECENT: 4,
+        OLDER: 3,
+        UNKNOWN: 2,
+        STALE: 1
+      })[recency];
+    if (recencyRank(left.recency) !== recencyRank(right.recency)) {
+      return recencyRank(right.recency) - recencyRank(left.recency);
     }
+
     return left.candidateId.localeCompare(right.candidateId);
   });
+}
+
+function findSharedConcept(
+  candidate: InternalCandidate,
+  requirementConcepts: Set<string>,
+  allowedConcepts?: Set<string>
+) {
+  for (const concept of requirementConcepts) {
+    if (allowedConcepts && !allowedConcepts.has(concept)) {
+      continue;
+    }
+
+    if (candidate.matchedConcepts.has(concept)) {
+      return concept;
+    }
+  }
+
+  return null;
 }
 
 function collectRequirementConcepts(item: RequirementItem) {
@@ -1120,11 +1235,12 @@ function findMatchesForRequirement(
       }
     }
 
-    if (
-      item.kinds.includes("RESPONSIBILITY") &&
-      candidate.matchedConcepts.size > 0 &&
-      [...requirementConcepts].some((concept) => candidate.matchedConcepts.has(concept))
-    ) {
+    const responsibilityConcept = findSharedConcept(
+      candidate,
+      requirementConcepts,
+      RESPONSIBILITY_CONCEPTS
+    );
+    if (item.kinds.includes("RESPONSIBILITY") && responsibilityConcept) {
       mergeCandidateMatch(
         candidateMatches,
         candidate,
@@ -1133,43 +1249,111 @@ function findMatchesForRequirement(
             ? "PROJECT_RESPONSIBILITY_MATCH"
             : "ROLE_RESPONSIBILITY_MATCH",
           "Responsibility concepts overlap deterministically.",
-          [...requirementConcepts].find((concept) => candidate.matchedConcepts.has(concept)) ?? null,
+          responsibilityConcept,
           "responsibilities",
           "responsibility.concept.dictionary"
         )
       );
     }
 
-    if (
-      item.kinds.includes("ARCHITECTURE") &&
-      candidate.matchedConcepts.size > 0 &&
-      [...requirementConcepts].some((concept) => candidate.matchedConcepts.has(concept))
-    ) {
+    const architectureConcept = findSharedConcept(candidate, requirementConcepts);
+    if (item.kinds.includes("ARCHITECTURE") && architectureConcept) {
       mergeCandidateMatch(
         candidateMatches,
         candidate,
         buildReason(
           "ARCHITECTURE_CONCEPT_MATCH",
           "Architecture-related concepts overlap deterministically.",
-          [...requirementConcepts].find((concept) => candidate.matchedConcepts.has(concept)) ?? null,
+          architectureConcept,
           "architecture",
           "architecture.concept.dictionary"
         )
       );
     }
 
+    const communicationConcept = findSharedConcept(
+      candidate,
+      requirementConcepts,
+      COMMUNICATION_CONCEPTS
+    );
+    if (item.kinds.includes("COMMUNICATION") && communicationConcept) {
+      mergeCandidateMatch(
+        candidateMatches,
+        candidate,
+        buildReason(
+          "COMMUNICATION_MATCH",
+          "Communication-oriented evidence overlaps deterministically.",
+          communicationConcept,
+          "communication",
+          "communication.concept.dictionary"
+        )
+      );
+    }
+
+    const collaborationConcept = findSharedConcept(
+      candidate,
+      requirementConcepts,
+      COLLABORATION_CONCEPTS
+    );
     if (
-      item.kinds.includes("DOMAIN") &&
-      domainMatches.size > 0 &&
-      [...domainMatches].some((domain) => candidate.domainTags.has(domain))
+      (item.kinds.includes("COLLABORATION") || item.kinds.includes("LEADERSHIP")) &&
+      collaborationConcept
     ) {
+      mergeCandidateMatch(
+        candidateMatches,
+        candidate,
+        buildReason(
+          "COLLABORATION_MATCH",
+          "Collaboration-oriented evidence overlaps deterministically.",
+          collaborationConcept,
+          "collaboration",
+          "collaboration.concept.dictionary"
+        )
+      );
+    }
+
+    const dataConcept = findSharedConcept(candidate, requirementConcepts, DATA_CONCEPTS);
+    if (item.kinds.includes("DATA") && dataConcept) {
+      mergeCandidateMatch(
+        candidateMatches,
+        candidate,
+        buildReason(
+          "DATA_MATCH",
+          "Data, ingestion, or retrieval evidence overlaps deterministically.",
+          dataConcept,
+          "data",
+          "data.concept.dictionary"
+        )
+      );
+    }
+
+    const aiMlConcept = findSharedConcept(candidate, requirementConcepts, AI_ML_CONCEPTS);
+    if (item.kinds.includes("AI_ML") && aiMlConcept) {
+      mergeCandidateMatch(
+        candidateMatches,
+        candidate,
+        buildReason(
+          "AI_ML_MATCH",
+          "AI or ML evidence overlaps deterministically.",
+          aiMlConcept,
+          "ai_ml",
+          "ai-ml.concept.dictionary"
+        )
+      );
+    }
+
+    const matchingDomain =
+      item.kinds.includes("DOMAIN") && domainMatches.size > 0
+        ? [...domainMatches].find((domain) => candidate.domainTags.has(domain)) ?? null
+        : null;
+    if (matchingDomain) {
       mergeCandidateMatch(
         candidateMatches,
         candidate,
         buildReason(
           "DOMAIN_MATCH",
           "Domain metadata overlaps deterministically.",
-          [...domainMatches].find((domain) => candidate.domainTags.has(domain)) ?? null,
+          matchingDomain,
           "domainTags",
           "domain.alias.dictionary"
         )

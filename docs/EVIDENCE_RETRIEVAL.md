@@ -17,6 +17,8 @@ Each retrieval run references exactly:
 
 The persisted run stores exact IDs plus source checksums so later source changes do not rewrite historical retrieval results.
 
+Normal browser retrieval uses the workspace current real `CareerProfileVersion`. If the workspace only has fixture data, or the current pointer resolves to a fixture profile, retrieval blocks instead of silently falling back.
+
 ## Contract and Versioning
 
 - Retrieval contract version: `1.0.0`
@@ -107,8 +109,9 @@ Technology lookup:
 Concept lookup:
 
 - bounded responsibility and architecture concept dictionary
+- bounded communication, collaboration, data, and AI or ML concept bridges
 - explicit leadership detection
-- explicit domain-tag overlap only
+- boundary-aware domain-tag overlap only
 
 Education and certification lookup:
 
@@ -157,14 +160,40 @@ Routes:
 The UI exposes:
 
 - retrieval readiness
-- run summary
-- grouped requirement coverage
-- candidate evidence
-- restrictions
-- provenance
-- gap summary
+- executive summary
+- career knowledge provenance, source version, purpose, and whether the viewed run matches the current workspace profile
+- strongest supported areas and largest gaps
+- compact requirement coverage rows with retrieval-level support states
+- collapsed-by-default candidate details with deterministic top-candidate ordering
+- human-readable restrictions, retrieved-because explanations, and preserved provenance
+- technical details disclosure for ids, checksums, and engine metadata
 
-The UI does not display scores, match percentages, satisfaction labels, or ranking.
+The UI does not display scores, a single percentage score, or scoring-layer conclusions on the retrieval page.
+
+## Retrieval-Level Support States
+
+The Evidence Retrieval page uses deterministic presentation states:
+
+- `Strong support`
+- `Good support`
+- `Limited support`
+- `Restricted support only`
+- `Related evidence only`
+- `No qualifying evidence`
+- `Excluded`
+
+These states are derived from the stored retrieval run plus deterministic display ranking and bundle coverage logic. They do not rewrite the persisted immutable result.
+
+## Gap Language
+
+User-facing wording now distinguishes:
+
+- no evidence retrieved
+- related evidence only
+- restricted support only
+- direct project evidence without qualifying professional evidence
+
+The page no longer collapses all of those cases into `No candidates`.
 
 ## Privacy
 
@@ -172,15 +201,15 @@ The UI does not display scores, match percentages, satisfaction labels, or ranki
 - retrieval pages show provenance metadata, not full private payloads
 - tests use the anonymized fixture `fixtures/career_knowledge_base_fixture_v1.json`
 
+Fixture-backed historical runs stay visible with an explicit warning that they should not drive a real application decision.
+
 ## Known Limitations
 
 `M4.1` stops at candidate retrieval and explanation. `M4.2` consumes the immutable retrieval run and adds deterministic candidate scoring in a separate immutable layer.
 
 Deferred to later milestones:
 
-- final evidence scoring
-- weighted ranking
-- match percentages
+- scoring-layer evidence strength conclusions
 - manual evidence approval or rejection
 - manual linking
 - resume generation

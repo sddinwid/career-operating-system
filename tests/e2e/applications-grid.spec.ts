@@ -455,8 +455,10 @@ test("supports saved views, persistence, detail navigation, rollback, and search
 
   const openButtons = grid.getByRole("button", { name: "Open" });
   await expect(openButtons).toHaveCount(1);
-  await openButtons.first().click();
-  await expect(page).toHaveURL(/\/applications\/[^/]+$/, { timeout: 15_000 });
+  await Promise.all([
+    page.waitForURL(/\/applications\/[^/]+$/, { timeout: 15_000 }),
+    openButtons.first().click()
+  ]);
 
   await expect(
     page.getByRole("heading", {

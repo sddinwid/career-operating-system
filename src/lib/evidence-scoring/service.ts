@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import {
+  CareerProfilePurpose,
   EvidenceRetrievalRunStatus,
   EvidenceScoringRunStatus,
   Prisma,
@@ -24,6 +25,10 @@ import {
 } from "@/lib/evidence-retrieval/service";
 
 type TransactionClient = Prisma.TransactionClient;
+
+function allowFixtureCareerProfileSelection() {
+  return process.env.ALLOW_FIXTURE_CAREER_PROFILE_SELECTION === "1";
+}
 
 export type EvidenceScoringRunDetail = NonNullable<
   Awaited<ReturnType<typeof getEvidenceScoringRunById>>
@@ -111,6 +116,8 @@ export async function getEvidenceScoringRunById(
               id: true,
               filename: true,
               checksum: true,
+              sourceVersion: true,
+              purpose: true,
               createdAt: true
             }
           }
@@ -238,6 +245,15 @@ export async function scoreRetrievedEvidence(
       run.status !== EvidenceRetrievalRunStatus.SUCCESS_WITH_WARNINGS
     ) {
       throw new Error("Only successful evidence retrieval runs can be scored.");
+    }
+
+    if (
+      run.careerProfileVersion.source.purpose === CareerProfilePurpose.FIXTURE &&
+      !allowFixtureCareerProfileSelection()
+    ) {
+      throw new Error(
+        "Evidence scoring requires a retrieval run created from the active real Career Knowledge profile."
+      );
     }
 
     const parsedRetrieval = await parseStoredEvidenceRetrievalRun(

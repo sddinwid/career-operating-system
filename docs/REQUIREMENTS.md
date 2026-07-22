@@ -96,6 +96,11 @@ Career Knowledge Base
 - Retrieve candidate evidence from verified career knowledge.
 - Persist immutable evidence-retrieval runs tied to one exact confirmed requirement analysis and one exact career-profile version.
 - Expose candidate evidence, restrictions, provenance, recency, and coverage gaps in a read-only inspection flow before scoring.
+- Present retrieval results in a decision-oriented summary-first layout with progressive disclosure instead of rendering every candidate fully expanded by default.
+- Distinguish strong support, limited support, restricted support, related-only evidence, and genuine no-qualifying-evidence gaps without inventing a single percentage score.
+- Preserve human-readable restriction labels, retrieved-because explanations, and technical lineage disclosure.
+- Treat compound technology bundles as partial when one or more listed technologies remain unsupported.
+- Prevent domain overretrieval from broad substring overlap or low-specificity metadata matches.
 - Score evidence using recency, professional-versus-project weighting, verified metrics, responsibility match, architecture match, domain match, and Scott-specific stack-ordering rules.
 - Never select unsupported evidence silently.
 - Produce explainable evidence-selection results that can be inspected before rendering documents.

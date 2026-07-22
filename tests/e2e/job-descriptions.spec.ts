@@ -203,8 +203,37 @@ async function waitForFieldguideStandaloneVersion(
   throw new Error(failureMessage);
 }
 
+async function setCurrentCareerProfileByPurpose(purpose: "USER" | "FIXTURE") {
+  const version = await prisma.careerProfileVersion.findFirst({
+    where: {
+      workspaceId: "local-workspace",
+      source: {
+        purpose
+      }
+    },
+    orderBy: [{ importedAt: "desc" }, { id: "desc" }]
+  });
+
+  if (!version) {
+    throw new Error(`Expected a ${purpose} career profile version for the local workspace.`);
+  }
+
+  await prisma.workspace.update({
+    where: { id: "local-workspace" },
+    data: {
+      currentCareerProfileVersionId: version.id
+    }
+  });
+
+  return version;
+}
+
 test.afterAll(async () => {
   await prisma.$disconnect();
+});
+
+test.afterEach(async () => {
+  await setCurrentCareerProfileByPurpose("USER");
 });
 
 test("parses and reviews the Fieldguide fixture as atomic, level-aware requirements before enabling evidence retrieval", async ({
@@ -493,6 +522,23 @@ test("parses and reviews the Fieldguide fixture as atomic, level-aware requireme
   ).toBeVisible();
   await expect(page.getByRole("button", { name: "Retrieve Career Evidence" })).toBeVisible();
 
+  await page.getByRole("button", { name: "Retrieve Career Evidence" }).click();
+  await expect(page.getByText("Career evidence retrieval completed successfully.")).toBeVisible();
+  await Promise.all([
+    page.waitForURL(/\/job-descriptions\/[^/]+\/evidence\?runId=[^&]+(?:&.*)?$/, {
+      timeout: 15_000
+    }),
+    page.getByRole("link", { name: "View Candidate Evidence" }).click()
+  ]);
+  await expect(
+    page.getByText("Scott_Dinwiddie_Career_Knowledge_Base_MongoDB_v3.json")
+  ).toBeVisible();
+  await expect(page.getByText("Profile purpose USER")).toBeVisible();
+  await expect(page.getByText("Fixture University")).toHaveCount(0);
+  await expect(page.getByText("Fixture Corp")).toHaveCount(0);
+  await expect(page.getByText("Fixture Platform")).toHaveCount(0);
+  await expect(page.getByText("Fixture Cloud")).toHaveCount(0);
+
   const confirmedAnalysisVersion = await getFieldguideStandaloneVersion();
   expect(confirmedAnalysisVersion?.requirementAnalyses).toHaveLength(1);
   expect(confirmedAnalysisVersion?.requirementAnalyses[0]?.id).toBe(analysisId);
@@ -504,6 +550,7 @@ test("captures, versions, and reuses job descriptions without changing applicati
 }) => {
   test.setTimeout(120_000);
   await resetE2EApplicationFixture(prisma);
+  await setCurrentCareerProfileByPurpose("FIXTURE");
 
   const companyName = E2E_COMPANY_NAME;
   const roleName = E2E_ROLE_NAME;
@@ -712,12 +759,30 @@ Preferred Qualifications
     }),
     page.getByRole("link", { name: "View Candidate Evidence" }).click()
   ]);
-  await expect(page.getByRole("heading", { name: "Gap Summary" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Required" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Preferred" })).toBeVisible();
-  await expect(page.getByText(/Retrieved because:/).first()).toBeVisible();
-  await expect(page.getByText(/Restrictions:/).first()).toBeVisible();
-  await expect(page.getByText(/NO CANDIDATES|LIMITED CANDIDATES/).first()).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Evidence Summary" })).toBeVisible();
+  await expect(
+    page.getByText(
+      "This retrieval used fixture Career Knowledge and should not be used for a real application decision."
+    )
+  ).toBeVisible();
+  await expect(page.getByText("Profile purpose FIXTURE")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Required", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Preferred", exact: true })).toBeVisible();
+  await expect(page.getByText("Strongest Supported Areas")).toBeVisible();
+  await expect(page.getByText("Largest Evidence Gaps")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Show technical details" })).toBeVisible();
+  await expect(page.getByText(/match percentage/i)).toHaveCount(0);
+  await expect(page.getByText("Why this matched")).toHaveCount(0);
+  await page
+    .locator("article")
+    .filter({ hasText: "PostgreSQL and AWS experience required" })
+    .getByRole("button", { name: "Expand details" })
+    .click();
+  await expect(page.getByText("Why this matched").first()).toBeVisible();
+  await expect(page.getByText("Restrictions").first()).toBeVisible();
+  await expect(page.getByText(/Project evidence|Date not recorded|Older experience/).first()).toBeVisible();
+  await page.getByRole("button", { name: "Show technical details" }).click();
+  await expect(page.getByText("Career Profile Version ID")).toBeVisible();
   await expect(page.getByText(/match percentage/i)).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Score Retrieved Evidence" })).toBeVisible();
   await page.getByRole("button", { name: "Score Retrieved Evidence" }).click();

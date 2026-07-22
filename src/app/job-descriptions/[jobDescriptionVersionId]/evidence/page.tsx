@@ -1,19 +1,37 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import type { ReactNode } from "react";
 import { scoreRetrievedEvidenceAction } from "@/lib/evidence-scoring/actions";
 import { getEvidenceScoringContext } from "@/lib/evidence-scoring/service";
 import { retrieveCareerEvidenceAction } from "@/lib/evidence-retrieval/actions";
+import { buildEvidenceRetrievalPageViewModel } from "@/lib/evidence-retrieval/presentation";
 import {
   getEvidenceRetrievalContext,
   parseStoredEvidenceRetrievalRun
 } from "@/lib/evidence-retrieval/service";
 import { getDefaultWorkspace } from "@/lib/workspace";
+import { EvidenceRequirementExplorer } from "@/components/evidence/evidence-requirement-explorer";
 
 type EvidencePageProps = {
   params: Promise<{ jobDescriptionVersionId: string }>;
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 };
+
+function careerProfileStatusMessage(issue: string | null | undefined) {
+  switch (issue) {
+    case "FIXTURE_ONLY":
+      return "Only fixture Career Knowledge is available right now. Import or select a real Career Knowledge profile before retrieving evidence.";
+    case "CURRENT_PROFILE_FIXTURE":
+      return "The current Career Knowledge selection points to fixture data. Select the real Career Knowledge profile before retrieving evidence.";
+    case "CURRENT_PROFILE_MISSING":
+      return "Select a current real Career Knowledge profile before retrieving evidence.";
+    default:
+      return "Import a real Career Knowledge profile before retrieving evidence.";
+  }
+}
+
+function formatPurpose(purpose: string) {
+  return purpose.replace(/_/g, " ");
+}
 
 function getStringParam(value: string | string[] | undefined) {
   return typeof value === "string" ? value : undefined;
@@ -58,23 +76,29 @@ function SummaryCard({
   );
 }
 
-function GroupSection({
+function OverviewSection({
   title,
-  description,
+  emptyText,
   items
 }: {
   title: string;
-  description: string;
-  items: ReactNode[];
+  emptyText: string;
+  items: Array<{ label: string; detail: string }>;
 }) {
   return (
     <section className="rounded-3xl border border-stone-300 bg-white p-8 shadow-sm">
       <h2 className="text-2xl font-semibold text-stone-900">{title}</h2>
-      <p className="mt-2 text-sm text-stone-600">{description}</p>
-      {items.length > 0 ? (
-        <div className="mt-6 space-y-4">{items}</div>
+      {items.length === 0 ? (
+        <p className="mt-4 text-sm text-stone-600">{emptyText}</p>
       ) : (
-        <p className="mt-6 text-sm text-stone-600">No items in this group.</p>
+        <div className="mt-5 space-y-3">
+          {items.map((item) => (
+            <article key={`${title}-${item.label}`} className="rounded-2xl border border-stone-200 bg-stone-50 p-4">
+              <p className="text-sm font-semibold text-stone-900">{item.label}</p>
+              <p className="mt-2 text-sm text-stone-600">{item.detail}</p>
+            </article>
+          ))}
+        </div>
       )}
     </section>
   );
@@ -112,8 +136,13 @@ export default async function EvidenceRetrievalPage({
           </h1>
           <p className="mt-4 max-w-3xl text-sm leading-6 text-stone-600">
             Evidence retrieval is read-only and runs only when a confirmed requirement analysis and
-            an active career profile version are available.
+            the active real Career Knowledge profile are available.
           </p>
+          {!context.latestCareerProfileVersion ? (
+            <p className="mt-3 max-w-3xl text-sm leading-6 text-amber-800">
+              {careerProfileStatusMessage(context.careerProfileSelectionIssue)}
+            </p>
+          ) : null}
           {context.latestConfirmedRequirementAnalysis &&
           context.requirementAnalysisDownstreamReadiness !== "READY" ? (
             <p className="mt-3 max-w-3xl text-sm leading-6 text-amber-800">
@@ -126,7 +155,7 @@ export default async function EvidenceRetrievalPage({
               className="rounded-full border border-stone-300 px-5 py-3 text-sm font-semibold text-stone-700 transition hover:border-stone-950 hover:text-stone-950"
               href={`/job-descriptions/${jobDescriptionVersionId}/requirements`}
             >
-              Back to Requirements
+              Back to Requirement Review
             </Link>
             {ready ? (
               <form
@@ -151,97 +180,52 @@ export default async function EvidenceRetrievalPage({
   }
 
   const { run, result } = await parseStoredEvidenceRetrievalRun(workspace.id, selectedRunId);
-  const requiredItems = result.requirementResults.filter((item) => item.category === "REQUIRED");
-  const preferredItems = result.requirementResults.filter((item) => item.category === "PREFERRED");
-  const contextualItems = result.requirementResults.filter((item) => item.category === "CONTEXTUAL");
-  const responsibilityItems = result.requirementResults.filter((item) => item.itemType === "RESPONSIBILITY");
-  const noCandidateItems = result.requirementResults.filter(
-    (item) => item.coverageState === "NO_CANDIDATES" || item.coverageState === "LIMITED_CANDIDATES"
-  );
-  const excludedItems = result.requirementResults.filter((item) => item.coverageState === "EXCLUDED");
+  const currentScoringRun =
+    scoringContext?.reusableScoringRun?.evidenceRetrievalRunId === run.id
+      ? scoringContext.reusableScoringRun
+      : null;
+  const isFixtureRun = run.careerProfileVersion.source.purpose === "FIXTURE";
+  const allowFixtureScoring = process.env.ALLOW_FIXTURE_CAREER_PROFILE_SELECTION === "1";
+  const isActiveUserProfile = context.latestCareerProfileVersion?.id === run.careerProfileVersionId;
+  const pageModel = buildEvidenceRetrievalPageViewModel(result);
+  const sections = [
+    {
+      id: "required",
+      title: "Required",
+      description: "Highest-priority required requirements, ranked with the strongest evidence first.",
+      items: pageModel.required
+    },
+    {
+      id: "preferred",
+      title: "Preferred",
+      description: "Preferred requirements with direct, related, or restricted support called out explicitly.",
+      items: pageModel.preferred
+    },
+    {
+      id: "contextual",
+      title: "Contextual",
+      description: "Contextual expectations and guidance from the reviewed requirement set.",
+      items: pageModel.contextual
+    },
+    {
+      id: "responsibilities",
+      title: "Responsibilities",
+      description: "Responsibility statements and the strongest retrieved evidence for each one.",
+      items: pageModel.responsibilities
+    },
+    {
+      id: "excluded",
+      title: "Excluded",
+      description: "Traceability for items intentionally kept out of downstream retrieval.",
+      items: pageModel.excluded
+    }
+  ];
 
-  const renderRequirement = (item: (typeof result.requirementResults)[number]) => (
-    <article key={item.requirementId} className="rounded-2xl border border-stone-200 bg-stone-50 p-5">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <p className="text-base font-semibold text-stone-900">
-            {item.correctedDisplayText ?? item.originalText}
-          </p>
-          <p className="mt-1 text-sm text-stone-600">
-            {item.category.replace(/_/g, " ")} • {item.coverageState.replace(/_/g, " ")}
-          </p>
-        </div>
-        <span className="rounded-full border border-stone-300 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-stone-600">
-          {item.candidateEvidence.length} candidates
-        </span>
-      </div>
-      <p className="mt-3 text-sm text-stone-700">Kinds: {item.kinds.join(", ")}</p>
-      <p className="mt-2 text-sm text-stone-700">
-        Technologies: {item.technologies.join(", ") || "None"}
-      </p>
-      {item.diagnostics.length > 0 ? (
-        <div className="mt-4 space-y-2">
-          {item.diagnostics.map((diagnostic) => (
-            <p key={`${item.requirementId}-${diagnostic.code}`} className="text-xs text-stone-600">
-              {diagnostic.severity} • {diagnostic.message}
-            </p>
-          ))}
-        </div>
-      ) : null}
-      {item.candidateEvidence.length > 0 ? (
-        <div className="mt-5 space-y-3">
-          <h3 className="text-sm font-semibold uppercase tracking-[0.2em] text-stone-500">
-            Candidate Evidence
-          </h3>
-          {item.candidateEvidence.map((candidate) => (
-            <article
-              key={candidate.candidateId}
-              className="rounded-2xl border border-stone-200 bg-white p-4"
-            >
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <p className="text-sm font-semibold text-stone-900">{candidate.displayTitle}</p>
-                  <p className="mt-1 text-sm text-stone-600">
-                    {candidate.evidenceType.replace(/_/g, " ")} • {candidate.context} • {candidate.recency}
-                  </p>
-                </div>
-                <span className="rounded-full border border-stone-300 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-stone-600">
-                  {candidate.eligibility.replace(/_/g, " ")}
-                </span>
-              </div>
-              <p className="mt-3 text-sm text-stone-700">{candidate.claimText}</p>
-              <p className="mt-2 text-xs text-stone-600">
-                Retrieved because: {candidate.retrievalReasons.map((reason) => reason.explanation).join(" | ")}
-              </p>
-              <p className="mt-2 text-xs text-stone-600">
-                Technologies: {candidate.technologies.join(", ") || "None"}
-              </p>
-              <p className="mt-2 text-xs text-stone-600">
-                Provenance: {candidate.sourceProvenance.sourceSection} • {candidate.sourceProvenance.sourcePath}
-              </p>
-              {candidate.restrictions.length > 0 ? (
-                <p className="mt-2 text-xs text-amber-700">
-                  Restrictions: {candidate.restrictions.map((item) => item.code).join(", ")}
-                </p>
-              ) : null}
-            </article>
-          ))}
-        </div>
-      ) : null}
-      {item.excludedEvidence.length > 0 ? (
-        <div className="mt-5 space-y-2">
-          <h3 className="text-sm font-semibold uppercase tracking-[0.2em] text-stone-500">
-            Restricted Candidates
-          </h3>
-          {item.excludedEvidence.map((candidate) => (
-            <p key={candidate.candidateId} className="text-sm text-stone-600">
-              {candidate.displayTitle} • {candidate.eligibility.replace(/_/g, " ")}
-            </p>
-          ))}
-        </div>
-      ) : null}
-    </article>
-  );
+  const nextAction = currentScoringRun
+    ? "Review the scored evidence and decide whether the current support is strong enough for this role."
+    : isFixtureRun && !allowFixtureScoring
+      ? "This historical fixture-backed run remains viewable, but it should not drive a real application decision."
+      : "Score the retrieved evidence next to confirm which candidates are strongest and which gaps remain material.";
 
   return (
     <div className="space-y-8">
@@ -249,15 +233,20 @@ export default async function EvidenceRetrievalPage({
 
       <section className="rounded-3xl border border-stone-300 bg-white p-8 shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
+          <div className="space-y-3">
             <p className="text-sm font-medium uppercase tracking-[0.25em] text-stone-500">
-              Candidate evidence
+              Evidence retrieval report
             </p>
-            <h1 className="mt-2 text-4xl font-semibold tracking-tight text-stone-900">
+            <h1 className="text-4xl font-semibold tracking-tight text-stone-900">
               {context.jobDescriptionVersion.opportunity.title}
             </h1>
-            <p className="mt-3 text-base text-stone-600">
+            <p className="text-base text-stone-600">
               {context.jobDescriptionVersion.opportunity.company.name}
+            </p>
+            <p className="max-w-3xl text-sm leading-6 text-stone-600">
+              This retrieval page is a decision-oriented inspection layer over the immutable evidence
+              run. It summarizes what is strongly supported, what is partial or restricted, and
+              what still looks like a genuine gap before scoring.
             </p>
           </div>
           <div className="flex flex-wrap gap-3">
@@ -265,7 +254,7 @@ export default async function EvidenceRetrievalPage({
               className="rounded-full border border-stone-300 px-5 py-3 text-sm font-semibold text-stone-700 transition hover:border-stone-950 hover:text-stone-950"
               href={`/job-descriptions/${jobDescriptionVersionId}/requirements?analysisId=${result.requirementAnalysisId}`}
             >
-              Back to Requirements
+              Back to Requirement Review
             </Link>
             {run.applicationId ? (
               <Link
@@ -275,15 +264,15 @@ export default async function EvidenceRetrievalPage({
                 Open application
               </Link>
             ) : null}
-            {scoringContext?.reusableScoringRun ? (
+            {currentScoringRun ? (
               <Link
                 className="rounded-full border border-stone-300 px-5 py-3 text-sm font-semibold text-stone-700 transition hover:border-stone-950 hover:text-stone-950"
-                href={`/job-descriptions/${jobDescriptionVersionId}/evidence/scores?runId=${scoringContext.reusableScoringRun.id}&retrievalRunId=${run.id}`}
+                href={`/job-descriptions/${jobDescriptionVersionId}/evidence/scores?runId=${currentScoringRun.id}&retrievalRunId=${run.id}`}
               >
                 View Evidence Scores
               </Link>
             ) : null}
-            {run.id ? (
+            {run.id && (!isFixtureRun || allowFixtureScoring) ? (
               <form
                 action={scoreRetrievedEvidenceAction.bind(
                   null,
@@ -303,94 +292,86 @@ export default async function EvidenceRetrievalPage({
           </div>
         </div>
 
-        <div className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <SummaryCard label="Status" value={result.status.replace(/_/g, " ")} />
+        {isFixtureRun ? (
+          <div className="mt-6 rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            This retrieval used fixture Career Knowledge and should not be used for a real application decision.
+          </div>
+        ) : null}
+
+        <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <SummaryCard label="Retrieval status" value={result.status.replace(/_/g, " ")} />
           <SummaryCard
-            label="Career profile"
-            value={run.careerProfileVersion.sourceFilename}
-            detail={run.careerProfileVersion.id}
+            label="Career Knowledge source"
+            value={run.careerProfileVersion.source.filename}
+            detail={`Imported ${run.careerProfileVersion.importedAt.toLocaleDateString("en-US")}`}
           />
           <SummaryCard
-            label="Analysis"
-            value={run.requirementAnalysis.classifierVersion}
-            detail={run.requirementAnalysis.id}
-          />
-          <SummaryCard
-            label="Retrieval versions"
-            value={run.engineVersion}
-            detail={`Contract ${run.contractVersion}`}
-          />
-          <SummaryCard
-            label="Scoring"
+            label="Source version"
             value={
-              scoringContext?.reusableScoringRun
-                ? scoringContext.reusableScoringRun.configurationVersion
-                : "Not scored"
+              run.careerProfileVersion.source.sourceVersion ??
+              run.careerProfileVersion.sourceVersion ??
+              "Unknown"
             }
-            detail={
-              scoringContext?.reusableScoringRun
-                ? `${scoringContext.reusableScoringRun.engineVersion} • Contract ${scoringContext.reusableScoringRun.contractVersion}`
-                : "Run deterministic scoring from this retrieval result."
-            }
+            detail={`Profile purpose ${formatPurpose(run.careerProfileVersion.source.purpose)}`}
           />
-          <SummaryCard label="Required covered" value={result.summary.requiredWithCandidates} />
-          <SummaryCard label="Preferred covered" value={result.summary.preferredWithCandidates} />
-          <SummaryCard label="Gap count" value={result.summary.noCandidateCount} />
           <SummaryCard
-            label="Restricted candidates"
-            value={result.summary.restrictedCandidateCount}
+            label="Current profile"
+            value={isActiveUserProfile ? "Yes" : "No"}
+            detail={isActiveUserProfile ? "Matches the current workspace selection." : "Historical profile snapshot."}
           />
+        </div>
+
+        <div className="mt-6 rounded-2xl border border-stone-200 bg-stone-50 p-4">
+          <p className="text-sm font-semibold text-stone-900">Primary next action</p>
+          <p className="mt-2 text-sm text-stone-700">{nextAction}</p>
         </div>
       </section>
 
       <section className="rounded-3xl border border-stone-300 bg-white p-8 shadow-sm">
-        <h2 className="text-2xl font-semibold text-stone-900">Gap Summary</h2>
-        {noCandidateItems.length > 0 ? (
-          <div className="mt-6 space-y-3">
-            {noCandidateItems.map((item) => (
-              <article key={item.requirementId} className="rounded-2xl border border-stone-200 bg-stone-50 p-4">
-                <p className="text-sm font-semibold text-stone-900">
-                  {item.correctedDisplayText ?? item.originalText}
-                </p>
-                <p className="mt-2 text-sm text-stone-600">
-                  {item.coverageState.replace(/_/g, " ")} • {item.technologies.join(", ") || "No technologies"}
-                </p>
-                <p className="mt-2 text-xs text-stone-600">
-                  Diagnostics: {item.diagnostics.map((diagnostic) => diagnostic.message).join(" | ") || "No additional diagnostics"}
-                </p>
-              </article>
-            ))}
-          </div>
-        ) : (
-          <p className="mt-6 text-sm text-stone-600">No current coverage gaps were reported.</p>
-        )}
+        <h2 className="text-2xl font-semibold text-stone-900">Evidence Summary</h2>
+        <p className="mt-2 text-sm text-stone-600">
+          These are retrieval-level support states, not scoring conclusions. They summarize direct
+          evidence, partial bundle support, restrictions, and genuine gaps without introducing a
+          single percentage score.
+        </p>
+        <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+          <SummaryCard label="Required total" value={pageModel.summary.totalRequired} />
+          <SummaryCard label="Required strong support" value={pageModel.summary.strongRequired} />
+          <SummaryCard label="Required good support" value={pageModel.summary.goodRequired} />
+          <SummaryCard label="Required limited support" value={pageModel.summary.limitedRequired} />
+          <SummaryCard
+            label="Required restricted only"
+            value={pageModel.summary.restrictedOnlyRequired}
+          />
+          <SummaryCard label="Required unmatched" value={pageModel.summary.unmatchedRequired} />
+          <SummaryCard label="Preferred supported" value={pageModel.summary.supportedPreferred} />
+          <SummaryCard label="Preferred partial" value={pageModel.summary.partialPreferred} />
+          <SummaryCard label="Preferred unmatched" value={pageModel.summary.unmatchedPreferred} />
+          <SummaryCard
+            label="Responsibility coverage"
+            value={pageModel.summary.responsibilityCoverageCount}
+          />
+          <SummaryCard
+            label="Restricted candidates"
+            value={pageModel.summary.restrictedCandidateCount}
+          />
+        </div>
       </section>
 
-      <GroupSection
-        title="Required"
-        description="Potentially relevant evidence for required requirements."
-        items={requiredItems.map(renderRequirement)}
-      />
-      <GroupSection
-        title="Preferred"
-        description="Potentially relevant evidence for preferred requirements."
-        items={preferredItems.map(renderRequirement)}
-      />
-      <GroupSection
-        title="Contextual"
-        description="Potentially relevant evidence for contextual requirements."
-        items={contextualItems.map(renderRequirement)}
-      />
-      <GroupSection
-        title="Responsibilities"
-        description="Potentially relevant evidence for included responsibilities."
-        items={responsibilityItems.map(renderRequirement)}
-      />
-      <GroupSection
-        title="Excluded"
-        description="Traceability for items intentionally excluded from downstream matching."
-        items={excludedItems.map(renderRequirement)}
-      />
+      <div className="grid gap-8 xl:grid-cols-2">
+        <OverviewSection
+          title="Strongest Supported Areas"
+          emptyText="No strong or good support areas were identified yet."
+          items={pageModel.strongestAreas}
+        />
+        <OverviewSection
+          title="Largest Evidence Gaps"
+          emptyText="No major retrieval gaps are currently called out."
+          items={pageModel.largestGaps}
+        />
+      </div>
+
+      <EvidenceRequirementExplorer sections={sections} technicalDetails={pageModel.technicalDetails} />
     </div>
   );
 }

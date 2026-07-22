@@ -50,6 +50,19 @@ type ApplicationDetailPageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 };
 
+function careerProfileStatusMessage(issue: string | null | undefined) {
+  switch (issue) {
+    case "FIXTURE_ONLY":
+      return "Import or select a real Career Knowledge profile. Fixture-only profiles do not enable normal evidence retrieval.";
+    case "CURRENT_PROFILE_FIXTURE":
+      return "Select the real Career Knowledge profile before retrieving evidence. Fixture profiles remain historical only.";
+    case "CURRENT_PROFILE_MISSING":
+      return "Select a current real Career Knowledge profile before retrieving evidence.";
+    default:
+      return "Import a real Career Knowledge profile before retrieving evidence.";
+  }
+}
+
 function SuccessBanner({ success }: { success?: string }) {
   const messages: Record<string, string> = {
     created: "Application created successfully.",
@@ -380,6 +393,8 @@ export default async function ApplicationDetailPage({
     latestParse: application.currentJobDescriptionVersion?.parses[0] ?? null,
     latestAnalysis: requirementContext?.latestAnalysis ?? null,
     latestConfirmedAnalysis: requirementContext?.latestConfirmedAnalysis ?? null,
+    careerProfileAvailable: Boolean(retrievalContext?.latestCareerProfileVersion),
+    careerProfileIssue: retrievalContext?.careerProfileSelectionIssue ?? null,
     downstreamReadiness: requirementContext?.latestConfirmedContract?.summary.downstreamReadiness ??
       requirementContext?.latestAnalysisContract?.summary.downstreamReadiness ??
       null,
@@ -1074,8 +1089,8 @@ export default async function ApplicationDetailPage({
                 {retrievalContext?.reusableRun
                   ? `${retrievalContext.reusableRun.engineVersion} â€¢ ${retrievalContext.reusableRun.contractVersion}`
                   : retrievalReady
-                    ? "Ready to retrieve against the active career profile."
-                    : "Requires an active career profile and a confirmed requirement analysis."}
+                    ? "Ready to retrieve against the active real career profile."
+                    : careerProfileStatusMessage(retrievalContext?.careerProfileSelectionIssue)}
               </p>
             </article>
             <article className="rounded-2xl border border-stone-200 bg-stone-50 p-4">

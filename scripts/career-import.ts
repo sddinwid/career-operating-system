@@ -1,4 +1,5 @@
 import process from "node:process";
+import { CareerProfilePurpose } from "@prisma/client";
 import {
   formatCareerImportReport,
   importCareerKnowledge
@@ -13,12 +14,16 @@ function parseArgs(argv: string[]) {
 
   return {
     filePath,
-    dryRun: argv.includes("--dry-run")
+    dryRun: argv.includes("--dry-run"),
+    purpose: argv.includes("--fixture")
+      ? CareerProfilePurpose.FIXTURE
+      : CareerProfilePurpose.USER,
+    setAsCurrent: argv.includes("--no-current") ? false : undefined
   };
 }
 
 async function main() {
-  const { filePath, dryRun } = parseArgs(process.argv.slice(2));
+  const { filePath, dryRun, purpose, setAsCurrent } = parseArgs(process.argv.slice(2));
 
   if (!filePath) {
     console.error("Missing required --file <path> argument.");
@@ -28,7 +33,9 @@ async function main() {
 
   const report = await importCareerKnowledge({
     filePath,
-    dryRun
+    dryRun,
+    purpose,
+    setAsCurrent
   });
 
   console.log(formatCareerImportReport(report));

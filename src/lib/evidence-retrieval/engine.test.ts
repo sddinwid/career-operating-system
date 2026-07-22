@@ -316,4 +316,90 @@ describe("buildEvidenceRetrievalResult", () => {
       expect.arrayContaining(["NOISE_REQUIREMENT_SKIPPED", "EXCLUDED_REQUIREMENT_SKIPPED"])
     );
   });
+
+  it("does not create false domain matches from substring overlap inside familiarity wording", () => {
+    const contract = loadFixtureContract();
+    const analysis = createAnalysis({
+      requirements: [
+        createRequirement({
+          originalText: "Experience or familiarity with audit, assurance, or risk management domains",
+          normalizedText: "experience or familiarity with audit assurance or risk management domains",
+          kinds: ["DOMAIN"],
+          technologies: [],
+          experienceText: null
+        })
+      ]
+    });
+
+    const result = buildEvidenceRetrievalResult({
+      runId: "run-domain",
+      workspaceId: "workspace-1",
+      careerProfileVersion: {
+        id: "career-version-1",
+        checksum: "career-checksum-1",
+        content: toJsonValue(contract)
+      },
+      requirementAnalysisRecord: {
+        id: "analysis-1",
+        jobDescriptionVersionId: "job-description-1",
+        sourceChecksum: "requirement-checksum-1",
+        status: "CONFIRMED",
+        analysis
+      },
+      applicationId: null,
+      createdAt: "2026-07-22T12:00:00.000Z",
+      inputChecksum: "input-checksum-domain"
+    });
+
+    expect(result.requirementResults[0].candidateEvidence).toHaveLength(0);
+    expect(result.requirementResults[0].coverageState).toBe("NO_CANDIDATES");
+  });
+
+  it("matches communication-oriented evidence deterministically without requiring technology overlap", () => {
+    const contract = loadFixtureContract();
+    contract.evidence[0] = {
+      ...contract.evidence[0],
+      claim: "Communicated risks clearly, maintained documentation, and shared decision updates.",
+      themes: ["communication", "documentation"],
+      roleFamilyRelevance: ["stakeholder communication"]
+    };
+    const analysis = createAnalysis({
+      requirements: [
+        createRequirement({
+          originalText: "Clear communication, documentation, and risk updates",
+          normalizedText: "clear communication documentation and risk updates",
+          kinds: ["COMMUNICATION"],
+          technologies: [],
+          experienceText: null
+        })
+      ]
+    });
+
+    const result = buildEvidenceRetrievalResult({
+      runId: "run-communication",
+      workspaceId: "workspace-1",
+      careerProfileVersion: {
+        id: "career-version-1",
+        checksum: "career-checksum-1",
+        content: toJsonValue(contract)
+      },
+      requirementAnalysisRecord: {
+        id: "analysis-1",
+        jobDescriptionVersionId: "job-description-1",
+        sourceChecksum: "requirement-checksum-1",
+        status: "CONFIRMED",
+        analysis
+      },
+      applicationId: null,
+      createdAt: "2026-07-22T12:00:00.000Z",
+      inputChecksum: "input-checksum-communication"
+    });
+
+    expect(result.requirementResults[0].candidateEvidence.length).toBeGreaterThan(0);
+    expect(
+      result.requirementResults[0].candidateEvidence.some((candidate) =>
+        candidate.retrievalReasons.some((reason) => reason.code === "COMMUNICATION_MATCH")
+      )
+    ).toBe(true);
+  });
 });

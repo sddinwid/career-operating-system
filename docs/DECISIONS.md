@@ -62,6 +62,16 @@ The next implementation milestone is a versioned Scott career knowledge contract
 Consequence:
 - job-description parsing, evidence scoring, and document generation depend on a stable career knowledge foundation
 
+## D020 - Workspace current Career Knowledge must be explicit and fixture-aware
+
+Normal browser workflows must resolve Career Knowledge through an explicit workspace current-profile pointer plus source-purpose classification, not by whichever profile import happened last.
+
+Rationale:
+
+- fixture imports are required for automated tests and controlled regression scenarios
+- historical immutable runs must retain their original profile lineage
+- normal evidence retrieval must fail safely when only fixture data is available
+
 ## D014 - Structured resume representation precedes DOCX rendering
 
 The system must produce a deterministic structured resume intermediate representation before building rendering pipelines.
@@ -195,6 +205,16 @@ Consequence:
 - successful retrieval runs can be reused idempotently
 - coverage gaps, restrictions, and diagnostics stay inspectable without mutating source facts
 - later scoring can build on retrieval output rather than recomputing from mutable UI state
+
+## D029 - Evidence Retrieval UX stays presentation-layer only
+
+The July 22, 2026 Evidence Retrieval corrective slice improves summary, ordering, bundle coverage display, duplicate clustering, and progressive disclosure without changing the immutable `EvidenceRetrievalRun` storage model.
+
+Consequence:
+
+- raw immutable retrieval payloads remain the system of record
+- page usability improvements are computed from deterministic read models
+- technical details remain available but are disclosed secondarily instead of rendered as primary content
 ## M4.3 Match Report Decision
 
 Explainable match reporting is stored as `MatchReportRun` so resume-readiness, strengths, gaps, and structured guidance remain immutable, inspectable, and reusable without mutating retrieval or scoring records.

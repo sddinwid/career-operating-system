@@ -94,6 +94,8 @@ Deterministic ordering uses:
 6. verified metric
 7. stable candidate id
 
+The Evidence Retrieval page now uses a lighter retrieval-level display ranking before scoring so the unscored page remains usable. That retrieval ordering does not replace or mutate M4.2 scoring.
+
 ## Idempotency
 
 - successful reruns reuse the latest scoring row when retrieval run, contract version, engine version, and configuration version are identical
