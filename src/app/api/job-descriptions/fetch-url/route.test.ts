@@ -47,6 +47,7 @@ describe("job description fetch-url route", () => {
       pageTitle: "Platform Engineer",
       extractorVersion: "m8.4.0",
       resolverVersion: null,
+      provenance: "STATIC_DOM",
       extractionChecksum: "a".repeat(64),
       extractedText: "Build reliable systems.",
       diagnostics: []
@@ -55,6 +56,12 @@ describe("job description fetch-url route", () => {
     const response = await POST(buildRequest({ url: "https://example.com/jobs/123" }));
 
     expect(response.status).toBe(200);
+    expect(mockFetchJobDescriptionFromUrl).toHaveBeenCalledWith(
+      "https://example.com/jobs/123",
+      {
+        allowRenderedFallback: true
+      }
+    );
     await expect(response.json()).resolves.toMatchObject({
       finalUrl: "https://example.com/jobs/123",
       extractionChecksum: "a".repeat(64)
@@ -89,6 +96,39 @@ describe("job description fetch-url route", () => {
       error: "The fetched page did not contain enough usable job-description text.",
       diagnostics: [expect.objectContaining({ code: "NO_JOB_CONTENT_FOUND" })]
     });
+  });
+
+  it("marks retryable rendered fallback responses explicitly", async () => {
+    mockFetchJobDescriptionFromUrl.mockRejectedValueOnce(
+      new JobDescriptionUrlFetchError(
+        409,
+        "The initial page did not include the job description. Trying the rendered page...",
+        [
+          {
+            code: "RENDERED_FALLBACK_RECOMMENDED",
+            level: "INFO",
+            message:
+              "The initial page did not include the job description. Trying the rendered page..."
+          }
+        ]
+      )
+    );
+
+    const response = await POST(
+      buildRequest({ url: "https://example.com/jobs/123", allowRenderedFallback: false })
+    );
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({
+      retryableWithRenderedFallback: true,
+      diagnostics: [expect.objectContaining({ code: "RENDERED_FALLBACK_RECOMMENDED" })]
+    });
+    expect(mockFetchJobDescriptionFromUrl).toHaveBeenCalledWith(
+      "https://example.com/jobs/123",
+      {
+        allowRenderedFallback: false
+      }
+    );
   });
 
   it("returns a generic browser-facing error for unexpected failures", async () => {

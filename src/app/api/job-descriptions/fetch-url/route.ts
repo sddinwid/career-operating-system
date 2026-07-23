@@ -29,7 +29,9 @@ export async function POST(request: Request) {
   }
 
   try {
-    const result = await fetchJobDescriptionFromUrl(parsed.data.url);
+    const result = await fetchJobDescriptionFromUrl(parsed.data.url, {
+      allowRenderedFallback: parsed.data.allowRenderedFallback
+    });
     const response = jobDescriptionFetchResponseSchema.parse(result);
     return NextResponse.json(response);
   } catch (error) {
@@ -37,7 +39,8 @@ export async function POST(request: Request) {
       return NextResponse.json(
         {
           error: error.message,
-          diagnostics: error.diagnostics
+          diagnostics: error.diagnostics,
+          retryableWithRenderedFallback: error.status === 409
         },
         { status: error.status }
       );

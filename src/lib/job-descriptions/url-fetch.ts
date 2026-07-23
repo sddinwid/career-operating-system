@@ -5,16 +5,21 @@ import { computeJobDescriptionChecksum } from "@/lib/job-descriptions/checksum";
 import { normalizeJobDescriptionText } from "@/lib/job-descriptions/normalize";
 import type {
   JobDescriptionFetchDiagnostic,
+  JobDescriptionFetchProvenance,
   JobDescriptionFetchResponse
 } from "@/lib/job-descriptions/url-fetch-contract";
 
-const EXTRACTOR_VERSION = "m8.4.1";
+const EXTRACTOR_VERSION = "m8.5.0";
 const RESOLVER_VERSION = "m8.4.1";
 const FETCH_TIMEOUT_MS = 12_000;
 const MAX_REDIRECTS = 4;
 const MAX_RESPONSE_BYTES = 3 * 1024 * 1024;
 const MAX_EXTRACTED_TEXT_CHARACTERS = 150_000;
 const MIN_USEFUL_TEXT_CHARACTERS = 300;
+const RENDERED_NAVIGATION_TIMEOUT_MS = 12_000;
+const RENDERED_TOTAL_TIMEOUT_MS = 18_000;
+const RENDERED_STABILIZATION_POLL_MS = 250;
+const RENDERED_STABILIZATION_POLLS = 4;
 const SAFE_USER_AGENT =
   "Career-Operating-System Job Description Fetcher/1.0 (+local-first)";
 const SUPPORTED_CONTENT_TYPES = new Set([
@@ -27,11 +32,16 @@ const ASHBY_PUBLIC_BOARD_PATH_PREFIX = "/posting-api/job-board/";
 const ASHBY_HOSTNAME = "jobs.ashbyhq.com";
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const JOB_KEYWORD_PATTERN =
+  /\b(job|role|responsibilit|qualif|requirement|experience|about|position|skills|what you|you will|you have|benefits)\b/i;
+
+type ExtractionMode = "static" | "rendered";
 
 type HtmlExtractionResult = {
   pageTitle: string | null;
   extractedText: string;
   diagnostics: JobDescriptionFetchDiagnostic[];
+  provenance: JobDescriptionFetchProvenance;
 };
 
 type ResolvedAshbyPosting = {
@@ -43,6 +53,7 @@ type ResolvedAshbyPosting = {
   pageTitle: string;
   extractedText: string;
   diagnostics: JobDescriptionFetchDiagnostic[];
+  provenance: JobDescriptionFetchProvenance;
 };
 
 type AshbyPublicJobPosting = {
@@ -55,6 +66,23 @@ type AshbyPublicJobPosting = {
 
 type AshbyBoardResponse = {
   jobs?: AshbyPublicJobPosting[];
+};
+
+type RenderedPageSnapshot = {
+  finalUrl: string;
+  pageTitle: string | null;
+  html: string;
+};
+
+type FetchJobDescriptionOptions = {
+  allowRenderedFallback?: boolean;
+  renderedPageFetcher?: (targetUrl: URL) => Promise<RenderedPageSnapshot>;
+};
+
+type EmbeddedCandidate = {
+  path: string;
+  score: number;
+  text: string;
 };
 
 export class JobDescriptionUrlFetchError extends Error {
@@ -75,6 +103,44 @@ function createDiagnostic(
   level: JobDescriptionFetchDiagnostic["level"] = "INFO"
 ): JobDescriptionFetchDiagnostic {
   return { code, message, level };
+}
+
+function stripHtmlToText(value: string) {
+  const dom = new JSDOM(`<body>${value}</body>`);
+  return normalizeExtractedText(dom.window.document.body.textContent ?? "");
+}
+
+function normalizeExtractedText(value: string) {
+  return value
+    .replace(/\r/g, "")
+    .replace(/\u00a0/g, " ")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .replace(/[ \t]{2,}/g, " ")
+    .trim();
+}
+
+function truncateExtractedText(
+  extractedText: string,
+  diagnostics: JobDescriptionFetchDiagnostic[]
+) {
+  if (extractedText.length <= MAX_EXTRACTED_TEXT_CHARACTERS) {
+    return {
+      extractedText,
+      diagnostics
+    };
+  }
+
+  return {
+    extractedText: extractedText.slice(0, MAX_EXTRACTED_TEXT_CHARACTERS),
+    diagnostics: diagnostics.concat(
+      createDiagnostic(
+        "TEXT_TRUNCATED",
+        "The extracted text was truncated to the maximum preview size.",
+        "WARNING"
+      )
+    )
+  };
 }
 
 function isUnsafeHostname(hostname: string) {
@@ -161,10 +227,7 @@ function readContentType(header: string | null) {
   return header?.split(";")[0]?.trim().toLowerCase() ?? "application/octet-stream";
 }
 
-async function fetchRemoteUrl(
-  targetUrl: URL,
-  acceptHeader: string
-) {
+async function fetchRemoteUrl(targetUrl: URL, acceptHeader: string) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
 
@@ -218,7 +281,13 @@ async function readBoundedText(response: Response) {
       throw new JobDescriptionUrlFetchError(
         413,
         "The remote response exceeded the size limit.",
-        [createDiagnostic("RESPONSE_SIZE_LIMIT_REACHED", "The remote response exceeded 3 MB.", "ERROR")]
+        [
+          createDiagnostic(
+            "RESPONSE_SIZE_LIMIT_REACHED",
+            "The remote response exceeded 3 MB.",
+            "ERROR"
+          )
+        ]
       );
     }
 
@@ -229,42 +298,8 @@ async function readBoundedText(response: Response) {
   return chunks.join("");
 }
 
-function normalizeExtractedText(value: string) {
-  return value
-    .replace(/\r/g, "")
-    .replace(/[ \t]+\n/g, "\n")
-    .replace(/\n{3,}/g, "\n\n")
-    .replace(/[ \t]{2,}/g, " ")
-    .trim();
-}
-
-function truncateExtractedText(
-  extractedText: string,
-  diagnostics: JobDescriptionFetchDiagnostic[]
-) {
-  if (extractedText.length <= MAX_EXTRACTED_TEXT_CHARACTERS) {
-    return {
-      extractedText,
-      diagnostics
-    };
-  }
-
-  return {
-    extractedText: extractedText.slice(0, MAX_EXTRACTED_TEXT_CHARACTERS),
-    diagnostics: diagnostics.concat(
-      createDiagnostic(
-        "TEXT_TRUNCATED",
-        "The extracted text was truncated to the maximum preview size.",
-        "WARNING"
-      )
-    )
-  };
-}
-
 function extractJobPostingJsonLd(document: Document) {
-  const scripts = Array.from(
-    document.querySelectorAll('script[type="application/ld+json"]')
-  );
+  const scripts = Array.from(document.querySelectorAll('script[type="application/ld+json"]'));
 
   for (const script of scripts) {
     const raw = script.textContent?.trim();
@@ -275,35 +310,27 @@ function extractJobPostingJsonLd(document: Document) {
     try {
       const parsed = JSON.parse(raw) as unknown;
       const values = Array.isArray(parsed) ? parsed : [parsed];
-      const jobPosting = values.find(
-        (value) =>
+
+      for (const value of values) {
+        if (
           typeof value === "object" &&
           value !== null &&
-          ("@type" in value || "@graph" in value)
-      ) as
-        | {
-            "@type"?: string | string[];
-            "@graph"?: unknown[];
-            description?: string;
-          }
-        | undefined;
-
-      const candidates = jobPosting?.["@graph"] && Array.isArray(jobPosting["@graph"])
-        ? jobPosting["@graph"]
-        : values;
-
-      for (const candidate of candidates) {
-        if (
-          typeof candidate === "object" &&
-          candidate !== null &&
-          ("@type" in candidate) &&
-          (candidate as { "@type": string | string[] })["@type"]
+          "@graph" in value &&
+          Array.isArray((value as { "@graph"?: unknown[] })["@graph"])
         ) {
-          const type = (candidate as { "@type": string | string[] })["@type"];
-          const types = Array.isArray(type) ? type : [type];
-          if (types.includes("JobPosting")) {
-            return candidate as Record<string, unknown>;
-          }
+          values.push(...((value as { "@graph": unknown[] })["@graph"]));
+        }
+      }
+
+      for (const candidate of values) {
+        if (typeof candidate !== "object" || candidate === null || !("@type" in candidate)) {
+          continue;
+        }
+
+        const type = (candidate as { "@type"?: string | string[] })["@type"];
+        const types = Array.isArray(type) ? type : [type];
+        if (types.includes("JobPosting")) {
+          return candidate as Record<string, unknown>;
         }
       }
     } catch {
@@ -314,13 +341,252 @@ function extractJobPostingJsonLd(document: Document) {
   return null;
 }
 
-function extractVisibleTextFromHtml(html: string) {
-  const diagnostics: JobDescriptionFetchDiagnostic[] = [];
-  const dom = new JSDOM(html);
-  const { document } = dom.window;
-  const pageTitle = document.querySelector("title")?.textContent?.trim() || null;
-  const jsonLdPosting = extractJobPostingJsonLd(document);
+function readJobPostingField(value: unknown): string {
+  if (typeof value === "string") {
+    return stripHtmlToText(value);
+  }
 
+  if (Array.isArray(value)) {
+    return normalizeExtractedText(
+      value
+        .map((entry) => readJobPostingField(entry))
+        .filter((entry) => entry.length > 0)
+        .join("\n")
+    );
+  }
+
+  if (typeof value === "object" && value !== null) {
+    if ("name" in value && typeof (value as { name?: unknown }).name === "string") {
+      return normalizeExtractedText(String((value as { name: unknown }).name));
+    }
+
+    if ("address" in value) {
+      const nestedAddress = readJobPostingField((value as { address?: unknown }).address);
+      if (nestedAddress) {
+        return nestedAddress;
+      }
+    }
+
+    if (
+      "addressLocality" in value &&
+      typeof (value as { addressLocality?: unknown }).addressLocality === "string"
+    ) {
+      return normalizeExtractedText(String((value as { addressLocality: unknown }).addressLocality));
+    }
+  }
+
+  return "";
+}
+
+function buildStructuredJobText(jobPosting: Record<string, unknown>) {
+  const sections: Array<{ label: string; value: string }> = [];
+  const title = readJobPostingField(jobPosting.title);
+  const company = readJobPostingField(jobPosting.hiringOrganization);
+  const location = readJobPostingField(jobPosting.jobLocation);
+  const employmentType = readJobPostingField(jobPosting.employmentType);
+  const description = readJobPostingField(jobPosting.description);
+  const qualifications = readJobPostingField(jobPosting.qualifications);
+  const responsibilities = readJobPostingField(jobPosting.responsibilities);
+  const experience = readJobPostingField(jobPosting.experienceRequirements);
+  const education = readJobPostingField(jobPosting.educationRequirements);
+  const skills = readJobPostingField(jobPosting.skills);
+  const salary = readJobPostingField(jobPosting.baseSalary);
+
+  if (title) {
+    sections.push({ label: "Title", value: title });
+  }
+  if (company) {
+    sections.push({ label: "Company", value: company });
+  }
+  if (location) {
+    sections.push({ label: "Location", value: location });
+  }
+  if (employmentType) {
+    sections.push({ label: "Employment Type", value: employmentType });
+  }
+  if (description) {
+    sections.push({ label: "Description", value: description });
+  }
+  if (responsibilities) {
+    sections.push({ label: "Responsibilities", value: responsibilities });
+  }
+  if (qualifications) {
+    sections.push({ label: "Qualifications", value: qualifications });
+  }
+  if (experience) {
+    sections.push({ label: "Experience", value: experience });
+  }
+  if (education) {
+    sections.push({ label: "Education", value: education });
+  }
+  if (skills) {
+    sections.push({ label: "Skills", value: skills });
+  }
+  if (salary) {
+    sections.push({ label: "Compensation", value: salary });
+  }
+
+  return normalizeExtractedText(
+    sections.map((section) => `${section.label}\n${section.value}`).join("\n\n")
+  );
+}
+
+function extractMetaDescription(document: Document) {
+  const selectors = [
+    'meta[property="og:description"]',
+    'meta[name="description"]',
+    'meta[name="twitter:description"]'
+  ];
+
+  for (const selector of selectors) {
+    const content = document.querySelector(selector)?.getAttribute("content")?.trim();
+    if (content) {
+      return normalizeExtractedText(content);
+    }
+  }
+
+  return "";
+}
+
+function tryParseJsonValue(raw: string) {
+  const trimmed = raw.trim();
+  if (!trimmed || trimmed.length > 500_000) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(trimmed) as unknown;
+  } catch {
+    return null;
+  }
+}
+
+function extractAssignedJson(raw: string) {
+  const patterns = [
+    /(?:window|self)\.__[A-Z0-9_]+\s*=\s*(\{[\s\S]*\}|\[[\s\S]*\]);?/i,
+    /__NEXT_DATA__\s*=\s*(\{[\s\S]*\}|\[[\s\S]*\]);?/i
+  ];
+
+  for (const pattern of patterns) {
+    const match = raw.match(pattern);
+    if (!match?.[1]) {
+      continue;
+    }
+
+    const parsed = tryParseJsonValue(match[1]);
+    if (parsed !== null) {
+      return parsed;
+    }
+  }
+
+  return null;
+}
+
+function scoreEmbeddedPath(path: string) {
+  let score = 0;
+
+  if (/(description|jobdescription|responsibilit|qualif|requirement|experience|skills|summary|overview|content|body)/i.test(path)) {
+    score += 4;
+  }
+  if (/(title|company|location)/i.test(path)) {
+    score += 2;
+  }
+  if (/(seo|navigation|footer|cookie|legal|social)/i.test(path)) {
+    score -= 5;
+  }
+
+  return score;
+}
+
+function collectEmbeddedCandidates(
+  value: unknown,
+  path: string[],
+  candidates: EmbeddedCandidate[]
+) {
+  if (typeof value === "string") {
+    const normalized = stripHtmlToText(value);
+    if (normalized.length < 18) {
+      return;
+    }
+
+    const joinedPath = path.join(".");
+    const score = scoreEmbeddedPath(joinedPath);
+    const looksRelevant =
+      score > 0 ||
+      normalized.length >= MIN_USEFUL_TEXT_CHARACTERS ||
+      JOB_KEYWORD_PATTERN.test(normalized);
+
+    if (looksRelevant) {
+      candidates.push({
+        path: joinedPath,
+        score,
+        text: normalized
+      });
+    }
+
+    return;
+  }
+
+  if (Array.isArray(value)) {
+    value.forEach((entry, index) => {
+      collectEmbeddedCandidates(entry, path.concat(String(index)), candidates);
+    });
+    return;
+  }
+
+  if (typeof value === "object" && value !== null) {
+    for (const [key, child] of Object.entries(value)) {
+      collectEmbeddedCandidates(child, path.concat(key), candidates);
+    }
+  }
+}
+
+function extractEmbeddedStateText(document: Document) {
+  const parsedValues: unknown[] = [];
+  const scripts = Array.from(document.querySelectorAll("script"));
+
+  for (const script of scripts) {
+    const raw = script.textContent?.trim();
+    if (!raw) {
+      continue;
+    }
+
+    const type = script.getAttribute("type")?.toLowerCase() ?? "";
+    if (type === "application/json" || script.id === "__NEXT_DATA__") {
+      const parsed = tryParseJsonValue(raw);
+      if (parsed !== null) {
+        parsedValues.push(parsed);
+      }
+      continue;
+    }
+
+    const assigned = extractAssignedJson(raw);
+    if (assigned !== null) {
+      parsedValues.push(assigned);
+    }
+  }
+
+  if (parsedValues.length === 0) {
+    return "";
+  }
+
+  const candidates: EmbeddedCandidate[] = [];
+  for (const value of parsedValues) {
+    collectEmbeddedCandidates(value, [], candidates);
+  }
+
+  const unique = Array.from(
+    new Map(
+      candidates
+        .sort((left, right) => right.score - left.score || right.text.length - left.text.length)
+        .map((candidate) => [candidate.text.toLowerCase(), candidate])
+    ).values()
+  );
+
+  return normalizeExtractedText(unique.slice(0, 24).map((candidate) => candidate.text).join("\n\n"));
+}
+
+function removeBoilerplate(document: Document) {
   for (const selector of [
     "script",
     "style",
@@ -329,50 +595,132 @@ function extractVisibleTextFromHtml(html: string) {
     "nav",
     "footer",
     "header",
+    "aside",
+    "form",
+    "dialog",
     "[role='navigation']",
     "[role='dialog']",
+    "[role='complementary']",
     "[data-cookiebanner]",
-    ".cookie",
-    ".cookies",
-    ".modal"
+    "[data-testid*='cookie']",
+    "[class*='cookie']",
+    "[class*='Cookie']",
+    "[class*='modal']",
+    "[class*='Modal']",
+    "[class*='social']",
+    "[class*='Social']",
+    "[class*='share']",
+    "[class*='Share']",
+    "[class*='newsletter']",
+    "[class*='Newsletter']"
   ]) {
     for (const element of Array.from(document.querySelectorAll(selector))) {
       element.remove();
     }
   }
 
-  let extractedText = "";
-
-  if (jsonLdPosting && typeof jsonLdPosting.description === "string") {
-    extractedText = jsonLdPosting.description;
-    diagnostics.push(
-      createDiagnostic(
-        "JSON_LD_JOB_POSTING_USED",
-        "Schema.org JobPosting metadata supplied the primary description."
-      )
-    );
-  } else {
-    const candidate =
-      document.querySelector("main") ??
-      document.querySelector("article") ??
-      document.querySelector("[class*='job']") ??
-      document.querySelector("[id*='job']") ??
-      document.body;
-    extractedText = candidate?.textContent ?? "";
-    diagnostics.push(
-      createDiagnostic(
-        candidate === document.body ? "FALLBACK_BODY_TEXT_USED" : "MAIN_CONTENT_USED",
-        candidate === document.body
-          ? "Visible body text was used because no stronger content container was found."
-          : "The main visible content container was used."
-      )
-    );
+  for (const element of Array.from(document.querySelectorAll("[hidden],[aria-hidden='true']"))) {
+    element.remove();
   }
 
-  const normalized = normalizeExtractedText(extractedText);
-  const lowered = normalized.toLowerCase();
+  for (const element of Array.from(document.querySelectorAll("[style]"))) {
+    const style = (element.getAttribute("style") ?? "").toLowerCase();
+    if (style.includes("display:none") || style.includes("visibility:hidden")) {
+      element.remove();
+    }
+  }
+}
 
-  if (lowered.includes("enable javascript")) {
+function extractNodeTextWithLineBreaks(node: Node): string {
+  if (node.nodeType === node.TEXT_NODE) {
+    return node.textContent ?? "";
+  }
+
+  if (!(node instanceof node.ownerDocument!.defaultView!.HTMLElement)) {
+    return "";
+  }
+
+  const tagName = node.tagName.toLowerCase();
+  if (["script", "style", "noscript"].includes(tagName)) {
+    return "";
+  }
+
+  const childText = Array.from(node.childNodes)
+    .map((child) => extractNodeTextWithLineBreaks(child))
+    .join(tagName === "li" ? "" : " ");
+  const normalizedChildText = normalizeExtractedText(childText);
+
+  if (!normalizedChildText) {
+    return "";
+  }
+
+  if (tagName === "li") {
+    return `- ${normalizedChildText}\n`;
+  }
+
+  if (["p", "div", "section", "article", "main", "ul", "ol", "h1", "h2", "h3", "h4", "h5", "h6", "br"].includes(tagName)) {
+    return `${normalizedChildText}\n\n`;
+  }
+
+  return `${normalizedChildText} `;
+}
+
+function scoreDomCandidate(element: Element) {
+  const text = normalizeExtractedText(extractNodeTextWithLineBreaks(element));
+  const selectorFingerprint = `${element.tagName} ${element.getAttribute("id") ?? ""} ${
+    element.getAttribute("class") ?? ""
+  }`;
+  let score = text.length;
+
+  if (/(job|posting|description|position|opportunity)/i.test(selectorFingerprint)) {
+    score += 600;
+  }
+  if (/(footer|header|nav|menu|social|cookie)/i.test(selectorFingerprint)) {
+    score -= 1000;
+  }
+  if (JOB_KEYWORD_PATTERN.test(text)) {
+    score += 300;
+  }
+
+  return { element, text, score };
+}
+
+function extractDomText(document: Document) {
+  const candidates = [
+    ...Array.from(
+      document.querySelectorAll(
+        [
+          "main",
+          "article",
+          "[role='main']",
+          "[data-testid*='job']",
+          "[class*='job-description']",
+          "[class*='jobDescription']",
+          "[id*='job-description']",
+          "[class*='posting']",
+          "[id*='posting']",
+          "[class*='description']",
+          "[id*='description']"
+        ].join(",")
+      )
+    )
+  ];
+
+  const bestCandidate =
+    candidates.map((element) => scoreDomCandidate(element)).sort((left, right) => right.score - left.score)[0] ??
+    scoreDomCandidate(document.body);
+
+  return normalizeExtractedText(bestCandidate.text);
+}
+
+function addPageDiagnostics(
+  text: string,
+  diagnostics: JobDescriptionFetchDiagnostic[],
+  mode: ExtractionMode
+) {
+  const lowered = text.toLowerCase();
+
+  if (lowered.includes("enable javascript") || lowered.includes("javascript is required")) {
     diagnostics.push(
       createDiagnostic(
         "PAGE_REQUIRES_JAVASCRIPT",
@@ -398,12 +746,89 @@ function extractVisibleTextFromHtml(html: string) {
     );
   }
 
-  const truncated = truncateExtractedText(normalized, diagnostics);
+  if (mode === "rendered" && text.length > 0) {
+    diagnostics.push(
+      createDiagnostic(
+        "RENDERED_FALLBACK_USED",
+        "The rendered page fallback supplied the extracted job-description preview."
+      )
+    );
+  }
+}
 
+function extractVisibleTextFromHtml(html: string, mode: ExtractionMode): HtmlExtractionResult {
+  const diagnostics: JobDescriptionFetchDiagnostic[] = [];
+  const dom = new JSDOM(html);
+  const { document } = dom.window;
+  const pageTitle = document.querySelector("title")?.textContent?.trim() || null;
+  const jsonLdPosting = extractJobPostingJsonLd(document);
+
+  if (jsonLdPosting) {
+    const structuredText = buildStructuredJobText(jsonLdPosting);
+    if (structuredText.length >= MIN_USEFUL_TEXT_CHARACTERS) {
+      diagnostics.push(
+        createDiagnostic(
+          mode === "rendered"
+            ? "RENDERED_JSON_LD_JOB_POSTING_USED"
+            : "JSON_LD_JOB_POSTING_USED",
+          "Schema.org JobPosting metadata supplied the primary description."
+        )
+      );
+      addPageDiagnostics(structuredText, diagnostics, mode);
+      const truncated = truncateExtractedText(structuredText, diagnostics);
+      return {
+        pageTitle,
+        extractedText: truncated.extractedText,
+        diagnostics: truncated.diagnostics,
+        provenance:
+          mode === "rendered" ? "RENDERED_STRUCTURED_DATA" : "STATIC_STRUCTURED_DATA"
+      };
+    }
+  }
+
+  const embeddedStateText = extractEmbeddedStateText(document);
+  if (embeddedStateText.length >= MIN_USEFUL_TEXT_CHARACTERS) {
+    diagnostics.push(
+      createDiagnostic(
+        "EMBEDDED_STATE_USED",
+        "Embedded serialized state supplied the primary description."
+      )
+    );
+    addPageDiagnostics(embeddedStateText, diagnostics, mode);
+    const truncated = truncateExtractedText(embeddedStateText, diagnostics);
+    return {
+      pageTitle,
+      extractedText: truncated.extractedText,
+      diagnostics: truncated.diagnostics,
+      provenance: "EMBEDDED_STATE"
+    };
+  }
+
+  removeBoilerplate(document);
+  const domText = extractDomText(document);
+  const metaDescription = extractMetaDescription(document);
+  const extractedText = domText.length >= metaDescription.length ? domText : metaDescription;
+
+  diagnostics.push(
+    createDiagnostic(
+      extractedText === metaDescription && metaDescription.length > 0
+        ? "META_DESCRIPTION_USED"
+        : mode === "rendered"
+          ? "RENDERED_DOM_USED"
+          : "MAIN_CONTENT_USED",
+      extractedText === metaDescription && metaDescription.length > 0
+        ? "Metadata supplied the primary description because no stronger container was found."
+        : "The visible content container supplied the primary description."
+    )
+  );
+  addPageDiagnostics(extractedText, diagnostics, mode);
+
+  const truncated = truncateExtractedText(extractedText, diagnostics);
   return {
     pageTitle,
     extractedText: truncated.extractedText,
-    diagnostics: truncated.diagnostics
+    diagnostics: truncated.diagnostics,
+    provenance: mode === "rendered" ? "RENDERED_DOM" : "STATIC_DOM"
   };
 }
 
@@ -486,7 +911,13 @@ async function fetchAshbyBoardResponse(boardApiUrl: URL) {
     throw new JobDescriptionUrlFetchError(
       415,
       "The remote content type is not supported.",
-      [createDiagnostic("CONTENT_TYPE_UNSUPPORTED", `Unsupported content type: ${contentType}.`, "ERROR")]
+      [
+        createDiagnostic(
+          "CONTENT_TYPE_UNSUPPORTED",
+          `Unsupported content type: ${contentType}.`,
+          "ERROR"
+        )
+      ]
     );
   }
 
@@ -502,10 +933,7 @@ async function fetchAshbyBoardResponse(boardApiUrl: URL) {
   }
 }
 
-function resolveAshbyJobPosting(
-  boardResponse: AshbyBoardResponse,
-  jobPostingId: string
-) {
+function resolveAshbyJobPosting(boardResponse: AshbyBoardResponse, jobPostingId: string) {
   const jobs = Array.isArray(boardResponse.jobs) ? boardResponse.jobs : [];
   return (
     jobs.find((job) => typeof job.id === "string" && job.id === jobPostingId) ??
@@ -535,7 +963,7 @@ function normalizeAshbyResolvedPosting(
     typeof posting.descriptionPlain === "string" && posting.descriptionPlain.trim().length > 0
       ? posting.descriptionPlain
       : typeof posting.descriptionHtml === "string" && posting.descriptionHtml.trim().length > 0
-        ? extractVisibleTextFromHtml(posting.descriptionHtml).extractedText
+        ? extractVisibleTextFromHtml(posting.descriptionHtml, "static").extractedText
         : "";
 
   const normalizedText = normalizeExtractedText(primaryText);
@@ -666,15 +1094,179 @@ async function maybeResolveAshbyEmbeddedJob(args: {
     contentType: "application/json",
     pageTitle: normalizedPosting.pageTitle,
     extractedText: normalizedPosting.extractedText,
-    diagnostics: normalizedPosting.diagnostics
+    diagnostics: normalizedPosting.diagnostics,
+    provenance: "EMBEDDED_STATE"
   };
 }
 
+function isFallbackEligible(extraction: HtmlExtractionResult) {
+  const codes = new Set(extraction.diagnostics.map((diagnostic) => diagnostic.code));
+
+  if (codes.has("ACCESS_DENIED") || codes.has("CAPTCHA_OR_BOT_CHALLENGE")) {
+    return false;
+  }
+
+  return (
+    extraction.extractedText.length < MIN_USEFUL_TEXT_CHARACTERS ||
+    codes.has("PAGE_REQUIRES_JAVASCRIPT")
+  );
+}
+
+async function stabilizeRenderedPage(page: {
+  evaluate: <T>(pageFunction: () => T | Promise<T>) => Promise<T>;
+  waitForTimeout: (timeout: number) => Promise<void>;
+}) {
+  let previousLength = -1;
+
+  for (let attempt = 0; attempt < RENDERED_STABILIZATION_POLLS; attempt += 1) {
+    const currentLength = await page.evaluate(
+      () => document.body?.innerText.replace(/\s+/g, " ").trim().length ?? 0
+    );
+
+    if (currentLength > 0 && Math.abs(currentLength - previousLength) <= 40) {
+      return;
+    }
+
+    previousLength = currentLength;
+    await page.waitForTimeout(RENDERED_STABILIZATION_POLL_MS);
+  }
+}
+
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, errorFactory: () => Error) {
+  let timeoutHandle: NodeJS.Timeout | undefined;
+
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((_, reject) => {
+        timeoutHandle = setTimeout(() => reject(errorFactory()), timeoutMs);
+      })
+    ]);
+  } finally {
+    if (timeoutHandle) {
+      clearTimeout(timeoutHandle);
+    }
+  }
+}
+
+async function fetchRenderedPage(targetUrl: URL): Promise<RenderedPageSnapshot> {
+  const { chromium } = await import("playwright");
+  const browser = await chromium.launch({
+    headless: true
+  });
+
+  try {
+    return await withTimeout(
+      (async () => {
+        const context = await browser.newContext({
+          acceptDownloads: false,
+          colorScheme: "light",
+          geolocation: undefined,
+          ignoreHTTPSErrors: false,
+          javaScriptEnabled: true,
+          permissions: [],
+          serviceWorkers: "block",
+          userAgent: SAFE_USER_AGENT
+        });
+
+        try {
+          const page = await context.newPage();
+          const popupPages = new Set<string>();
+          context.on("page", async (popupPage) => {
+            if (popupPage !== page) {
+              popupPages.add(popupPage.url());
+              await popupPage.close().catch(() => undefined);
+            }
+          });
+
+          await page.route("**/*", async (route) => {
+            const request = route.request();
+            const requestUrl = new URL(request.url());
+            await assertSafeDestination(requestUrl);
+
+            if (["image", "media", "font"].includes(request.resourceType())) {
+              await route.abort();
+              return;
+            }
+
+            await route.continue();
+          });
+
+          const response = await page.goto(targetUrl.href, {
+            waitUntil: "domcontentloaded",
+            timeout: RENDERED_NAVIGATION_TIMEOUT_MS
+          });
+
+          if (!response) {
+            throw new JobDescriptionUrlFetchError(
+              502,
+              "The remote page could not be fetched.",
+              [createDiagnostic("REMOTE_FETCH_FAILED", "The remote page returned no response.", "ERROR")]
+            );
+          }
+
+          await assertSafeDestination(new URL(page.url()));
+          await stabilizeRenderedPage(page);
+
+          return {
+            finalUrl: page.url(),
+            pageTitle: (await page.title()) || null,
+            html: await page.content()
+          };
+        } finally {
+          await context.close();
+        }
+      })(),
+      RENDERED_TOTAL_TIMEOUT_MS,
+      () =>
+        new JobDescriptionUrlFetchError(408, "The rendered page timed out.", [
+          createDiagnostic("RENDERED_TIMEOUT", "The rendered page timed out.", "ERROR")
+        ])
+    );
+  } finally {
+    await browser.close();
+  }
+}
+
+function buildSuccessResponse(args: {
+  requestedUrl: string;
+  finalUrl: string;
+  resolvedUrl: string | null;
+  status: number;
+  contentType: string;
+  pageTitle: string | null;
+  extractedText: string;
+  diagnostics: JobDescriptionFetchDiagnostic[];
+  provenance: JobDescriptionFetchProvenance;
+  resolverVersion?: string | null;
+}) {
+  return {
+    requestedUrl: args.requestedUrl,
+    finalUrl: args.finalUrl,
+    resolvedUrl: args.resolvedUrl,
+    status: args.status,
+    contentType: args.contentType,
+    retrievedAt: new Date().toISOString(),
+    pageTitle: args.pageTitle,
+    extractorVersion: EXTRACTOR_VERSION,
+    resolverVersion: args.resolverVersion ?? null,
+    provenance: args.provenance,
+    extractionChecksum: computeJobDescriptionChecksum(
+      normalizeJobDescriptionText(args.extractedText)
+    ),
+    extractedText: args.extractedText,
+    diagnostics: args.diagnostics
+  } satisfies JobDescriptionFetchResponse;
+}
+
 export async function fetchJobDescriptionFromUrl(
-  requestedUrl: string
+  requestedUrl: string,
+  options: FetchJobDescriptionOptions = {}
 ): Promise<JobDescriptionFetchResponse> {
   const diagnostics: JobDescriptionFetchDiagnostic[] = [];
   let currentUrl = new URL(requestedUrl);
+  const allowRenderedFallback = options.allowRenderedFallback ?? true;
+  const renderedPageFetcher = options.renderedPageFetcher ?? fetchRenderedPage;
 
   if (currentUrl.pathname.toLowerCase().endsWith(".pdf")) {
     throw new JobDescriptionUrlFetchError(
@@ -717,61 +1309,90 @@ export async function fetchJobDescriptionFromUrl(
       throw new JobDescriptionUrlFetchError(
         415,
         "The remote content type is not supported.",
-        [createDiagnostic("CONTENT_TYPE_UNSUPPORTED", `Unsupported content type: ${contentType}.`, "ERROR")]
+        [
+          createDiagnostic(
+            "CONTENT_TYPE_UNSUPPORTED",
+            `Unsupported content type: ${contentType}.`,
+            "ERROR"
+          )
+        ]
       );
     }
 
     const bodyText = await readBoundedText(response);
-    const extracted =
-      contentType === "text/plain"
-        ? {
-            pageTitle: null,
-            extractedText: normalizeExtractedText(bodyText),
-            diagnostics
-          }
-        : (() => {
-            const htmlExtraction = extractVisibleTextFromHtml(bodyText);
-            const ashbyResolution = maybeResolveAshbyEmbeddedJob({
-              requestedUrl,
-              fetchedUrl: currentUrl,
-              html: bodyText,
-              extraction: htmlExtraction
-            });
-            return {
-              ashbyResolution,
-              pageTitle: htmlExtraction.pageTitle,
-              extractedText: htmlExtraction.extractedText,
-              diagnostics: diagnostics.concat(htmlExtraction.diagnostics)
-            };
-          })();
 
-    if ("ashbyResolution" in extracted) {
-      const resolvedPosting = await extracted.ashbyResolution;
-      if (resolvedPosting) {
-        return {
-          requestedUrl: resolvedPosting.requestedUrl,
-          finalUrl: resolvedPosting.finalUrl,
-          resolvedUrl: resolvedPosting.resolvedUrl,
-          status: resolvedPosting.status,
-          contentType: resolvedPosting.contentType,
-          retrievedAt: new Date().toISOString(),
-          pageTitle: resolvedPosting.pageTitle,
-          extractorVersion: EXTRACTOR_VERSION,
-          resolverVersion: RESOLVER_VERSION,
-          extractionChecksum: computeJobDescriptionChecksum(
-            normalizeJobDescriptionText(resolvedPosting.extractedText)
-          ),
-          extractedText: resolvedPosting.extractedText,
-          diagnostics: resolvedPosting.diagnostics
-        };
+    if (contentType === "text/plain") {
+      const extractedText = normalizeExtractedText(bodyText);
+      if (extractedText.length < MIN_USEFUL_TEXT_CHARACTERS) {
+        throw new JobDescriptionUrlFetchError(
+          422,
+          "The fetched page did not contain enough usable job-description text.",
+          diagnostics.concat(
+            createDiagnostic(
+              "NO_JOB_CONTENT_FOUND",
+              "The fetched page did not contain enough usable job-description text.",
+              "ERROR"
+            )
+          )
+        );
       }
+
+      return buildSuccessResponse({
+        requestedUrl,
+        finalUrl: currentUrl.href,
+        resolvedUrl: null,
+        status: response.status,
+        contentType,
+        pageTitle: null,
+        extractedText,
+        diagnostics,
+        provenance: "STATIC_DOM"
+      });
     }
 
-    if (extracted.extractedText.length < MIN_USEFUL_TEXT_CHARACTERS) {
+    const htmlExtraction = extractVisibleTextFromHtml(bodyText, "static");
+    const ashbyResolution = await maybeResolveAshbyEmbeddedJob({
+      requestedUrl,
+      fetchedUrl: currentUrl,
+      html: bodyText,
+      extraction: htmlExtraction
+    });
+
+    if (ashbyResolution) {
+      return buildSuccessResponse({
+        requestedUrl: ashbyResolution.requestedUrl,
+        finalUrl: ashbyResolution.finalUrl,
+        resolvedUrl: ashbyResolution.resolvedUrl,
+        status: ashbyResolution.status,
+        contentType: ashbyResolution.contentType,
+        pageTitle: ashbyResolution.pageTitle,
+        extractedText: ashbyResolution.extractedText,
+        diagnostics: ashbyResolution.diagnostics,
+        provenance: ashbyResolution.provenance,
+        resolverVersion: RESOLVER_VERSION
+      });
+    }
+
+    const staticDiagnostics = diagnostics.concat(htmlExtraction.diagnostics);
+    if (htmlExtraction.extractedText.length >= MIN_USEFUL_TEXT_CHARACTERS && !isFallbackEligible(htmlExtraction)) {
+      return buildSuccessResponse({
+        requestedUrl,
+        finalUrl: currentUrl.href,
+        resolvedUrl: null,
+        status: response.status,
+        contentType,
+        pageTitle: htmlExtraction.pageTitle,
+        extractedText: htmlExtraction.extractedText,
+        diagnostics: staticDiagnostics,
+        provenance: htmlExtraction.provenance
+      });
+    }
+
+    if (!isFallbackEligible(htmlExtraction)) {
       throw new JobDescriptionUrlFetchError(
         422,
         "The fetched page did not contain enough usable job-description text.",
-        extracted.diagnostics.concat(
+        staticDiagnostics.concat(
           createDiagnostic(
             "NO_JOB_CONTENT_FOUND",
             "The fetched page did not contain enough usable job-description text.",
@@ -781,22 +1402,48 @@ export async function fetchJobDescriptionFromUrl(
       );
     }
 
-    return {
+    if (!allowRenderedFallback) {
+      throw new JobDescriptionUrlFetchError(
+        409,
+        "The initial page did not include the job description. Trying the rendered page...",
+        staticDiagnostics.concat(
+          createDiagnostic(
+            "RENDERED_FALLBACK_RECOMMENDED",
+            "The initial page did not include the job description. Trying the rendered page..."
+          )
+        )
+      );
+    }
+
+    const renderedSnapshot = await renderedPageFetcher(currentUrl);
+    const renderedExtraction = extractVisibleTextFromHtml(renderedSnapshot.html, "rendered");
+    const renderedDiagnostics = staticDiagnostics.concat(renderedExtraction.diagnostics);
+
+    if (renderedExtraction.extractedText.length < MIN_USEFUL_TEXT_CHARACTERS) {
+      throw new JobDescriptionUrlFetchError(
+        422,
+        "We could not extract usable job-description text from this site. Paste the description below to continue.",
+        renderedDiagnostics.concat(
+          createDiagnostic(
+            "NO_JOB_CONTENT_FOUND",
+            "We could not extract usable job-description text from this site.",
+            "ERROR"
+          )
+        )
+      );
+    }
+
+    return buildSuccessResponse({
       requestedUrl,
-      finalUrl: currentUrl.href,
+      finalUrl: renderedSnapshot.finalUrl,
       resolvedUrl: null,
       status: response.status,
       contentType,
-      retrievedAt: new Date().toISOString(),
-      pageTitle: extracted.pageTitle,
-      extractorVersion: EXTRACTOR_VERSION,
-      resolverVersion: null,
-      extractionChecksum: computeJobDescriptionChecksum(
-        normalizeJobDescriptionText(extracted.extractedText)
-      ),
-      extractedText: extracted.extractedText,
-      diagnostics: extracted.diagnostics
-    };
+      pageTitle: renderedSnapshot.pageTitle ?? renderedExtraction.pageTitle,
+      extractedText: renderedExtraction.extractedText,
+      diagnostics: renderedDiagnostics,
+      provenance: renderedExtraction.provenance
+    });
   }
 
   throw new JobDescriptionUrlFetchError(

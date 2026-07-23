@@ -17,6 +17,9 @@ vi.mock("react", async () => {
 
 import { JobDescriptionForm } from "@/components/job-descriptions/job-description-form";
 
+const pasteFallbackMessage =
+  "We could not extract usable job-description text from this site. Paste the description below to continue.";
+
 describe("JobDescriptionForm", () => {
   const originalFetch = global.fetch;
 
@@ -137,6 +140,7 @@ describe("JobDescriptionForm", () => {
           pageTitle: "Senior Engineer",
           extractorVersion: "m8.4.0",
           resolverVersion: "m8.4.1",
+          provenance: "STATIC_STRUCTURED_DATA",
           extractionChecksum: "b".repeat(64),
           extractedText: "Original text",
           diagnostics: [
@@ -191,6 +195,7 @@ describe("JobDescriptionForm", () => {
     expect(screen.getAllByText("Senior Engineer").length).toBeGreaterThan(0);
     expect(screen.getByText("JSON_LD_JOB_POSTING_USED")).toBeVisible();
     expect(screen.getByText("m8.4.1")).toBeVisible();
+    expect(screen.getByText("Static page")).toBeVisible();
     expect(screen.getByText("b".repeat(64))).toBeVisible();
     expect(
       screen.getByText(
@@ -229,6 +234,7 @@ describe("JobDescriptionForm", () => {
             pageTitle: "Senior Engineer",
             extractorVersion: "m8.4.0",
             resolverVersion: null,
+            provenance: "STATIC_DOM",
             extractionChecksum: "c".repeat(64),
             extractedText: "Changed text with more detail",
             diagnostics: []
@@ -284,5 +290,195 @@ describe("JobDescriptionForm", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Paste Text" }));
     expect(screen.queryByText("Requested URL")).not.toBeInTheDocument();
+  });
+
+  it("retries with the rendered page when the static page is a shell and labels the preview provenance", async () => {
+    global.fetch = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            error: "The initial page did not include the job description. Trying the rendered page...",
+            diagnostics: [
+              {
+                code: "RENDERED_FALLBACK_RECOMMENDED",
+                message:
+                  "The initial page did not include the job description. Trying the rendered page..."
+              }
+            ],
+            retryableWithRenderedFallback: true
+          }),
+          {
+            status: 409,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        )
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            requestedUrl: "https://company.example/jobs/1",
+            finalUrl: "https://company.example/jobs/1",
+            resolvedUrl: null,
+            status: 200,
+            contentType: "text/html",
+            retrievedAt: "2026-07-23T12:00:00.000Z",
+            pageTitle: "Senior Engineer",
+            extractorVersion: "m8.5.0",
+            resolverVersion: null,
+            provenance: "RENDERED_DOM",
+            extractionChecksum: "d".repeat(64),
+            extractedText: "Rendered job description with responsibilities and requirements",
+            diagnostics: [
+              {
+                code: "RENDERED_FALLBACK_USED",
+                level: "INFO",
+                message: "The rendered page fallback supplied the extracted job-description preview."
+              }
+            ]
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        )
+      ) as typeof global.fetch;
+
+    render(
+      <JobDescriptionForm
+        action={vi.fn(async () => ({}))}
+        cancelHref="/applications/application-1"
+        careerKnowledgeLabel="Career Knowledge ready"
+        defaultValues={{
+          companyName: "Acme",
+          role: "Senior Engineer",
+          descriptionText: "",
+          sourceUrl: "https://company.example/jobs/1",
+          sourceType: JobDescriptionSourceType.COMPANY_SITE
+        }}
+        initialSourceMode="url"
+        mode="application"
+        pageTitle="Replace job description"
+        pageDescription="Preserve the original text."
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Fetch Job Description" }));
+
+    await waitFor(() =>
+      expect(
+        screen.getByRole("textbox", { name: "Job description text" })
+      ).toHaveValue("Rendered job description with responsibilities and requirements")
+    );
+
+    expect(screen.getByText("Rendered page")).toBeVisible();
+    expect(global.fetch).toHaveBeenNthCalledWith(
+      1,
+      "/api/job-descriptions/fetch-url",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          url: "https://company.example/jobs/1",
+          allowRenderedFallback: false
+        })
+      })
+    );
+    expect(global.fetch).toHaveBeenNthCalledWith(
+      2,
+      "/api/job-descriptions/fetch-url",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          url: "https://company.example/jobs/1",
+          allowRenderedFallback: true
+        })
+      })
+    );
+  });
+
+  it("switches to paste mode when both extraction paths fail and preserves the typed URL", async () => {
+    global.fetch = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            error: "The initial page did not include the job description. Trying the rendered page...",
+            diagnostics: [
+              {
+                code: "RENDERED_FALLBACK_RECOMMENDED",
+                message:
+                  "The initial page did not include the job description. Trying the rendered page..."
+              }
+            ],
+            retryableWithRenderedFallback: true
+          }),
+          {
+            status: 409,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        )
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            error:
+              "We could not extract usable job-description text from this site. Paste the description below to continue.",
+            diagnostics: [
+              {
+                code: "NO_JOB_CONTENT_FOUND",
+                message: "We could not extract usable job-description text from this site."
+              }
+            ]
+          }),
+          {
+            status: 422,
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        )
+      ) as typeof global.fetch;
+
+    render(
+      <JobDescriptionForm
+        action={vi.fn(async () => ({}))}
+        cancelHref="/applications/application-1"
+        careerKnowledgeLabel="Career Knowledge ready"
+        defaultValues={{
+          companyName: "Acme",
+          role: "Senior Engineer",
+          descriptionText: "",
+          sourceUrl: "https://company.example/jobs/1",
+          sourceType: JobDescriptionSourceType.COMPANY_SITE
+        }}
+        initialSourceMode="url"
+        mode="application"
+        pageTitle="Replace job description"
+        pageDescription="Preserve the original text."
+      />
+    );
+
+    fireEvent.change(screen.getByRole("textbox", { name: "Job posting URL" }), {
+      target: { value: "https://company.example/jobs/rendered" }
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Fetch Job Description" }));
+
+    await waitFor(() =>
+      expect(screen.getByText(pasteFallbackMessage)).toBeVisible()
+    );
+
+    expect(screen.getByRole("button", { name: "Import from URL" })).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Fetch Job Description" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Import from URL" }));
+    expect(screen.getByRole("button", { name: "Fetch Job Description" })).toBeVisible();
+    expect(screen.getByRole("textbox", { name: "Job posting URL" })).toHaveValue(
+      "https://company.example/jobs/rendered"
+    );
   });
 });

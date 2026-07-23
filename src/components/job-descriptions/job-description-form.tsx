@@ -57,6 +57,10 @@ type JobDescriptionFormProps = {
 };
 
 const initialState: JobDescriptionFormState = {};
+const RENDERED_PAGE_MESSAGE =
+  "The initial page did not include the job description. Trying the rendered page...";
+const PASTE_FALLBACK_MESSAGE =
+  "We could not extract usable job-description text from this site. Paste the description below to continue.";
 
 function FieldError({
   errors,
@@ -94,6 +98,7 @@ export function JobDescriptionForm({
   const [descriptionText, setDescriptionText] = useState(defaultValues.descriptionText);
   const [fetchPreview, setFetchPreview] = useState<JobDescriptionFetchResponse | null>(null);
   const [fetchError, setFetchError] = useState<string | null>(null);
+  const [fetchStatusMessage, setFetchStatusMessage] = useState<string | null>(null);
   const [isFetching, startFetchTransition] = useTransition();
 
   const serializedDiagnostics = useMemo(
@@ -112,39 +117,101 @@ export function JobDescriptionForm({
 
   const fetchFromUrl = () => {
     setFetchError(null);
+    setFetchStatusMessage("Fetching page...");
 
     startFetchTransition(async () => {
-      const response = await fetch("/api/job-descriptions/fetch-url", {
+      const firstResponse = await fetch("/api/job-descriptions/fetch-url", {
         method: "POST",
         headers: {
           "content-type": "application/json"
         },
-        body: JSON.stringify({ url: urlToFetch })
+        body: JSON.stringify({ url: urlToFetch, allowRenderedFallback: false })
       });
 
-      const payload = (await response.json()) as
+      const firstPayload = (await firstResponse.json()) as
         | JobDescriptionFetchResponse
-        | { error?: string; diagnostics?: Array<{ message: string }> };
+        | {
+            error?: string;
+            diagnostics?: Array<{ message: string }>;
+            retryableWithRenderedFallback?: boolean;
+          };
 
-      if (!response.ok) {
-        const errorMessage =
-          "error" in payload && typeof payload.error === "string" ? payload.error : null;
-        const diagnosticMessage =
-          "diagnostics" in payload && Array.isArray(payload.diagnostics)
-            ? payload.diagnostics[0]?.message
-            : null;
-        setFetchError(errorMessage ?? diagnosticMessage ?? "The job posting could not be fetched.");
-        setFetchPreview(null);
+      if (!firstResponse.ok && "retryableWithRenderedFallback" in firstPayload && firstPayload.retryableWithRenderedFallback) {
+        setFetchStatusMessage(RENDERED_PAGE_MESSAGE);
+
+        const renderedResponse = await fetch("/api/job-descriptions/fetch-url", {
+          method: "POST",
+          headers: {
+            "content-type": "application/json"
+          },
+          body: JSON.stringify({ url: urlToFetch, allowRenderedFallback: true })
+        });
+
+        const renderedPayload = (await renderedResponse.json()) as
+          | JobDescriptionFetchResponse
+          | { error?: string; diagnostics?: Array<{ message: string }> };
+
+        if (!renderedResponse.ok) {
+          const renderedErrorMessage =
+            "error" in renderedPayload && typeof renderedPayload.error === "string"
+              ? renderedPayload.error
+              : null;
+          const renderedDiagnosticMessage =
+            "diagnostics" in renderedPayload && Array.isArray(renderedPayload.diagnostics)
+              ? renderedPayload.diagnostics[0]?.message
+              : null;
+          const nextError =
+            renderedErrorMessage ??
+            renderedDiagnosticMessage ??
+            "The job posting could not be fetched.";
+          setFetchError(nextError);
+          setFetchStatusMessage(null);
+          setFetchPreview(null);
+          if (nextError === PASTE_FALLBACK_MESSAGE) {
+            setSourceMode("paste");
+          }
+          return;
+        }
+
+        const renderedPreview = renderedPayload as JobDescriptionFetchResponse;
+        setFetchPreview(renderedPreview);
+        setDescriptionText(renderedPreview.extractedText);
+        setSourceUrl(renderedPreview.resolvedUrl ?? renderedPreview.finalUrl);
+        if (renderedPreview.pageTitle) {
+          setSourceTitle((currentValue) => currentValue || renderedPreview.pageTitle || "");
+        }
+        setFetchStatusMessage(null);
         return;
       }
 
-      const preview = payload as JobDescriptionFetchResponse;
-        setFetchPreview(preview);
+      if (!firstResponse.ok) {
+        const errorMessage =
+          "error" in firstPayload && typeof firstPayload.error === "string"
+            ? firstPayload.error
+            : null;
+        const diagnosticMessage =
+          "diagnostics" in firstPayload && Array.isArray(firstPayload.diagnostics)
+            ? firstPayload.diagnostics[0]?.message
+            : null;
+        const nextError =
+          errorMessage ?? diagnosticMessage ?? "The job posting could not be fetched.";
+        setFetchError(nextError);
+        setFetchStatusMessage(null);
+        setFetchPreview(null);
+        if (nextError === PASTE_FALLBACK_MESSAGE) {
+          setSourceMode("paste");
+        }
+        return;
+      }
+
+      const preview = firstPayload as JobDescriptionFetchResponse;
+      setFetchPreview(preview);
       setDescriptionText(preview.extractedText);
       setSourceUrl(preview.resolvedUrl ?? preview.finalUrl);
       if (preview.pageTitle) {
         setSourceTitle((currentValue) => currentValue || preview.pageTitle || "");
       }
+      setFetchStatusMessage(null);
     });
   };
 
@@ -289,12 +356,25 @@ export function JobDescriptionForm({
           type="hidden"
           value={fetchPreview?.resolverVersion ?? ""}
         />
+        <input name="fetchedProvenance" type="hidden" value={fetchPreview?.provenance ?? ""} />
         <input
           name="fetchedExtractionChecksum"
           type="hidden"
           value={fetchPreview?.extractionChecksum ?? ""}
         />
         <input name="fetchedDiagnostics" type="hidden" value={serializedDiagnostics} />
+
+        {fetchStatusMessage ? (
+          <div className="mt-6 rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm text-stone-700">
+            {fetchStatusMessage}
+          </div>
+        ) : null}
+
+        {fetchError ? (
+          <div className="mt-6 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {fetchError}
+          </div>
+        ) : null}
 
         {sourceMode === "url" ? (
           <div className="mt-6 space-y-6">
@@ -316,16 +396,14 @@ export function JobDescriptionForm({
                   onClick={fetchFromUrl}
                   type="button"
                 >
-                  {isFetching ? "Fetching..." : fetchPreview ? "Fetch Again" : "Fetch Job Description"}
+                  {isFetching
+                    ? "Fetching page..."
+                    : fetchPreview
+                      ? "Fetch Again"
+                      : "Fetch Job Description"}
                 </button>
               </div>
             </div>
-
-            {fetchError ? (
-              <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                {fetchError}
-              </div>
-            ) : null}
 
             {fetchPreview ? (
               <div className="rounded-2xl border border-stone-200 bg-stone-50 p-5">
@@ -359,6 +437,15 @@ export function JobDescriptionForm({
                   <article>
                     <p className="text-sm font-medium text-stone-500">Extractor version</p>
                     <p className="mt-1 text-sm text-stone-800">{fetchPreview.extractorVersion}</p>
+                  </article>
+                  <article>
+                    <p className="text-sm font-medium text-stone-500">Preview source</p>
+                    <p className="mt-1 text-sm text-stone-800">
+                      {fetchPreview.provenance === "RENDERED_STRUCTURED_DATA" ||
+                      fetchPreview.provenance === "RENDERED_DOM"
+                        ? "Rendered page"
+                        : "Static page"}
+                    </p>
                   </article>
                   <article>
                     <p className="text-sm font-medium text-stone-500">Resolver version</p>

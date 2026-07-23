@@ -49,6 +49,7 @@ const baseJobDescriptionSchema = z.object({
   fetchedPageTitle: z.preprocess(emptyToUndefined, z.string().trim().max(300).optional()),
   fetchedExtractorVersion: z.preprocess(emptyToUndefined, z.string().trim().max(40).optional()),
   fetchedResolverVersion: z.preprocess(emptyToUndefined, z.string().trim().max(40).optional()),
+  fetchedProvenance: z.preprocess(emptyToUndefined, z.string().trim().max(64).optional()),
   fetchedExtractionChecksum: z.preprocess(
     emptyToUndefined,
     z.string().trim().max(128).optional()

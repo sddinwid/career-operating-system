@@ -199,8 +199,9 @@ The same milestone also adds a narrow server-side URL retrieval path:
 ```text
 Browser form
   -> POST /api/job-descriptions/fetch-url
-  -> SSRF-safe bounded fetch
-  -> HTML or plain-text extraction
+  -> SSRF-safe bounded static fetch
+  -> structured-data, embedded-state, or cleaned DOM extraction
+  -> bounded rendered-page fallback when static extraction returns a JS shell or insufficient content
   -> editable preview in browser state
   -> existing save action
   -> immutable JobDescriptionVersion
@@ -209,9 +210,17 @@ Browser form
 Implementation boundaries:
 
 - `src/lib/job-descriptions/url-fetch-contract.ts` defines the request and preview response contract
-- `src/lib/job-descriptions/url-fetch.ts` performs protocol validation, redirect validation, host safety checks, bounded fetching, HTML extraction, and JSON-LD `JobPosting` support
+- `src/lib/job-descriptions/url-fetch.ts` performs protocol validation, redirect validation, host safety checks, bounded fetching, structured extraction, embedded-state parsing, and the isolated rendered fallback
 - `src/app/api/job-descriptions/fetch-url/route.ts` keeps retrieval server-side and returns structured diagnostics to the form
 - `src/components/job-descriptions/job-description-form.tsx` keeps fetched content editable and unsaved until the user explicitly commits it through the existing persistence path
+
+Rendered fallback guardrails:
+
+- the browser context is ephemeral and isolated
+- every navigation request is revalidated against the same public-destination rules
+- downloads, popups, and high-noise resources are blocked
+- the fallback never clicks, submits, signs in, or mutates page state
+- fallback is skipped for blocked destinations, unsupported content, oversized responses, or explicit access-denied and challenge pages
 
 ## Job description deterministic parsing
 
